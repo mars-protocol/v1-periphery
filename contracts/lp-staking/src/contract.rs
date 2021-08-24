@@ -3,8 +3,8 @@ use cosmwasm_std::entry_point;
 use cosmwasm_bignumber::{Decimal256, Uint256};
 
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, WasmMsg,
 };
 
 use crate::msg::{
