@@ -7,17 +7,15 @@ use cosmwasm_bignumber::{Decimal256, Uint256};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub red_bank: String,
-    pub mars_token: String,
-    pub maUST_token: String,
-    pub incentives_contract: String,
+    pub address_provider: Option<String>,
+    pub maUST_token: Option<String>,
     pub init_timestamp: u64,
     pub min_duration: u64,
     pub max_duration: u64,
-    pub borrow_ltv: Decimal256,
     pub denom: String,
     pub multiplier: Decimal256,
-    pub owner: String
+    pub owner: String,
+    pub lockdrop_incentives: Option<Uint256>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -31,12 +29,32 @@ pub enum ExecuteMsg {
     },
     ClaimRewards {
     },
-    BorrowUST {
-        amount: Uint256
-    },
-    RepayUST {
-    }    
+    UpdateConfig {
+        new_config: InstantiateMsg,
+    },    
+    /// Callbacks; only callable by the contract itself.
+    Callback(CallbackMsg),    
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CallbackMsg {
+    UpdateStateOnDeposit {
+        user: Addr,
+        duration: u64,
+        ust_deposited: Uint256,
+        mUST_prev_balance: Uint256
+    },
+    UpdateStateOnWithdraw {
+        user: Addr,
+        duration: u64,
+        mUST_withdrawn: Uint256,
+        prev_ust_balance: Uint256
+    }
+}
+
+
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -16,16 +16,13 @@ pub const LOCKUP_INFO: Map<&[u8], LockupInfo> = Map::new("lockup_position");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub red_bank: Addr,                     
-    pub mars_token: Addr,
-    pub maUST_token: Addr,
-    pub incentives_contract: Addr,
+    pub address_provider: Addr,                 // Address Provider Contract
+    pub maUST_token: Addr,                      // maUST Token :: Minted upon UST deposits into red bank
     pub init_timestamp: u64,                    // Timestamp till when deposits can be made
     pub max_lock_duration: u64,                 // Max no. of days allowed for lockup
     pub min_lock_duration: u64,                 // Min. no. of days allowed for lockup
-    pub borrow_ltv: Decimal256,                 // LTV for Borrowing    
+    pub weekly_multiplier: Decimal256,          // Reward multiplier for each extra day locked
     pub denom: String,                          // "uusd"
-    pub weekly_multiplier: Decimal256           // Reward multiplier for each extra day locked
 }
 
 
@@ -34,10 +31,8 @@ pub struct State {
     pub owner: Addr,
     pub total_UST_locked: Uint256,
     pub total_maUST_locked: Uint256,
-    pub total_UST_borrowed: Uint256,
-    pub global_interest_index: Decimal256,
     pub global_reward_index: Decimal256,
-    pub lockdrop_rewards: Uint256
+    pub lockdrop_incentives: Uint256
 }
 
 
@@ -46,8 +41,6 @@ pub struct State {
 pub struct UserInfo {
     pub total_ust_locked: Uint256,
     pub total_ma_UST_locked: Uint256,               // maUST locked
-    pub ust_borrowed: Uint256,                      // UST borrowed
-    pub interest_index: Decimal256,                 // Interest accrued over borrowed UST  
     pub lockup_positions: Vec<String>
 }
 
@@ -56,8 +49,6 @@ impl Default for UserInfo {
         UserInfo {
             total_ust_locked: Uint256::zero(),
             total_ma_UST_locked: Uint256::zero(),
-            ust_borrowed: Uint256::zero(),
-            interest_index: Decimal256::zero(),
             lockup_positions: vec![]
         }
     }
@@ -73,6 +64,7 @@ pub struct LockupInfo {
     pub reward_index: Decimal256,           // $MARS reward accrued over deposits
     pub pending_reward: Uint256,            // $MARS reward accrued
     pub lockdrop_reward: Uint256,           // $MARS rewarded for Lockdrop
+    pub lockdrop_claimed: bool,
     pub unlock_timestamp: u64,              // Unlock Timestamp
 }
 
@@ -86,6 +78,7 @@ impl Default for LockupInfo {
             reward_index: Decimal256::zero(),
             pending_reward: Uint256::zero(),
             lockdrop_reward: Uint256::zero(),
+            lockdrop_claimed: false,
             unlock_timestamp: 0 as u64,
         }
     }
