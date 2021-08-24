@@ -16,23 +16,23 @@ pub const LOCKUP_INFO: Map<&[u8], LockupInfo> = Map::new("lockup_position");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    pub owner: Addr,
     pub address_provider: Addr,                 // Address Provider Contract
     pub maUST_token: Addr,                      // maUST Token :: Minted upon UST deposits into red bank
     pub init_timestamp: u64,                    // Timestamp till when deposits can be made
-    pub max_lock_duration: u64,                 // Max no. of days allowed for lockup
     pub min_lock_duration: u64,                 // Min. no. of days allowed for lockup
+    pub max_lock_duration: u64,                 // Max no. of days allowed for lockup
     pub weekly_multiplier: Decimal256,          // Reward multiplier for each extra day locked
     pub denom: String,                          // "uusd"
+    pub lockdrop_incentives: Uint256
 }
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub owner: Addr,
     pub total_UST_locked: Uint256,
     pub total_maUST_locked: Uint256,
     pub global_reward_index: Decimal256,
-    pub lockdrop_incentives: Uint256
 }
 
 

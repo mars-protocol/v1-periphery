@@ -1,20 +1,20 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, WasmMsg, StdResult, CosmosMsg, to_binary};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    pub owner: Option<String>,
     pub address_provider: Option<String>,
     pub maUST_token: Option<String>,
-    pub init_timestamp: u64,
-    pub min_duration: u64,
-    pub max_duration: u64,
-    pub denom: String,
-    pub multiplier: Decimal256,
-    pub owner: String,
+    pub init_timestamp: Option<u64>,
+    pub min_duration: Option<u64>,
+    pub max_duration: Option<u64>,
+    pub denom: Option<String>,
+    pub multiplier: Option<Decimal256>,
     pub lockdrop_incentives: Option<Uint256>
 }
 
@@ -53,7 +53,17 @@ pub enum CallbackMsg {
     }
 }
 
-
+// Modified from
+// https://github.com/CosmWasm/cosmwasm-plus/blob/v0.2.3/packages/cw20/src/receiver.rs#L15
+impl CallbackMsg {
+    pub fn to_cosmos_msg(&self, contract_addr: &Addr) -> StdResult<CosmosMsg> {
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: String::from(contract_addr),
+            msg: to_binary(&ExecuteMsg::Callback(self.clone()))?,
+            funds: vec![],
+        }))
+    }
+}
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
