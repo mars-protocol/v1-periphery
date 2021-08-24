@@ -1,7 +1,7 @@
 pub mod msg {
     use crate::asset::{Asset, AssetType};
-    use cosmwasm_bignumber::{Decimal256, Uint256};
-    use cosmwasm_std::{Addr, Uint128};
+    use crate::interest_rate_models::InterestRateStrategy;
+    use cosmwasm_std::{Addr, Decimal, Uint128};
     use cw20::Cw20ReceiveMsg;
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};
@@ -15,10 +15,10 @@ pub mod msg {
     pub struct CreateOrUpdateConfig {
         pub owner: Option<String>,
         pub address_provider_address: Option<String>,
-        pub insurance_fund_fee_share: Option<Decimal256>,
-        pub treasury_fee_share: Option<Decimal256>,
+        pub insurance_fund_fee_share: Option<Decimal>,
+        pub treasury_fee_share: Option<Decimal>,
         pub ma_token_code_id: Option<u64>,
-        pub close_factor: Option<Decimal256>,
+        pub close_factor: Option<Decimal>,
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -62,7 +62,7 @@ pub mod msg {
         Borrow {
             /// Denom used in Terra (e.g: uluna, uusd)
             asset: Asset,
-            amount: Uint256,
+            amount: Uint128,
         },
 
         /// Repay Terra native coins loan
@@ -108,13 +108,13 @@ pub mod msg {
             /// Asset market fees to distribute
             asset: Asset,
             /// Amount to distribute to protocol contracts, defaults to full amount if not specified
-            amount: Option<Uint256>,
+            amount: Option<Uint128>,
         },
 
         /// Withdraw asset
         Withdraw {
             asset: Asset,
-            amount: Option<Uint256>,
+            amount: Option<Uint128>,
         },
     }
 
@@ -142,11 +142,32 @@ pub mod msg {
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
         Config {},
-        Market { asset: Asset },
+        Market {
+            asset: Asset,
+        },
         MarketsList {},
-        Debt { address: String },
-        UncollateralizedLoanLimit { user_address: String, asset: Asset },
-        Collateral { address: String },
+        Debt {
+            address: String,
+        },
+        UncollateralizedLoanLimit {
+            user_address: String,
+            asset: Asset,
+        },
+        Collateral {
+            address: String,
+        },
+        ScaledLiquidityAmount {
+            asset: Asset,
+            amount: Uint128,
+        },
+        ScaledDebtAmount {
+            asset: Asset,
+            amount: Uint128,
+        },
+        DescaledLiquidityAmount {
+            ma_token_address: String,
+            amount: Uint128,
+        },
     }
 
     // We define a custom struct for each query response
@@ -154,26 +175,26 @@ pub mod msg {
     pub struct ConfigResponse {
         pub owner: Addr,
         pub address_provider_address: Addr,
-        pub insurance_fund_fee_share: Decimal256,
-        pub treasury_fee_share: Decimal256,
+        pub insurance_fund_fee_share: Decimal,
+        pub treasury_fee_share: Decimal,
         pub ma_token_code_id: u64,
         pub market_count: u32,
-        pub close_factor: Decimal256,
+        pub close_factor: Decimal,
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct MarketResponse {
         pub ma_token_address: Addr,
-        pub borrow_index: Decimal256,
-        pub liquidity_index: Decimal256,
-        pub borrow_rate: Decimal256,
-        pub liquidity_rate: Decimal256,
-        pub max_loan_to_value: Decimal256,
+        pub borrow_index: Decimal,
+        pub liquidity_index: Decimal,
+        pub borrow_rate: Decimal,
+        pub liquidity_rate: Decimal,
+        pub max_loan_to_value: Decimal,
         pub interests_last_updated: u64,
-        pub debt_total_scaled: Uint256,
+        pub debt_total_scaled: Uint128,
         pub asset_type: AssetType,
-        pub maintenance_margin: Decimal256,
-        pub liquidation_bonus: Decimal256,
+        pub maintenance_margin: Decimal,
+        pub liquidation_bonus: Decimal,
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -195,7 +216,7 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct DebtInfo {
         pub denom: String,
-        pub amount: Uint256,
+        pub amount: Uint128,
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -214,33 +235,24 @@ pub mod msg {
         pub limit: Uint128,
     }
 
-    /// We currently take no arguments for migrations
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct MigrateMsg {}
+    pub struct AmountResponse {
+        pub amount: Uint128,
+    }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct InitOrUpdateAssetParams {
         /// Initial borrow rate
-        pub initial_borrow_rate: Option<Decimal256>,
-        /// Min borrow rate
-        pub min_borrow_rate: Option<Decimal256>,
-        /// Max borrow rate
-        pub max_borrow_rate: Option<Decimal256>,
+        pub initial_borrow_rate: Option<Decimal>,
         /// Max percentage of collateral that can be borrowed
-        pub max_loan_to_value: Option<Decimal256>,
+        pub max_loan_to_value: Option<Decimal>,
         /// Portion of the borrow rate that is sent to the treasury, insurance fund, and rewards
-        pub reserve_factor: Option<Decimal256>,
+        pub reserve_factor: Option<Decimal>,
         /// Percentage at which the loan is defined as under-collateralized
-        pub maintenance_margin: Option<Decimal256>,
+        pub maintenance_margin: Option<Decimal>,
         /// Bonus on the price of assets of the collateral when liquidators purchase it
-        pub liquidation_bonus: Option<Decimal256>,
-        /// Proportional parameter for the PID controller
-        pub kp_1: Option<Decimal256>,
-        /// Optimal utilization
-        pub optimal_utilization_rate: Option<Decimal256>,
-        /// Min error that triggers Kp augmentation
-        pub kp_augmentation_threshold: Option<Decimal256>,
-        /// Kp value when error threshold is exceeded
-        pub kp_2: Option<Decimal256>,
+        pub liquidation_bonus: Option<Decimal>,
+        /// Interest rate strategy to calculate borrow_rate and liquidity_rate
+        pub interest_rate_strategy: Option<InterestRateStrategy>,
     }
 }

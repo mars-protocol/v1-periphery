@@ -1,7 +1,7 @@
 use crate::helpers::cw20_get_balance;
 use cosmwasm_std::{
     attr, to_binary, Addr, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, Response, StdError,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use terraswap::asset::{Asset as TerraswapAsset, AssetInfo, PairInfo};
@@ -12,76 +12,83 @@ use terraswap::querier::query_pair_info;
 // TODO: AssetInfo will contain unverified Addrs (as they come from user input). This is probably
 // not an issue as we are not transfering to that address and the transaction will fail if the
 // address is non existing. Check if this has a problem besdes the pair query failing. If there is we should verify the addresses. If there isn't just leave as is.
-// pub fn execute_swap(
-//     deps: DepsMut,
-//     env: Env,
-//     offer_asset_info: AssetInfo,
-//     ask_asset_info: AssetInfo,
-//     amount: Option<Uint128>,
-//     terraswap_factory_addr: Addr,
-//     terraswap_max_spread: Option<Decimal>,
-// ) -> StdResult<Response> {
-//     // Having the same asset as offer and ask asset doesn't make any sense
-//     if offer_asset_info == ask_asset_info {
-//         return Err(StdError::generic_err(format!(
-//             "Cannot swap an asset into itself. Both offer and ask assets were specified as {}",
-//             offer_asset_info
-//         )));
-//     }
+pub fn execute_swap(
+    deps: DepsMut,
+    env: Env,
+    offer_asset_info: AssetInfo,
+    ask_asset_info: AssetInfo,
+    amount: Option<Uint128>,
+    terraswap_factory_addr: Addr,
+    terraswap_max_spread: Option<Decimal>,
+) -> StdResult<Response> {
+    // Having the same asset as offer and ask asset doesn't make any sense
+    if offer_asset_info == ask_asset_info {
+        return Err(StdError::generic_err(format!(
+            "Cannot swap an asset into itself. Both offer and ask assets were specified as {}",
+            offer_asset_info
+        )));
+    }
 
-//     let (contract_asset_balance, asset_label) = match offer_asset_info.clone() {
-//         AssetInfo::NativeToken { denom } => (
-//             deps.querier
-//                 .query_balance(env.contract.address, denom.as_str())?
-//                 .amount,
-//             denom,
-//         ),
-//         AssetInfo::Token { contract_addr } => {
-//             let asset_label = String::from(contract_addr.as_str());
-//             (
-//                 cw20_get_balance(&deps.querier, deps.api.addr_validate(&contract_addr)?, env.contract.address)?,
-//                 asset_label,
-//             )
-//         }
-//     };
+    let (contract_asset_balance, asset_label) = match offer_asset_info.clone() {
+        AssetInfo::NativeToken { denom } => (
+            deps.querier
+                .query_balance(env.contract.address, denom.as_str())?
+                .amount,
+            denom,
+        ),
+        AssetInfo::Token { contract_addr } => {
+            let asset_label = String::from(contract_addr.as_str());
+            (
+                cw20_get_balance(
+                    &deps.querier,
+                    deps.api.addr_validate(&contract_addr)?,
+                    env.contract.address,
+                )?,
+                asset_label,
+            )
+        }
+    };
 
-//     if contract_asset_balance.is_zero() {
-//         return Err(StdError::generic_err(format!(
-//             "Contract has no balance for the asset {}",
-//             asset_label
-//         )));
-//     }
+    if contract_asset_balance.is_zero() {
+        return Err(StdError::generic_err(format!(
+            "Contract has no balance for the asset {}",
+            asset_label
+        )));
+    }
 
-//     let amount_to_swap = match amount {
-//         Some(amount) if amount > contract_asset_balance => {
-//             return Err(StdError::generic_err(format!(
-//                 "The amount requested for swap exceeds contract balance for the asset {}",
-//                 asset_label
-//             )));
-//         }
-//         Some(amount) => amount,
-//         None => contract_asset_balance,
-//     };
+    let amount_to_swap = match amount {
+        Some(amount) if amount > contract_asset_balance => {
+            return Err(StdError::generic_err(format!(
+                "The amount requested for swap exceeds contract balance for the asset {}",
+                asset_label
+            )));
+        }
+        Some(amount) => amount,
+        None => contract_asset_balance,
+    };
 
-//     let pair_info: PairInfo = query_pair_info(
-//         &deps.querier,
-//         terraswap_factory_addr,
-//         &[offer_asset_info.clone(), ask_asset_info],
-//     )?;
+    let pair_info: PairInfo = query_pair_info(
+        &deps.querier,
+        terraswap_factory_addr,
+        &[offer_asset_info.clone(), ask_asset_info],
+    )?;
 
-//     let offer_asset = TerraswapAsset {
-//         info: offer_asset_info,
-//         amount: amount_to_swap,
-//     };
-//     let send_msg = asset_into_swap_msg(deps.api.addr_validate(&pair_info.contract_addr)?, offer_asset, terraswap_max_spread)?;
+    let offer_asset = TerraswapAsset {
+        info: offer_asset_info,
+        amount: amount_to_swap,
+    };
+    let send_msg = asset_into_swap_msg(
+        deps.api.addr_validate(&pair_info.contract_addr)?,
+        offer_asset,
+        terraswap_max_spread,
+    )?;
 
-//     Ok(Response {
-//         messages: vec![SubMsg::new(send_msg)],
-//         attributes: vec![attr("action", "swap"), attr("asset", asset_label)],
-//         events: vec![],
-//         data: None,
-//     })
-// }
+    let response = Response::new()
+        .add_message(send_msg)
+        .add_attributes(vec![attr("action", "swap"), attr("asset", asset_label)]);
+
+    Ok(response)
+}
 
 /// Construct terraswap message in order to swap assets
 fn asset_into_swap_msg(
@@ -104,7 +111,7 @@ fn asset_into_swap_msg(
             }],
         }),
         AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: contract_addr.to_string(),
+            contract_addr,
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair_contract.to_string(),
                 amount: offer_asset.amount,
@@ -128,6 +135,7 @@ mod tests {
         assert_generic_error_message, mock_dependencies, mock_env, MockEnvParams,
     };
     use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
+    use cosmwasm_std::SubMsg;
 
     #[test]
     fn test_cannot_swap_same_assets() {
@@ -138,7 +146,7 @@ mod tests {
             (
                 "somecoin_addr",
                 AssetInfo::Token {
-                    contract_addr: Addr::unchecked("somecoin_addr"),
+                    contract_addr: String::from("somecoin_addr"),
                 },
             ),
             (
@@ -177,7 +185,7 @@ mod tests {
         );
 
         let offer_asset_info = AssetInfo::Token {
-            contract_addr: cw20_contract_address,
+            contract_addr: cw20_contract_address.to_string(),
         };
         let ask_asset_info = AssetInfo::NativeToken {
             denom: "uusd".to_string(),
@@ -207,7 +215,7 @@ mod tests {
             denom: "somecoin".to_string(),
         };
         let ask_asset_info = AssetInfo::Token {
-            contract_addr: Addr::unchecked("cw20_token"),
+            contract_addr: String::from("cw20_token"),
         };
 
         let response = execute_swap(
@@ -238,16 +246,16 @@ mod tests {
         );
 
         let offer_asset_info = AssetInfo::Token {
-            contract_addr: cw20_contract_address.clone(),
+            contract_addr: cw20_contract_address.to_string(),
         };
         let ask_asset_info = AssetInfo::Token {
-            contract_addr: Addr::unchecked("mars"),
+            contract_addr: String::from("mars"),
         };
 
         deps.querier.set_terraswap_pair(PairInfo {
             asset_infos: [offer_asset_info.clone(), ask_asset_info.clone()],
-            contract_addr: Addr::unchecked("pair_cw20_mars"),
-            liquidity_token: Addr::unchecked("lp_cw20_mars"),
+            contract_addr: String::from("pair_cw20_mars"),
+            liquidity_token: String::from("lp_cw20_mars"),
         });
 
         let res = execute_swap(
@@ -271,7 +279,7 @@ mod tests {
                     msg: to_binary(&TerraswapPairExecuteMsg::Swap {
                         offer_asset: TerraswapAsset {
                             info: AssetInfo::Token {
-                                contract_addr: cw20_contract_address.clone(),
+                                contract_addr: cw20_contract_address.to_string(),
                             },
                             amount: Uint128::new(999),
                         },
@@ -308,13 +316,13 @@ mod tests {
             denom: "uusd".to_string(),
         };
         let ask_asset_info = AssetInfo::Token {
-            contract_addr: Addr::unchecked("mars"),
+            contract_addr: String::from("mars"),
         };
 
         deps.querier.set_terraswap_pair(PairInfo {
             asset_infos: [offer_asset_info.clone(), ask_asset_info.clone()],
-            contract_addr: Addr::unchecked("pair_uusd_mars"),
-            liquidity_token: Addr::unchecked("lp_uusd_mars"),
+            contract_addr: String::from("pair_uusd_mars"),
+            liquidity_token: String::from("lp_uusd_mars"),
         });
 
         let res = execute_swap(

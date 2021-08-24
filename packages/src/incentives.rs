@@ -52,7 +52,9 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
+        /// Query contract config
         Config {},
+
         /// Query info about asset incentive for a given ma_token
         AssetIncentive { ma_token_address: String },
 
@@ -65,8 +67,4 @@ pub mod msg {
     pub struct ConfigResponse {
         pub owner: Addr,
     }
-
-    /// We currently take no arguments for migrations
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct MigrateMsg {}
 }
