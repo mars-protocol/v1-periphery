@@ -24,8 +24,8 @@ pub fn instantiate( deps: DepsMut,_env: Env,info: MessageInfo,msg: InstantiateMs
 
     let config = Config {
         owner: option_string_to_addr(deps.api, msg.owner, zero_address())?,
-        address_provider: zero_address(),
-        maUST_token: zero_address(),
+        address_provider: option_string_to_addr(deps.api, msg.address_provider, zero_address())?, 
+        maUST_token: option_string_to_addr(deps.api, msg.maUST_token, zero_address())?, 
         init_timestamp: msg.init_timestamp.unwrap_or(0 as u64) ,
         min_lock_duration: msg.min_duration.unwrap_or(0 as u64) ,
         max_lock_duration: msg.max_duration.unwrap_or(0 as u64) ,
