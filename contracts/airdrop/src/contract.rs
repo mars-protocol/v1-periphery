@@ -34,8 +34,8 @@ pub fn instantiate(
     }
 
     let config = Config {
-        mars_address: deps.api.addr_validate(&msg.mars_address)?,
-        admin: deps.api.addr_validate(&msg.admin)?,
+        mars_token_address: deps.api.addr_validate(&msg.mars_token_address)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         terra_merkle_roots: msg.terra_merkle_roots,
         evm_merkle_roots: msg.evm_merkle_roots,
         till_timestamp: msg.till_timestamp,
@@ -60,9 +60,9 @@ pub fn execute(
         ExecuteMsg::UpdateEvmMerkleRoots { 
             merkle_roots 
         }  => update_evm_merkle_roots(deps, env, info,  merkle_roots),
-        ExecuteMsg::UpdateAdmin { 
-            new_admin 
-        }  => handle_update_admin(deps, env, info,  new_admin),
+        ExecuteMsg::Updateowner { 
+            new_owner 
+        }  => handle_update_owner(deps, env, info,  new_owner),
         ExecuteMsg::UpdateClaimDuration { 
             new_timestamp 
         }  => handle_update_claim_duration(deps, env, info,  new_timestamp),
@@ -145,7 +145,7 @@ pub fn handle_terra_user_claim(
 
     // AIRDROP: CLAIM AMOUNT TRANSFERRED
     let message_ = WasmMsg::Execute {
-        contract_addr: config.mars_address.to_string(),
+        contract_addr: config.mars_token_address.to_string(),
         funds: vec![],
         msg: to_binary(&CW20ExecuteMsg::Transfer {
             recipient: user_account.to_string(),
@@ -210,7 +210,7 @@ pub fn handle_evm_user_claim(
 
     // AIRDROP: CLAIM AMOUNT TRANSFERRED
     let message_ = WasmMsg::Execute {
-        contract_addr: config.mars_address.to_string(),
+        contract_addr: config.mars_token_address.to_string(),
         funds: vec![],
         msg: to_binary(&CW20ExecuteMsg::Transfer {
             recipient: recepient_account.to_string(),
@@ -243,9 +243,9 @@ pub fn update_terra_merkle_roots(
 
     let mut config = CONFIG.load(deps.storage)?;
 
-    // ADMIN RESTRICTION CHECK
-    if info.sender != config.admin {
-        return Err(StdError::generic_err("Sender not admin!"));        
+    // owner RESTRICTION CHECK
+    if info.sender != config.owner {
+        return Err(StdError::generic_err("Sender not owner!"));        
     }
 
     config.terra_merkle_roots = merkle_roots;
@@ -270,9 +270,9 @@ pub fn update_evm_merkle_roots(
 
     let mut config = CONFIG.load(deps.storage)?;
 
-    // ADMIN RESTRICTION CHECK
-    if info.sender != config.admin {
-        return Err(StdError::generic_err("Sender not admin!"));        
+    // owner RESTRICTION CHECK
+    if info.sender != config.owner {
+        return Err(StdError::generic_err("Sender not owner!"));        
     }
 
     config.evm_merkle_roots = merkle_roots;
@@ -285,29 +285,29 @@ pub fn update_evm_merkle_roots(
 }
 
 
-/// @dev Updates the Admin
-/// @param new_admin New Admin address
-pub fn handle_update_admin( 
+/// @dev Updates the owner
+/// @param new_owner New owner address
+pub fn handle_update_owner( 
     deps: DepsMut, 
     _env: Env, 
     info: MessageInfo,
-    new_admin: String 
+    new_owner: String 
 ) -> Result<Response, StdError> {
 
     let mut config = CONFIG.load(deps.storage)?; 
 
-    // ADMIN RESTRICTION CHECK
-    if info.sender != config.admin {
-        return Err(StdError::generic_err("Sender not admin!"));        
+    // owner RESTRICTION CHECK
+    if info.sender != config.owner {
+        return Err(StdError::generic_err("Sender not owner!"));        
     }
     
-    config.admin = deps.api.addr_validate(&new_admin)?;
+    config.owner = deps.api.addr_validate(&new_owner)?;
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()        
     .add_attributes(vec![
-        attr("action", "UpdateAdmin"),
-        attr("new_admin", new_admin.to_string() ),
+        attr("action", "Updateowner"),
+        attr("new_owner", new_owner.to_string() ),
     ]))
 }
 
@@ -323,9 +323,9 @@ pub fn handle_update_claim_duration(
     
     let mut config = CONFIG.load(deps.storage)?; 
 
-    // ADMIN RESTRICTION CHECK
-    if info.sender != config.admin {
-        return Err(StdError::generic_err("Sender not admin!"));        
+    // owner RESTRICTION CHECK
+    if info.sender != config.owner {
+        return Err(StdError::generic_err("Sender not owner!"));        
     }
 
     if new_timestamp <= config.till_timestamp {
@@ -358,13 +358,13 @@ pub fn handle_transfer_mars(
 
     let config = CONFIG.load(deps.storage)?;
 
-    // ADMIN RESTRICTION CHECK
-    if info.sender != config.admin {
+    // owner RESTRICTION CHECK
+    if info.sender != config.owner {
         return Err(StdError::generic_err("Sender not authorized!"));        
     }
 
     let message_ = WasmMsg::Execute {
-        contract_addr: config.mars_address.to_string(),
+        contract_addr: config.mars_token_address.to_string(),
         funds: vec![],
         msg: to_binary(&CW20ExecuteMsg::Transfer {
             recipient: recepient.clone(),
@@ -395,8 +395,8 @@ pub fn handle_transfer_mars(
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse { 
-        mars_address: config.mars_address.to_string(),
-        admin: config.admin.to_string(),
+        mars_token_address: config.mars_token_address.to_string(),
+        owner: config.owner.to_string(),
         terra_merkle_roots: config.terra_merkle_roots, 
         evm_merkle_roots: config.evm_merkle_roots, 
         till_timestamp: config.till_timestamp
@@ -539,8 +539,8 @@ mod tests {
         let init_timestamp = 1_000_000_000;
 
         let msg = InstantiateMsg {
-            mars_address: "mars_token_contract".to_string(),
-            admin: "admin_address".to_string(),
+            mars_token_address: "mars_token_contract".to_string(),
+            owner: "owner_address".to_string(),
             till_timestamp: init_timestamp + 1000,
             terra_merkle_roots: terra_merkle_roots.clone(),
             evm_merkle_roots: evm_merkle_roots.clone() 
@@ -559,14 +559,14 @@ mod tests {
         // it worked, let's query the state
         let res = query(deps.as_ref(), QueryMsg::Config {}).unwrap();
         let value: ConfigResponse = from_binary(&res).unwrap();
-        assert_eq!("mars_token_contract".to_string(), value.mars_address);
-        assert_eq!("admin_address".to_string(), value.admin);
+        assert_eq!("mars_token_contract".to_string(), value.mars_token_address);
+        assert_eq!("owner_address".to_string(), value.owner);
         assert_eq!(terra_merkle_roots.clone(), value.terra_merkle_roots);
         assert_eq!(evm_merkle_roots.clone(), value.evm_merkle_roots);
     }
 
     #[test]
-    fn test_update_admin() {
+    fn test_update_owner() {
 
         let mut deps = mock_dependencies(&[]);
 
@@ -576,14 +576,14 @@ mod tests {
         let init_timestamp = 1_000_000_000;
 
         let msg = InstantiateMsg {
-            mars_address: "mars_token_contract".to_string(),
-            admin: "admin_address".to_string(),
+            mars_token_address: "mars_token_contract".to_string(),
+            owner: "owner_address".to_string(),
             till_timestamp: init_timestamp + 1000,
             terra_merkle_roots: terra_merkle_roots.clone(),
             evm_merkle_roots: evm_merkle_roots.clone() 
         };
 
-        let info = mock_info("admin_address", &[]);
+        let info = mock_info("owner_address", &[]);
         let env = mock_env_custom(MockEnvParams {
             block_time: Timestamp::from_seconds(init_timestamp),
             ..Default::default()
@@ -593,21 +593,21 @@ mod tests {
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
         assert_eq!(0, res.messages.len());        
 
-        // WORKS (SENDER == ADMIN)
-        let msg = ExecuteMsg::UpdateAdmin {
-            new_admin: "new_admin_address".to_string(),
+        // WORKS (SENDER == owner)
+        let msg = ExecuteMsg::Updateowner {
+            new_owner: "new_owner_address".to_string(),
         };
         
         execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
         let query_res = query(deps.as_ref(), QueryMsg::Config {}).unwrap();
         let config_res: ConfigResponse = from_binary(&query_res).unwrap();
-        assert_eq!("new_admin_address".to_string() , config_res.admin);
+        assert_eq!("new_owner_address".to_string() , config_res.owner);
 
-        // DOESN'T WORK (SENDER != ADMIN)
-        // let info = mock_info("admin_address", &[]);
+        // DOESN'T WORK (SENDER != owner)
+        // let info = mock_info("owner_address", &[]);
         let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
 
-        assert_generic_error_message(res,"Sender not admin!" );
+        assert_generic_error_message(res,"Sender not owner!" );
     }
 
 
@@ -622,14 +622,14 @@ mod tests {
         let init_timestamp = 1_000_000_000;
 
         let msg = InstantiateMsg {
-            mars_address: "mars_token_contract".to_string(),
-            admin: "admin_address".to_string(),
+            mars_token_address: "mars_token_contract".to_string(),
+            owner: "owner_address".to_string(),
             till_timestamp: init_timestamp + 1000,
             terra_merkle_roots: terra_merkle_roots.clone(),
             evm_merkle_roots: evm_merkle_roots.clone() 
         };
 
-        let info = mock_info("admin_address", &[]);
+        let info = mock_info("owner_address", &[]);
         let env = mock_env_custom(MockEnvParams {
             block_time: Timestamp::from_seconds(init_timestamp),
             ..Default::default()
@@ -641,7 +641,7 @@ mod tests {
 
         let new_terra_merkle_roots = vec!["new_terra_merkle_roots".to_string()]; 
 
-        // WORKS (SENDER == ADMIN)
+        // WORKS (SENDER == owner)
         let msg = ExecuteMsg::UpdateTerraMerkleRoots {
             merkle_roots: new_terra_merkle_roots.clone(),
         };
@@ -651,10 +651,10 @@ mod tests {
         let config_res: ConfigResponse = from_binary(&query_res).unwrap();
         assert_eq!(new_terra_merkle_roots.clone(), config_res.terra_merkle_roots);
 
-        // DOESN'T WORK (SENDER != ADMIN)
-        let info = mock_info("wrong_admin_address", &[]);
+        // DOESN'T WORK (SENDER != owner)
+        let info = mock_info("wrong_owner_address", &[]);
         let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone(), );
-        assert_generic_error_message(res,"Sender not admin!" );
+        assert_generic_error_message(res,"Sender not owner!" );
     }
 
 
@@ -670,14 +670,14 @@ mod tests {
         let init_timestamp = 1_000_000_000;
 
         let msg = InstantiateMsg {
-            mars_address: "mars_token_contract".to_string(),
-            admin: "admin_address".to_string(),
+            mars_token_address: "mars_token_contract".to_string(),
+            owner: "owner_address".to_string(),
             till_timestamp: init_timestamp + 1000,
             terra_merkle_roots: terra_merkle_roots.clone(),
             evm_merkle_roots: evm_merkle_roots.clone() 
         };
 
-        let info = mock_info("admin_address", &[]);
+        let info = mock_info("owner_address", &[]);
         let env = mock_env_custom(MockEnvParams {
             block_time: Timestamp::from_seconds(init_timestamp),
             ..Default::default()
@@ -689,7 +689,7 @@ mod tests {
 
         let new_evm_merkle_roots = vec!["new_evm_merkle_roots".to_string()]; 
 
-        // WORKS (SENDER == ADMIN)
+        // WORKS (SENDER == owner)
         let msg = ExecuteMsg::UpdateEvmMerkleRoots {
             merkle_roots: new_evm_merkle_roots.clone(),
         };
@@ -699,10 +699,10 @@ mod tests {
         let config_res: ConfigResponse = from_binary(&query_res).unwrap();
         assert_eq!(new_evm_merkle_roots.clone(), config_res.evm_merkle_roots);
 
-        // DOESN'T WORK (SENDER != ADMIN)
-        let info = mock_info("wrong_admin_address", &[]);
+        // DOESN'T WORK (SENDER != owner)
+        let info = mock_info("wrong_owner_address", &[]);
         let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone(), );
-        assert_generic_error_message(res,"Sender not admin!" );
+        assert_generic_error_message(res,"Sender not owner!" );
     }
 
 
@@ -717,7 +717,7 @@ mod tests {
 
     //     let msg = InitMsg {
     //         token: HumanAddr::from("mars_token_contract"),
-    //         admin: HumanAddr::from("owner"),
+    //         owner: HumanAddr::from("owner"),
     //         terra_merkle_roots: terra_merkle_roots.clone(),
     //         evm_merkle_roots: evm_merkle_roots.clone() 
     //     };
@@ -829,7 +829,7 @@ mod tests {
 
     //     let msg = InitMsg {
     //         token: HumanAddr::from("mars_token_contract"),
-    //         admin: HumanAddr::from("owner"),
+    //         owner: HumanAddr::from("owner"),
     //         terra_merkle_roots: terra_merkle_roots.clone(),
     //         evm_merkle_roots: evm_merkle_roots.clone() 
     //     };

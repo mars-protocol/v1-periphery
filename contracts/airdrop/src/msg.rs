@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub mars_address: String,
-    pub admin: String,
+    pub owner: String,
+    pub mars_token_address: String,
     pub terra_merkle_roots: Vec<String>,
     pub evm_merkle_roots: Vec<String>,    
     pub till_timestamp: u64
@@ -40,8 +40,8 @@ pub enum ExecuteMsg {
         recepient: String,
         amount: Uint128,
     },
-    UpdateAdmin {
-        new_admin: String,
+    Updateowner {
+        new_owner: String,
     },
 }
 
