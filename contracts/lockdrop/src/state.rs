@@ -16,22 +16,38 @@ pub const LOCKUP_INFO: Map<&[u8], LockupInfo> = Map::new("lockup_position");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    /// Account who can update config
     pub owner: Addr,
-    pub address_provider: Addr,                 // Address Provider Contract
-    pub maUST_token: Addr,                      // maUST Token :: Minted upon UST deposits into red bank
-    pub init_timestamp: u64,                    // Timestamp till when deposits can be made
-    pub min_lock_duration: u64,                 // Min. no. of days allowed for lockup
-    pub max_lock_duration: u64,                 // Max no. of days allowed for lockup
-    pub weekly_multiplier: Decimal256,          // Reward multiplier for each extra day locked
-    pub denom: String,                          // "uusd"
+    /// Contract used to query addresses related to red-bank (MARS Token)
+    pub address_provider: Addr,              
+    ///  maUST token address - Minted upon UST deposits into red bank
+    pub ma_ust_token: Addr,                      
+    /// Timestamp till when deposits can be made
+    pub init_timestamp: u64,                   
+    /// Min. no. of days allowed for lockup 
+    pub min_lock_duration: u64,                
+    /// Max. no. of days allowed for lockup 
+    pub max_lock_duration: u64,                
+    /// Lockdrop Reward multiplier 
+    pub weekly_multiplier: Decimal256,          
+    /// "uusd" - Native token accepted by the contract for deposits
+    pub denom: String,                         
+    /// Total MARS lockdrop incentives to be distributed among the users
     pub lockdrop_incentives: Uint256
 }
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub total_UST_locked: Uint256,
-    pub total_maUST_locked: Uint256,
+    /// Total UST deposited at the end of Lockdrop window. This value remains unchanged post the lockdrop window
+    pub final_ust_locked: Uint256,
+    /// maUST minted at the end of Lockdrop window upon UST deposit in red bank. This value remains unchanged post the lockdrop window
+    pub final_maust_locked: Uint256,
+    /// UST deposited in the contract. This value is updated real-time upon each UST deposit / unlock 
+    pub total_ust_locked: Uint256,
+    /// maUST held by the contract. This value is updated real-time upon each maUST withdrawal from red bank 
+    pub total_maust_locked: Uint256,
+    /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
     pub global_reward_index: Decimal256,
 }
 
@@ -39,8 +55,9 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfo {
+    /// Total UST amount deposited by the user across all his lockup positions
     pub total_ust_locked: Uint256,
-    pub total_ma_UST_locked: Uint256,               // maUST locked
+    /// Contains lockup Ids of the User's lockup positions with different durations / deposit amounts
     pub lockup_positions: Vec<String>
 }
 
@@ -48,7 +65,6 @@ impl Default for UserInfo {
     fn default() -> Self {
         UserInfo {
             total_ust_locked: Uint256::zero(),
-            total_ma_UST_locked: Uint256::zero(),
             lockup_positions: vec![]
         }
     }
@@ -58,23 +74,27 @@ impl Default for UserInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct LockupInfo {
-    pub user: Addr,                         // User Public Address
-    pub duration: u64,                      // No. of days locked for 
-    pub ma_UST_locked: Uint256,             // maUST locked
-    pub reward_index: Decimal256,           // $MARS reward accrued over deposits
-    pub pending_reward: Uint256,            // $MARS reward accrued
-    pub lockdrop_reward: Uint256,           // $MARS rewarded for Lockdrop
+    /// Lockup Duration
+    pub duration: u64,
+    /// UST locked as part of this lockup position
+    pub ust_locked: Uint256,            
+    /// Lockdrop incentive distributed to this position
+    pub lockdrop_reward: Uint256,         
+    /// Boolean value indicating if the lockdrop_reward has been claimed or not
     pub lockdrop_claimed: bool,
-    pub unlock_timestamp: u64,              // Unlock Timestamp
+    /// Value used to calculate deposit_rewards accured by this position
+    pub reward_index: Decimal256, 
+    /// Pending rewards to be claimed by the user        
+    pub pending_reward: Uint256,            
+    /// Timestamp beyond which this position can be unlocked
+    pub unlock_timestamp: u64,              
 }
-
 
 impl Default for LockupInfo {
     fn default() -> Self {
         LockupInfo {
-            user: Addr::unchecked("null"),
             duration: 0 as u64,
-            ma_UST_locked: Uint256::zero(),
+            ust_locked: Uint256::zero(),
             reward_index: Decimal256::zero(),
             pending_reward: Uint256::zero(),
             lockdrop_reward: Uint256::zero(),

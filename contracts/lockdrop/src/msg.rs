@@ -7,24 +7,37 @@ use cosmwasm_bignumber::{Decimal256, Uint256};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    /// Account who can update config
     pub owner: Option<String>,
+    /// Contract used to query addresses related to red-bank (MARS Token)
     pub address_provider: Option<String>,
-    pub maUST_token: Option<String>,
+    ///  maUST token address - Minted upon UST deposits into red bank
+    pub ma_ust_token: Option<String>,
+    /// Timestamp till when deposits can be made
     pub init_timestamp: Option<u64>,
+    /// Min. no. of days allowed for lockup 
     pub min_duration: Option<u64>,
+    /// Max. no. of days allowed for lockup 
     pub max_duration: Option<u64>,
+    /// "uusd" - Native token accepted by the contract for deposits
     pub denom: Option<String>,
+    /// Lockdrop Reward multiplier 
     pub multiplier: Option<Decimal256>,
+    /// Total MARS lockdrop incentives to be distributed among the users
     pub lockdrop_incentives: Option<Uint256>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    LockUST {  
+    DepositUST {  
         duration: u64 
     },
-    UnlockUST {  
+    WithdrawUST {
+        duration: u64,
+        amount: Uint256
+    },
+    Unlock {  
         duration: u64 
     },
     ClaimRewards {
@@ -39,16 +52,13 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CallbackMsg {
-    UpdateStateOnDeposit {
-        user: Addr,
-        duration: u64,
-        ust_deposited: Uint256,
-        mUST_prev_balance: Uint256
+    UpdateStateOnRedBankDeposit {
+        prev_ma_ust_balance: Uint256
     },
     UpdateStateOnWithdraw {
         user: Addr,
         duration: u64,
-        mUST_withdrawn: Uint256,
+        m_ust_withdrawn: Uint256,
         prev_ust_balance: Uint256
     }
 }
