@@ -1,2 +1,2 @@
 target
-scripts/node_modules
+./scripts/node_modules
