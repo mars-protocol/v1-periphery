@@ -58,6 +58,10 @@ async function main() {
   console.log(Date.now())
   console.log("Current Block Height = " + block.block.header.height.toString()  )
 
+  let address_provider = "";
+  let cycle_rewards = "";
+  let cycle_duration = "";
+  let reward_increase = "";
 
     /*************************************** Deploy CW20 (MARS Token) Contract *****************************************/
     console.log("Deploying $MARS Token...")
@@ -98,13 +102,14 @@ async function main() {
   let till_timestamp = init_timestamp + 100000;
 
   let lp_staking_init_msg = {
-    "mars_token": marsTokenContractAddress,
+    "owner": wallet.key.accAddress,
+    "address_provider": address_provider,
     "staking_token": lpTokenContractAddress,
     "init_timestamp": init_timestamp,
-    "till_timestamp": till_timestamp, // 
-    "cycle_rewards": "100000000",
-    "cycle_duration": 1000,
-    "reward_increase": ".02",
+    "till_timestamp": till_timestamp, 
+    "cycle_rewards": cycle_rewards,
+    "cycle_duration": cycle_duration,
+    "reward_increase": reward_increase,
   }
 
   console.log(lp_staking_init_msg);
@@ -114,24 +119,24 @@ async function main() {
   console.log("LP STAKING Contract Address: " + stakingContractAddress)
 
   // TRANSFER MARS TOKENS TO THE STAKING CONTRACT :: TO BE DISTRIBUTED AS REWARDS
-  let mars_rewards = 5000000000000;
-  await transfer_Tokens(terra, wallet, marsTokenContractAddress, stakingContractAddress, mars_rewards);
+  // let mars_rewards = 5000000000000;
+  // await transfer_Tokens(terra, wallet, marsTokenContractAddress, stakingContractAddress, mars_rewards);
 
   // CONFIG :: QUERY
-  let config = await query_Contract(terra, stakingContractAddress, {"config":{}})
-  console.log(config)
+  // let config = await query_Contract(terra, stakingContractAddress, {"config":{}})
+  // console.log(config)
 
   // STATE :: QUERY
-  let state = await query_Contract(terra, stakingContractAddress, { "state":{} } )
-  console.log(state)
+  // let state = await query_Contract(terra, stakingContractAddress, { "state":{} } )
+  // console.log(state)
 
   // BOND LP TOKENS
   // let staked_amount = 100000000;
   // await stake_LP_Tokens(terra, wallet, stakingContractAddress, lpTokenContractAddress, staked_amount )
 
   // STAKER INFO :: QUERY
-  let staker_info = await query_Contract(terra, stakingContractAddress, {"staker_info":{ "staker": wallet.key.accAddress }})
-  console.log(staker_info)
+  // let staker_info = await query_Contract(terra, stakingContractAddress, {"staker_info":{ "staker": wallet.key.accAddress }})
+  // console.log(staker_info)
 
 
   // CLAIM REWARDS
