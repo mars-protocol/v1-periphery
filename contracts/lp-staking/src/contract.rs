@@ -81,13 +81,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+    Err(StdError::generic_err("unimplemented"))
 }
 //----------------------------------------------------------------------------------------
 // Handle Functions
 //----------------------------------------------------------------------------------------
 
-
+/// Only MARS-UST LP Token can be sent to this contract via the Cw20ReceiveMsg Hook
+/// @dev Increases user's staked LP Token balance via the Bond Function 
 pub fn receive_cw20(deps: DepsMut, env: Env, info: MessageInfo, cw20_msg: Cw20ReceiveMsg) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
 
@@ -104,7 +105,9 @@ pub fn receive_cw20(deps: DepsMut, env: Env, info: MessageInfo, cw20_msg: Cw20Re
     }
 }
 
-
+/// @dev Called by receive_cw20(). Increases user's staked LP Token balance
+/// @params sender_addr : User Address who sent the LP Tokens
+/// @params amount : Number of LP Tokens transferred to the contract
 pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint256) -> StdResult<Response> {
 
     let config: Config = CONFIG.load(deps.storage)?;
@@ -126,7 +129,10 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint256) -> StdR
     ]))
 }
 
-
+/// @dev Only owner can call this function. Updates the config
+/// @dev init_timestamp : can only be updated before it gets elapsed
+/// @dev till_timestamp : can only be updated before it gets elapsed
+/// @params new_config : New config object
 pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: InstantiateMsg ) -> StdResult<Response> { 
 
     let mut config = CONFIG.load(deps.storage)?;
@@ -165,7 +171,8 @@ pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: In
 }
 
 
-
+/// @dev Reduces user's staked position. MARS Rewards are transferred along-with unstaked LP Tokens
+/// @params amount :  Number of LP Tokens transferred to be unstaked
 pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256) -> StdResult<Response> {
 
     let sender_addr = info.sender.clone();
@@ -215,7 +222,7 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256) -> St
 
 
 
-// withdraw rewards to executor
+/// @dev Function to claim accrued MARS Rewards 
 pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
 
     let sender_addr = info.sender;
@@ -253,17 +260,101 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respon
 }
 
 
+//----------------------------------------------------------------------------------------
+// Query Functions
+//----------------------------------------------------------------------------------------
+
+/// @dev Returns the contract's configuration
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    let mars_token = query_address( &deps.querier,config.address_provider.clone(), MarsContract::MarsToken )?;
+
+    Ok (ConfigResponse {
+        owner: config.owner.to_string(),
+        address_provider: config.address_provider.to_string(),
+        mars_token: mars_token.to_string(),
+        staking_token: config.staking_token.to_string(),
+        init_timestamp: config.init_timestamp,
+        till_timestamp: config.till_timestamp,
+        cycle_duration: config.cycle_duration,
+        reward_increase: config.reward_increase,
+    })
+}
+
+/// @dev Returns the contract's simulated state at a certain timestamp
+/// /// @param timestamp : Option parameter. Contract's Simulated state is retrieved if the timestamp is provided   
+pub fn query_state(deps: Deps, env:Env, timestamp: Option<u64>) -> StdResult<StateResponse> {
+    let mut state: State = STATE.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
+
+    match timestamp {
+        Some(timestamp) => {
+            compute_reward(&config, &mut state, timestamp);
+        }
+        None => {
+            compute_reward(&config, &mut state, env.block.time.seconds());
+        }
+    }
+
+    Ok(StateResponse {
+        cycle_init_timestamp: state.cycle_init_timestamp,
+        current_cycle_rewards: state.current_cycle_rewards,
+        last_distributed: state.last_distributed,
+        total_bond_amount: state.total_bond_amount,
+        global_reward_index: state.global_reward_index,
+    })
+}
+
+/// @dev Returns the User's simulated state at a certain timestamp
+/// @param staker : User address whose state is to be retrieved
+/// @param timestamp : Option parameter. User's Simulated state is retrieved if the timestamp is provided   
+pub fn query_staker_info( deps: Deps, env:Env, staker: String, timestamp: Option<u64>) -> StdResult<StakerInfoResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
+    let mut staker_info = STAKER_INFO.may_load(deps.storage, &deps.api.addr_validate(&staker)?)?.unwrap_or_default();
+
+    match timestamp {
+        Some(timestamp) => {
+            compute_reward(&config, &mut state, timestamp);
+        }
+        None => {
+            compute_reward(&config, &mut state, env.block.time.seconds());
+        }
+    }
+    compute_staker_reward(&state, &mut staker_info)?;    
+
+    Ok(StakerInfoResponse {
+        staker,
+        reward_index: staker_info.reward_index,
+        bond_amount: staker_info.bond_amount,
+        pending_reward: staker_info.pending_reward,
+    })
+}
+
+
+/// @dev Returns the current timestamp
+pub fn query_timestamp( env: Env) -> StdResult<TimeResponse> {
+    Ok(TimeResponse { timestamp: env.block.time.seconds() })
+}
+
+
+//----------------------------------------------------------------------------------------
+// Helper Functions
+//----------------------------------------------------------------------------------------
+
+/// @dev Increases total LP shares and user's staked LP shares by `amount`
 fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint256) {
     state.total_bond_amount += amount;
     staker_info.bond_amount += amount;
 }
 
+/// @dev Decreases total LP shares and user's staked LP shares by `amount`
 fn decrease_bond_amount(state: &mut State,staker_info: &mut StakerInfo,amount: Uint256) {
     state.total_bond_amount = state.total_bond_amount - amount;
     staker_info.bond_amount = staker_info.bond_amount - amount;
 }
 
-// compute distributed rewards and update global reward index
+/// @dev Computes total accrued rewards 
 fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
     if state.total_bond_amount.is_zero() || config.init_timestamp > cur_timestamp {
         state.last_distributed = cur_timestamp;
@@ -294,7 +385,7 @@ fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
 }
 
 
-// withdraw reward to pending reward
+/// @dev Computes user's accrued rewards 
 fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResult<()> {
     let pending_reward = (staker_info.bond_amount * state.global_reward_index) - (staker_info.bond_amount * staker_info.reward_index);
     staker_info.reward_index = state.global_reward_index;
@@ -303,83 +394,7 @@ fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResu
 }
 
 
-//----------------------------------------------------------------------------------------
-// Query Functions
-//----------------------------------------------------------------------------------------
-
-
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let mars_token = query_address( &deps.querier,config.address_provider.clone(), MarsContract::MarsToken )?;
-
-    Ok (ConfigResponse {
-        owner: config.owner.to_string(),
-        address_provider: config.address_provider.to_string(),
-        mars_token: mars_token.to_string(),
-        staking_token: config.staking_token.to_string(),
-        init_timestamp: config.init_timestamp,
-        till_timestamp: config.till_timestamp,
-        cycle_duration: config.cycle_duration,
-        reward_increase: config.reward_increase,
-    })
-}
-
-
-pub fn query_state(deps: Deps, env:Env, timestamp: Option<u64>) -> StdResult<StateResponse> {
-    let mut state: State = STATE.load(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
-
-    match timestamp {
-        Some(timestamp) => {
-            compute_reward(&config, &mut state, timestamp);
-        }
-        None => {
-            compute_reward(&config, &mut state, env.block.time.seconds());
-        }
-    }
-
-    Ok(StateResponse {
-        cycle_init_timestamp: state.cycle_init_timestamp,
-        current_cycle_rewards: state.current_cycle_rewards,
-        last_distributed: state.last_distributed,
-        total_bond_amount: state.total_bond_amount,
-        global_reward_index: state.global_reward_index,
-    })
-}
-
-pub fn query_staker_info( deps: Deps, env:Env, staker: String, timestamp: Option<u64>) -> StdResult<StakerInfoResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let mut state = STATE.load(deps.storage)?;
-    let mut staker_info = STAKER_INFO.may_load(deps.storage, &deps.api.addr_validate(&staker)?)?.unwrap_or_default();
-
-    match timestamp {
-        Some(timestamp) => {
-            compute_reward(&config, &mut state, timestamp);
-        }
-        None => {
-            compute_reward(&config, &mut state, env.block.time.seconds());
-        }
-    }
-    compute_staker_reward(&state, &mut staker_info)?;    
-
-    Ok(StakerInfoResponse {
-        staker,
-        reward_index: staker_info.reward_index,
-        bond_amount: staker_info.bond_amount,
-        pending_reward: staker_info.pending_reward,
-    })
-}
-
-
-pub fn query_timestamp( env: Env) -> StdResult<TimeResponse> {
-    Ok(TimeResponse { timestamp: env.block.time.seconds() })
-}
-
-
-
-
-
-
+/// @dev Helper function to build `CosmosMsg` to send cw20 tokens to a recepient address 
 fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amount: Uint256) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_contract_address.into(),
