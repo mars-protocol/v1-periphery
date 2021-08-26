@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, WasmMsg, StdResult, CosmosMsg, to_binary};
 use cosmwasm_bignumber::{Decimal256, Uint256};
+use crate::state::{State};
 
 
 
@@ -79,12 +80,62 @@ impl CallbackMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    // GetCount returns the current count as a json-encoded number
-    GetCount {},
+    Config {},
+    State {},
+    UserInfo { address: String},
+    LockUpInfo { address: String, duration: u64},
+    LockUpInfoWithId { lockup_id: String},
 }
 
-// We define a custom struct for each query response
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CountResponse {
-    pub count: i32,
+pub struct ConfigResponse {
+    /// Account who can update config
+    pub owner: String,
+    /// Contract used to query addresses related to red-bank (MARS Token)
+    pub address_provider: String,
+    ///  maUST token address - Minted upon UST deposits into red bank
+    pub ma_ust_token: String,    
+    /// Timestamp till when deposits can be made
+    pub init_timestamp: u64,
+    /// Min. no. of days allowed for lockup 
+    pub min_duration: u64,
+    /// Max. no. of days allowed for lockup 
+    pub max_duration: u64,
+    /// Lockdrop Reward multiplier 
+    pub multiplier: Decimal256,
+    /// Total MARS lockdrop incentives to be distributed among the users
+    pub lockdrop_incentives: Uint256
 }
+
+
+pub type GlobalStateResponse = State;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserInfoResponse {
+    pub total_ust_locked: Uint256,
+    pub total_maust_share: Uint256,
+    pub lockup_position_ids: Vec<String>
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LockUpInfoResponse {
+        /// Lockup Duration
+        pub duration: u64,
+        /// UST locked as part of this lockup position
+        pub ust_locked: Uint256,            
+        /// MA-UST share
+        pub maust_balance: Uint256,            
+        /// Lockdrop incentive distributed to this position
+        pub lockdrop_reward: Uint256,         
+        /// Boolean value indicating if the lockdrop_reward has been claimed or not
+        pub lockdrop_claimed: bool,
+        /// Value used to calculate deposit_rewards accured by this position
+        pub reward_index: Decimal256, 
+        /// Pending rewards to be claimed by the user        
+        pub pending_reward: Uint256,            
+        /// Timestamp beyond which this position can be unlocked
+        pub unlock_timestamp: u64,   
+}
+

@@ -1,8 +1,43 @@
-interface Config {
-    lpStaking_InitMsg: LPStakingInitMsg
-    lockdrop_InitMsg: LockdropInitMsg
-    airdrop_InitMsg: AirdropInitMsg
+export const bombay_testnet: Config = { 
+    lpStaking_InitMsg: {
+        "config" : { 
+            "owner": null,
+            "address_provider": null,
+            "staking_token": null,
+            "init_timestamp": null,
+            "till_timestamp": null, 
+            "cycle_rewards": "1000000000",
+            "cycle_duration": 1000000,
+            "reward_increase": "0.02"
+        }
+    },
+    lockdrop_InitMsg: {
+        "config" : { 
+            "owner": null,
+            "address_provider": null,
+            "ma_ust_token": null,
+            "init_timestamp": null,
+            "min_duration": 30, 
+            "max_duration": 270,
+            "denom": "uusd",
+            "multiplier": "0.02",
+            "lockdrop_incentives": "5000000000000"
+        }
+    },
+    airdrop_InitMsg: {
+        "config" : { 
+            "owner": null,
+            "mars_token_address": null,
+            "terra_merkle_roots": [],
+            "evm_merkle_roots": [],
+            "till_timestamp": null, 
+        } 
+    }
 }
+
+
+
+
 
 
 interface LPStakingInitMsg {
@@ -45,6 +80,8 @@ interface AirdropInitMsg {
 }
 
 
-export const testnet: Config = { 
-
+interface Config {
+    lpStaking_InitMsg: LPStakingInitMsg
+    lockdrop_InitMsg: LockdropInitMsg
+    airdrop_InitMsg: AirdropInitMsg
 }

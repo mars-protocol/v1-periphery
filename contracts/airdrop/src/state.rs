@@ -17,6 +17,7 @@ pub struct Config {
     pub mars_token_address: Addr,
     pub terra_merkle_roots: Vec<String>,
     pub evm_merkle_roots: Vec<String>,
+    pub from_timestamp: u64, 
     pub till_timestamp: u64, 
 }
 

@@ -1,9 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Uint128, QuerierWrapper,CosmosMsg, BankMsg, QueryRequest,WasmQuery, Addr, Coin, DepsMut, Env, MessageInfo, WasmMsg, Response, StdResult, StdError};
+use cosmwasm_std::{to_binary, Binary, Uint128,Deps, QuerierWrapper,CosmosMsg, BankMsg, QueryRequest,WasmQuery, Addr, Coin, DepsMut, Env, MessageInfo, WasmMsg, Response, StdResult, StdError};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, CallbackMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, CallbackMsg, QueryMsg, ConfigResponse,GlobalStateResponse, UserInfoResponse, LockUpInfoResponse };
 use crate::state::{Config, CONFIG, State, STATE, UserInfo, USER_INFO, LockupInfo, LOCKUP_INFO};
 
 use mars::address_provider::helpers::{query_address};
@@ -79,14 +79,16 @@ fn _handle_callback(deps: DepsMut, env: Env, info: MessageInfo, msg: CallbackMsg
     }
 }
 
-// #[cfg_attr(not(feature = "library"), entry_point)]
-// pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-//     match msg {
-//         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
-//         QueryMsg::GetLockups { user } => to_binary(&query_lockups(deps, user)?),
-//         QueryMsg::GetLockupInfo { user, duration } => to_binary(&query_lockup_info(deps, user, duration)?),
-//     }
-// }
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::UserInfo {address} => to_binary(&query_user_info(deps, address)?),
+        QueryMsg::LockUpInfo {address , duration } => to_binary(&query_lockup_info(deps, address, duration)?),
+        QueryMsg::LockUpInfoWithId { lockup_id } => to_binary(&query_lockup_info_with_id(deps, lockup_id)?),
+    }
+}
 
 //----------------------------------------------------------------------------------------
 // Handle Functions
@@ -505,6 +507,89 @@ pub fn update_state_on_withdraw( deps: DepsMut, env: Env, user: Addr, duration: 
             ("rewards_claimed", pending_rewards.to_string().as_str())
         ]))
 }
+
+
+//----------------------------------------------------------------------------------------
+// Query Functions
+//----------------------------------------------------------------------------------------
+
+
+/// @dev Returns the contract's configuration
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config = CONFIG.load(deps.storage)?;
+
+    Ok (ConfigResponse {
+        owner: config.owner.to_string(),
+        address_provider: config.address_provider.to_string(),       
+        ma_ust_token: config.ma_ust_token.to_string(),                 
+        init_timestamp: config.init_timestamp,
+        min_duration: config.min_lock_duration,
+        max_duration: config.max_lock_duration,
+        multiplier: config.weekly_multiplier,
+        lockdrop_incentives: config.lockdrop_incentives
+    })
+}
+
+
+/// @dev Returns the contract's Global State
+pub fn query_state(deps: Deps) -> StdResult<GlobalStateResponse> {
+    let state: State = STATE.load(deps.storage)?;
+    Ok(GlobalStateResponse {
+        final_ust_locked: state.final_ust_locked,
+        final_maust_locked: state.final_maust_locked,
+        total_ust_locked: state.total_ust_locked,
+        total_maust_locked: state.total_maust_locked,
+        global_reward_index: state.global_reward_index,
+    })
+}
+
+
+/// @dev Returns summarized details regarding the user
+pub fn query_user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
+    let user_address = deps.api.addr_validate(&user)?;
+    let state: State = STATE.load(deps.storage)?;
+    let user_info = USER_INFO.may_load(deps.storage, &user_address.clone() )?.unwrap_or_default();
+
+    Ok(UserInfoResponse {
+        total_ust_locked: user_info.total_ust_locked,
+        total_maust_share: calculate_user_ma_ust_share(user_info.total_ust_locked, state.final_ust_locked, state.final_maust_locked),
+        lockup_position_ids: user_info.lockup_positions
+    })
+}
+
+/// @dev Returns summarized details regarding the user
+pub fn query_lockup_info(deps: Deps, user: String, duration: u64) -> StdResult<LockUpInfoResponse> {
+    let lockup_id = user.to_string() + &duration.to_string();
+    query_lockup_info_with_id(deps, lockup_id)
+}
+
+/// @dev Returns summarized details regarding the user
+pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<LockUpInfoResponse> {
+    let lockup_info = LOCKUP_INFO.may_load(deps.storage, lockup_id.clone().as_bytes() )?.unwrap_or_default();
+    let state: State = STATE.load(deps.storage)?;
+
+    let mut lockup_response = LockUpInfoResponse {
+        duration : lockup_info.duration,
+        ust_locked : lockup_info.ust_locked,         
+        maust_balance : calculate_user_ma_ust_share(lockup_info.ust_locked, state.final_ust_locked, state.final_maust_locked),        
+        lockdrop_reward : lockup_info.lockdrop_reward,   
+        lockdrop_claimed : lockup_info.lockdrop_claimed,
+        reward_index : lockup_info.reward_index,
+        pending_reward :  lockup_info.pending_reward,       
+        unlock_timestamp : lockup_info.unlock_timestamp
+    };
+
+
+    if lockup_response.lockdrop_reward  == Uint256::zero() {
+        let config = CONFIG.load(deps.storage)?;
+        lockup_response.lockdrop_reward = calculate_lockdrop_reward(lockup_response.ust_locked, lockup_response.duration, state.final_ust_locked, config.lockdrop_incentives, config.weekly_multiplier );
+    }
+
+    Ok(lockup_response)
+}
+
+
+
 
 
 //----------------------------------------------------------------------------------------

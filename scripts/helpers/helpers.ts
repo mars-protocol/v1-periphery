@@ -84,7 +84,7 @@ export async function instantiateContract(terra: LCDClient, wallet: Wallet, code
   return attributes[attributes.length - 1].value // contract address
 }
 
-export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: string) {
+export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: any) {
   const executeMsg = new MsgExecuteContract(wallet.key.accAddress, contractAddress, msg, coins);
   return await performTransaction(terra, wallet, executeMsg);
 }

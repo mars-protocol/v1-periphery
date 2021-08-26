@@ -1,13 +1,12 @@
 import {executeContract,  queryContract, toEncodedBinary} from "./helpers.js"
-  import { LCDClient, LocalTerra, Wallet, MnemonicKey, Int } from "@terra-money/terra.js"
+import { LCDClient, Wallet } from "@terra-money/terra.js"
 
 //-----------------------------------------------------
 // ------ ExecuteContract :: Function signatures ------
 // - stake_LP_Tokens(terra, wallet, stakingContractAddress, lpTokenAddress, amount) --> STAKE LP TOKENS
 // - unstake_LP_Tokens(terra, wallet, stakingContractAddress, marsTokenAddress, amount) --> UN-STAKE LP TOKENS
 // - claim_LPstaking_rewards(terra, wallet, stakingContractAddress, marsTokenAddress) --> CLAIM $MARS REWARDS
-// - update_LP_Staking_config(terra, wallet, stakingContractAddress, owner, address_provider, 
-//                          staking_token, init_timestamp, till_timestamp, cycle_rewards, cycle_duration, reward_increase) --> UPDATE CONFIG
+// - update_LP_Staking_config(terra, wallet, stakingContractAddress, new_config_msg) --> UPDATE CONFIG
 //------------------------------------------------------
 //------------------------------------------------------
 // ----------- Queries :: Function signatures ----------
@@ -52,30 +51,8 @@ export async function claim_LPstaking_rewards(terra: LCDClient, wallet:Wallet, s
 
 
 // UPDATE CONFIGURATION
-export async function update_LP_Staking_config(
-        terra: LCDClient, 
-        wallet:Wallet, 
-        stakingContractAddress:string ,
-        owner: null, 
-        address_provider: null, 
-        staking_token: null, 
-        init_timestamp: null, 
-        till_timestamp: null, 
-        cycle_rewards: null, 
-        cycle_duration: null, 
-        reward_increase: null
-    ) {
-    let config_msg = { "update_config" : {  "owner" : owner,
-                                            "address_provider" : address_provider,
-                                            "staking_token" : staking_token,
-                                            "init_timestamp" : init_timestamp,
-                                            "till_timestamp" : till_timestamp,
-                                            "cycle_rewards" : cycle_rewards,
-                                            "cycle_duration" : cycle_duration,
-                                            "reward_increase" : reward_increase
-                                        }
-                    };
-    let resp = await executeContract(terra, wallet, stakingContractAddress, config_msg );
+export async function update_LP_Staking_config( terra: LCDClient,  wallet:Wallet, stakingContractAddress:string, new_config_msg: any) {
+    let resp = await executeContract(terra, wallet, stakingContractAddress, new_config_msg );
     console.log(" LP STAKING CONTRACT : Configuration successfully updated");
 }  
 

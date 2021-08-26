@@ -5,24 +5,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub owner: String,
-    pub mars_token_address: String,
-    pub terra_merkle_roots: Vec<String>,
-    pub evm_merkle_roots: Vec<String>,    
-    pub till_timestamp: u64
+    pub owner: Option<String>,
+    pub mars_token_address: Option<String>,
+    pub terra_merkle_roots: Option<Vec<String>>,
+    pub evm_merkle_roots: Option<Vec<String>>,    
+    pub from_timestamp: Option<u64>,
+    pub till_timestamp: Option<u64>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    UpdateTerraMerkleRoots {
-        merkle_roots: Vec<String>,
-    },
-    UpdateEvmMerkleRoots {
-        merkle_roots: Vec<String>,
-    },
-    UpdateClaimDuration {
-        new_timestamp: u64,
+    UpdateConfig {
+        new_config: InstantiateMsg,
     },
     TerraClaim {
         amount: Uint128,
@@ -40,9 +35,6 @@ pub enum ExecuteMsg {
         recepient: String,
         amount: Uint128,
     },
-    Updateowner {
-        new_owner: String,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -59,7 +51,14 @@ pub enum QueryMsg {
      },
 }
 
-pub type ConfigResponse = InstantiateMsg;
+pub struct ConfigResponse {
+    pub owner: String,
+    pub mars_token_address: String,
+    pub terra_merkle_roots: Vec<String>,
+    pub evm_merkle_roots: Vec<String>,    
+    pub from_timestamp: u64,
+    pub till_timestamp: u64
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ClaimResponse {
