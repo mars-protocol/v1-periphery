@@ -58,17 +58,37 @@ export async function update_LP_Staking_config( terra: LCDClient,  wallet:Wallet
 
 // Returns configuration
 export async function query_LPStaking_config(terra: LCDClient, stakingContractAddress:string) {
-    return await queryContract(terra, stakingContractAddress, {"config":{}});
+    try {
+        return await queryContract(terra, stakingContractAddress, {"config":{}});
+    } catch {
+        console.log("LP Staking :: query config error");
+    }
 }
 
 // Returns contract's global state
-export async function query_LPStaking_state(terra: LCDClient, stakingContractAddress:string, timestamp: null) {
-    return await queryContract(terra, stakingContractAddress, {"state":{"timestamp":timestamp}});
+export async function query_LPStaking_state(terra: LCDClient, stakingContractAddress:string, timestamp: number) {
+    let query_msg = {"state":{}};
+    if (timestamp > 0) {
+        let query_msg = {"state":{"timestamp":timestamp}};
+    }
+    try {
+        return await queryContract(terra, stakingContractAddress, query_msg);
+    } catch {
+        console.log("LP Staking :: query global state error");
+    }        
 }
 
 // Returns user's position info
-export async function query_LPStaking_stakerInfo(terra: LCDClient, stakingContractAddress:string, stakerAddress: string, timestamp: null) {
-    return await queryContract(terra, stakingContractAddress, {"staker_info": {"staker":stakerAddress, "timestamp":timestamp} } );
+export async function query_LPStaking_stakerInfo(terra: LCDClient, stakingContractAddress:string, stakerAddress: string, timestamp: number) {
+    let query_msg = {"staker_info": {"staker":stakerAddress} } ;
+    if (timestamp > 0) {
+        let query_msg = {"staker_info": {"staker":stakerAddress, "timestamp":timestamp} } ;
+    }
+    try {
+        return await queryContract(terra, stakingContractAddress, query_msg );
+    } catch {
+        console.log("LP Staking :: query staker state error");
+    }      
 }
 
 // Returns timestamp

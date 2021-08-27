@@ -1,5 +1,6 @@
 import 'dotenv/config.js'
 import {
+  transferCW20Tokens,
   deployContract,
   executeContract,
   instantiateContract,
@@ -14,12 +15,12 @@ import { join } from "path"
 import { update_LP_Staking_config, stake_LP_Tokens, claim_LPstaking_rewards, unstake_LP_Tokens
         , query_LPStaking_config, query_LPStaking_state, query_LPStaking_stakerInfo,query_LPStaking_timestamp } from "./helpers/lpStaking_helpers.js"
 import { parse } from 'dotenv/types'
-
-// consts
+import { bombay_testnet } from "./configs.js"
 
 const MARS_ARTIFACTS_PATH = "../artifacts"
+const MARS_TOKEN_ADDRESS = "terra1tv2sewn80vmf2pjv9q0sgqul8sv5axg5tezf0r";
+let ADDRESS_PROVIDER = "terra1ja787s45w0s5fj7h9wjst3eatka79xghd63p0v";
 
-// main
 
 async function main() {
 
@@ -28,56 +29,71 @@ async function main() {
 
   console.log(`Wallet address from seed: ${wallet.key.accAddress}`)
 
-  let mars_token_address = null;
-  let address_provider = null;
 
-  // let block = await terra.tendermint.blockInfo()
-  // let dt = new Date(block.block.header.time.toString())
-  console.log(Date.now())
-  // console.log("Current Block Height = " + block.block.header.height.toString()  )
+  // console.log(Date.now())
 
     
   /*************************************** Deploy CW20 (LP Token) Contract *****************************************/
 //   console.log("Deploying LP Token...")
 
 //   let lp_token_init_msg = {
-//     "name": "LP-MARS",
-//     "symbol": "LP-MARS",
+//     "name": "LP-Token",
+//     "symbol": "LP-T",
 //     "decimals": 6,
 //     "initial_balances": [ {"address":wallet.key.accAddress, "amount":"100000000000000"}], // 
 //     "mint": { "minter":wallet.key.accAddress, "cap":"100000000000000"}
 // }
 
-  // const lpTokenContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'cw20_token.wasm'),lp_token_init_msg)
-  const lpTokenContractAddress = "terra1aztaffp5cppde68vugxay6l40rzueewau9wwld"
-  // console.log("LP Token Contract Address: " + lpTokenContractAddress)
+//   const lpTokenContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'cw20_token.wasm'),lp_token_init_msg)
+  const lpTokenContractAddress = "terra1mr4fzf3xketmyxdtxunqgacslntm8xzpawqp4w"
+  console.log("LP Token Contract Address: " + lpTokenContractAddress)
 
 
   // /*************************************** Deploy LP Staking Contract *****************************************/
-  console.log("Deploying LP Staking Contract...")
+  // console.log("Deploying LP Staking Contract...")
 
-  let init_timestamp = 10000 + parseInt((Date.now()/1000).toFixed(0));
-  let till_timestamp = init_timestamp + 1000000;
+  // let init_timestamp = parseInt((Date.now()/1000).toFixed(0));
+  // let till_timestamp = init_timestamp + 1000000;
 
-  let lp_staking_init_msg = {
-    "owner": wallet.key.accAddress,
-    // "address_provider": address_provider,
-    "staking_token": lpTokenContractAddress,
-    "init_timestamp": init_timestamp,
-    "till_timestamp": till_timestamp, 
-    // "cycle_rewards": null,
-    // "cycle_duration": null,
-    // "reward_increase": null,
-  }
+  // // SETTING CONFIG
+  // bombay_testnet.lpStaking_InitMsg.config.owner = wallet.key.accAddress;
+  // bombay_testnet.lpStaking_InitMsg.config.address_provider = ADDRESS_PROVIDER;
+  // bombay_testnet.lpStaking_InitMsg.config.staking_token = lpTokenContractAddress;
+  // bombay_testnet.lpStaking_InitMsg.config.init_timestamp = init_timestamp;
+  // bombay_testnet.lpStaking_InitMsg.config.till_timestamp = till_timestamp;
 
-  console.log(lp_staking_init_msg);
-  const stakingContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_lp_staking.wasm'), lp_staking_init_msg)
-  // const stakingContractAddress = "terra13mtr4e5utcwy3zcsqmrceu4vde6w65nkj4qvhr"
-  console.log("LP STAKING Contract Address: " + stakingContractAddress)
+
+  // console.log(bombay_testnet.lpStaking_InitMsg.config);
+  // const stakingContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_lp_staking.wasm'),  bombay_testnet.lpStaking_InitMsg.config)
+  const stakingContractAddress = "terra1vvkycfvkukfhnqh8fnenye9uhgld9h0y3j3443"
+  console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
+
+
+  await stake_LP_Tokens(terra, wallet,stakingContractAddress, lpTokenContractAddress, 100000000);
+
+  // await unstake_LP_Tokens(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS, 100000000)
+
+  // await claim_LPstaking_rewards(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS);
 
   // TRANSFER MARS TOKENS TO THE STAKING CONTRACT :: TO BE DISTRIBUTED AS REWARDS
-  // let mars_rewards = 5000000000000;
-  // await transfer_Tokens(terra, wallet, marsTokenContractAddress, stakingContractAddress, mars_rewards);
+  // let mars_rewards = 5000000000;
+  // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, stakingContractAddress, mars_rewards);
+
+
+
+
+  // let config = await query_LPStaking_config(terra, stakingContractAddress);
+  // console.log(config);
+  // console.log("\n");
+  // let global_state = await query_LPStaking_state(terra, stakingContractAddress, 0);
+  // console.log(global_state);
+  // console.log("\n");
+  // let position_info = await query_LPStaking_stakerInfo(terra, stakingContractAddress, wallet.key.accAddress , 0);
+  // console.log(position_info);
+  // console.log("\n");
+  // let timestamp = await query_LPStaking_timestamp(terra, stakingContractAddress);
+  // console.log(timestamp);
+
 
   // CONFIG :: QUERY
   // let config = await query_Contract(terra, stakingContractAddress, {"config":{}})

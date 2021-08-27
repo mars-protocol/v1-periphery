@@ -1,5 +1,5 @@
 use cosmwasm_std::{ 
-    attr, entry_point, Binary, Deps, DepsMut, MessageInfo, Env, Response, 
+    attr, entry_point, Binary, Deps, Api, DepsMut, MessageInfo, Env, Response, 
     StdError, StdResult, Uint128, WasmMsg, to_binary, Addr, CosmosMsg
 };
 use std::convert::{TryInto, TryFrom};
@@ -30,7 +30,7 @@ pub fn instantiate( deps: DepsMut, _env: Env, _info: MessageInfo, msg: Instantia
 
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner.unwrap())?,
-        mars_token_address: deps.api.addr_validate(&msg.owner.unwrap())?,
+        mars_token_address: deps.api.addr_validate(&msg.mars_token_address.unwrap())?,
         terra_merkle_roots: msg.terra_merkle_roots.unwrap_or(vec![]) ,
         evm_merkle_roots: msg.evm_merkle_roots.unwrap_or(vec![]) ,
         from_timestamp: msg.from_timestamp.unwrap_or( _env.block.time.seconds()) ,
@@ -153,7 +153,7 @@ pub fn handle_terra_user_claim(
     CLAIMEES.save(deps.storage, &user_account.as_bytes(), &true )?;
 
     // COSMOS MSG :: CLAIM AMOUNT TRANSFERRED
-    let transfer_msg = build_send_cw20_token_msg(user_account.to_string().clone(), config.mars_token_address.to_string(), claim_amount.into())?;
+    let transfer_msg = build_send_cw20_token_msg(user_account.clone(), config.mars_token_address.to_string(), claim_amount.into())?;
 
     Ok(Response::new()        
     .add_message(transfer_msg)    
@@ -217,7 +217,7 @@ pub fn handle_evm_user_claim(
 
 
     // COSMOS MSG :: CLAIM AMOUNT TRANSFERRED
-    let transfer_msg = build_send_cw20_token_msg(recepient_account.to_string().clone(), config.mars_token_address.to_string(), claim_amount.into())?;
+    let transfer_msg = build_send_cw20_token_msg(recepient_account.clone(), config.mars_token_address.to_string(), claim_amount.into())?;
 
     Ok(Response::new()        
     .add_message(transfer_msg)    
@@ -250,7 +250,7 @@ pub fn handle_transfer_mars(
     }
 
     // COSMOS MSG :: TRANSFER MARS TOKENS
-    let transfer_msg = build_send_cw20_token_msg(recepient.clone(), config.mars_token_address.to_string(), amount.into())?;
+    let transfer_msg = build_send_cw20_token_msg(deps.api.addr_validate(&recepient.clone())? , config.mars_token_address.to_string(), amount.into())?;
 
     Ok(Response::new()
     .add_message(transfer_msg)        
@@ -357,10 +357,10 @@ pub fn handle_verify_signature( address: String, eth_signature: String, msg: Str
 }
 
 
-fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amount: Uint128) -> StdResult<CosmosMsg> {
+fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: String, amount: Uint128) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_contract_address.into(),
-        msg: to_binary(CW20ExecuteMsg::Transfer {
+        contract_addr: token_contract_address,
+        msg: to_binary(&CW20ExecuteMsg::Transfer {
             recipient: recipient.into(),
             amount: amount.into(),
         })?,
@@ -371,9 +371,9 @@ fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amou
 
 /// Used when unwrapping an optional address sent in a contract call by a user.
 /// Validates addreess if present, otherwise uses a given default value.
-pub fn option_string_to_addr( deps: Deps, option_string: Option<String>, default: Addr) -> StdResult<Addr> {
+pub fn option_string_to_addr( api: &dyn Api, option_string: Option<String>, default: Addr) -> StdResult<Addr> {
     match option_string {
-        Some(input_addr) => deps.api.addr_validate(&input_addr),
+        Some(input_addr) => api.addr_validate(&input_addr),
         None => Ok(default),
     }
 }
@@ -422,7 +422,7 @@ pub fn option_string_to_addr( deps: Deps, option_string: Option<String>, default
 //         }
 //     }
 
-    /// quick mock info with just the sender
+    // quick mock info with just the sender
     // TODO: Maybe this one does not make sense given there's a very smilar helper in cosmwasm_std
     // pub fn mock_info_custom(sender: &str) -> MessageInfo {
     //     MessageInfo {
@@ -706,13 +706,13 @@ pub fn option_string_to_addr( deps: Deps, option_string: Option<String>, default
     // }
 
 
-    /// Assert StdError::GenericErr message with expected_msg
-    pub fn assert_generic_error_message<T>(response: StdResult<T>, expected_msg: &str) {
-        match response {
-            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, expected_msg),
-            Err(other_err) => panic!("Unexpected error: {:?}", other_err),
-            Ok(_) => panic!("SHOULD NOT ENTER HERE!"),
-        }
-    }
+//     /// Assert StdError::GenericErr message with expected_msg
+//     pub fn assert_generic_error_message<T>(response: StdResult<T>, expected_msg: &str) {
+//         match response {
+//             Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, expected_msg),
+//             Err(other_err) => panic!("Unexpected error: {:?}", other_err),
+//             Ok(_) => panic!("SHOULD NOT ENTER HERE!"),
+//         }
+//     }
 
-}
+// }

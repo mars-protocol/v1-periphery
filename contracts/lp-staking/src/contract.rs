@@ -192,7 +192,7 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256) -> St
     staker_info.pending_reward = Uint256::zero();
 
     // Store or remove Staker info, depends on the left bond amount
-    if staker_info.bond_amount.is_zero() {
+    if staker_info.bond_amount == Uint256::zero() {
         STAKER_INFO.remove( deps.storage, &sender_addr);
     } else {
         STAKER_INFO.save( deps.storage, &sender_addr, &staker_info)?;
@@ -337,6 +337,29 @@ pub fn query_timestamp( env: Env) -> StdResult<TimeResponse> {
     Ok(TimeResponse { timestamp: env.block.time.seconds() })
 }
 
+/// @dev Returns the current timestamp
+pub fn query_compute_reward(deps: Deps, env: Env, init_timestamp: u64, cur_cycle_rewards: Uint256, last_distributed: u64, total_bond_amount:Uint256, global_reward_index: Decimal256, current_timestamp: u64) -> StdResult<StateResponse> {
+    let mut state: State = STATE.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
+
+    state.cycle_init_timestamp = init_timestamp;
+    state.current_cycle_rewards = cur_cycle_rewards;
+    state.last_distributed = last_distributed;
+    state.total_bond_amount = total_bond_amount;
+    state.global_reward_index = global_reward_index;
+
+    compute_reward(&config, &mut state, current_timestamp);
+
+    Ok(StateResponse {
+        cycle_init_timestamp: state.cycle_init_timestamp,
+        current_cycle_rewards: state.current_cycle_rewards,
+        last_distributed: state.last_distributed,
+        total_bond_amount: state.total_bond_amount,
+        global_reward_index: state.global_reward_index,
+    })    
+}
+
+
 
 //----------------------------------------------------------------------------------------
 // Helper Functions
@@ -356,32 +379,46 @@ fn decrease_bond_amount(state: &mut State,staker_info: &mut StakerInfo,amount: U
 
 /// @dev Computes total accrued rewards 
 fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
-    if state.total_bond_amount.is_zero() || config.init_timestamp > cur_timestamp {
+
+    if state.total_bond_amount == Uint256::zero() || config.init_timestamp > cur_timestamp {
         state.last_distributed = cur_timestamp;
         return;
     }
 
     let mut rewards_to_distribute = Decimal256::zero();
-    let next_cycle_init_timestamp = state.cycle_init_timestamp + config.cycle_duration;
 
-    // Next Cycle has begun
-    if next_cycle_init_timestamp <= cur_timestamp {    
-        // Rewards to be distributed from previous cycle
-        rewards_to_distribute = Decimal256::from_uint256(next_cycle_init_timestamp - state.last_distributed) * Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration);
-        // Update Current Cycle       
-        state.cycle_init_timestamp = next_cycle_init_timestamp;                                                   
-        // Update rewards distributed per cycle
-        state.current_cycle_rewards = state.current_cycle_rewards + (state.current_cycle_rewards * config.reward_increase );  
-        // Rewards to be distributed from current cycle
-        rewards_to_distribute = rewards_to_distribute + Decimal256::from_uint256(cur_timestamp - next_cycle_init_timestamp) * Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration);
-    }
-    // Current Cycle in progress
-    else {
-        rewards_to_distribute = Decimal256::from_uint256(cur_timestamp - state.last_distributed) * Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration);
-    }
+    let mut next_cycle_init_timestamp = state.cycle_init_timestamp + config.cycle_duration;
 
-    state.last_distributed = cur_timestamp;
+    // 1st Cycle 
+    rewards_to_distribute = calculate_rewards_from_cycle( Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration), state.last_distributed, std::cmp::min(cur_timestamp, next_cycle_init_timestamp)  );
+    let mut last_distributed = std::cmp::min(cur_timestamp, next_cycle_init_timestamp);
+    
+    // 
+    if cur_timestamp >= next_cycle_init_timestamp {
+
+        while last_distributed == next_cycle_init_timestamp {
+            state.cycle_init_timestamp = last_distributed;                                      // Rewards distrbuted for previous cycle, new cycle began from this point
+            next_cycle_init_timestamp = state.cycle_init_timestamp + config.cycle_duration;     // Timstamp at which the next cycle begins
+            state.current_cycle_rewards = calculate_rewards_for_next_cycle(state.current_cycle_rewards.clone(), config.reward_increase.clone());  
+            rewards_to_distribute += calculate_rewards_from_cycle( Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration), last_distributed, std::cmp::min(cur_timestamp, next_cycle_init_timestamp)  );
+            last_distributed = std::cmp::min(cur_timestamp, next_cycle_init_timestamp);
+        }
+        
+        state.current_cycle_rewards = calculate_rewards_for_next_cycle(state.current_cycle_rewards.clone(), config.reward_increase.clone());  
+        rewards_to_distribute += calculate_rewards_from_cycle( Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration), last_distributed, std::cmp::min(cur_timestamp, next_cycle_init_timestamp)  );
+    }
+ 
     state.global_reward_index = state.global_reward_index + (rewards_to_distribute / Decimal256::from_uint256(state.total_bond_amount));
+ }
+
+
+
+fn calculate_rewards_from_cycle(rewards_per_sec:Decimal256, from_timestamp: u64, till_timestamp: u64 ) -> Decimal256 {
+    rewards_per_sec * Decimal256::from_uint256(till_timestamp - from_timestamp)
+}
+
+fn calculate_rewards_for_next_cycle(current_cycle_rewards:Uint256, reward_increase_percent: Decimal256 ) -> Uint256 {
+    current_cycle_rewards + Uint256::from(current_cycle_rewards * reward_increase_percent)
 }
 
 

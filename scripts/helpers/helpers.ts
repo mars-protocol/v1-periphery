@@ -117,6 +117,13 @@ export function initialize(terra: LCDClient) {
   return terra.wallet(mk);
 }
 
+export async function transferCW20Tokens(terra:LCDClient, wallet: Wallet, tokenAddress: string, recepient: string, amount: number) {
+  let transfer_msg = {"transfer":{"recipient":recepient , "amount":amount.toString() }}
+  let resp = await executeContract(terra, wallet, tokenAddress, transfer_msg );
+}
+
+
+
 export function toEncodedBinary(object: any) {
   return Buffer.from(JSON.stringify(object)).toString('base64');
 }
