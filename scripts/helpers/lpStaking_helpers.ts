@@ -52,6 +52,7 @@ export async function claim_LPstaking_rewards(terra: LCDClient, wallet:Wallet, s
 
 // UPDATE CONFIGURATION
 export async function update_LP_Staking_config( terra: LCDClient,  wallet:Wallet, stakingContractAddress:string, new_config_msg: any) {
+    console.log(new_config_msg)
     let resp = await executeContract(terra, wallet, stakingContractAddress, new_config_msg );
     console.log(" LP STAKING CONTRACT : Configuration successfully updated");
 }  

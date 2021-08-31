@@ -65,15 +65,17 @@ async function main() {
 
   // console.log(bombay_testnet.lpStaking_InitMsg.config);
   // const stakingContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_lp_staking.wasm'),  bombay_testnet.lpStaking_InitMsg.config)
-  const stakingContractAddress = "terra1vvkycfvkukfhnqh8fnenye9uhgld9h0y3j3443"
+  const stakingContractAddress = "terra1pjculq0tdlmx00z57c8e24y3pvjf9jvll3amv5"
   console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
 
 
-  await stake_LP_Tokens(terra, wallet,stakingContractAddress, lpTokenContractAddress, 100000000);
+  // await stake_LP_Tokens(terra, wallet,stakingContractAddress, lpTokenContractAddress, 10000000);
 
-  // await unstake_LP_Tokens(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS, 100000000)
+  // await unstake_LP_Tokens(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS, 20000000)
 
   // await claim_LPstaking_rewards(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS);
+
+  // await  update_LP_Staking_config(terra, wallet,stakingContractAddress, { "update_config": {"new_config": {"cycle_duration": 1000}} } )
 
   // TRANSFER MARS TOKENS TO THE STAKING CONTRACT :: TO BE DISTRIBUTED AS REWARDS
   // let mars_rewards = 5000000000;
@@ -82,19 +84,32 @@ async function main() {
 
 
 
-  // let config = await query_LPStaking_config(terra, stakingContractAddress);
-  // console.log(config);
-  // console.log("\n");
-  // let global_state = await query_LPStaking_state(terra, stakingContractAddress, 0);
-  // console.log(global_state);
-  // console.log("\n");
-  // let position_info = await query_LPStaking_stakerInfo(terra, stakingContractAddress, wallet.key.accAddress , 0);
-  // console.log(position_info);
-  // console.log("\n");
-  // let timestamp = await query_LPStaking_timestamp(terra, stakingContractAddress);
-  // console.log(timestamp);
+  let config = await query_LPStaking_config(terra, stakingContractAddress);
+  console.log(config);
+  console.log("\n");
+  let global_state = await query_LPStaking_state(terra, stakingContractAddress, 0);
+  console.log(global_state);
+  console.log("\n");
+  let position_info = await query_LPStaking_stakerInfo(terra, stakingContractAddress, wallet.key.accAddress , 0);
+  console.log(position_info);
+  console.log("\n");
+  let timestamp = await query_LPStaking_timestamp(terra, stakingContractAddress);
+  console.log(timestamp);
 
+  // let query_reward_msg = {
+  //   "compute_rewards" : {
+  //     "init_timestamp": 1630040000,
+  //     "cur_cycle_rewards": "3000",
+  //     "last_distributed": 1630040100,
+  //     "total_bond_amount": "10000000",
+  //     "global_reward_index": "0",
+  //     "current_timestamp": 1630040776 
+  //   }
+  // }
 
+  // let compute_reward_response = await queryContract(terra, stakingContractAddress, query_reward_msg)
+  // console.log(compute_reward_response)
+  // calculate_rewards(1630039037, 300, 0.02, query_reward_msg);
   // CONFIG :: QUERY
   // let config = await query_Contract(terra, stakingContractAddress, {"config":{}})
   // console.log(config)
@@ -131,4 +146,58 @@ async function main() {
 
 }
 
+
+// function calculate_rewards(config_init_timestamp:number, cycle_duration:number, reward_increase:number, query_reward_msg: any) {
+//   query_reward_msg = query_reward_msg["compute_rewards"];
+//   query_reward_msg["cur_cycle_rewards"] = parseInt(query_reward_msg["cur_cycle_rewards"])
+
+//   if (query_reward_msg["total_bond_amount"] == 0 || config_init_timestamp > query_reward_msg["current_timestamp"]) {
+//     let last_distributed = query_reward_msg["current_timestamp"];
+//     console.log("last_distributed = " + String(last_distributed) );
+//   }
+
+//   let rewards_to_distribute = 0;
+//   let next_cycle_init_timestamp = query_reward_msg["init_timestamp"] + cycle_duration;
+//   console.log("next_cycle_init_timestamp = " + String(next_cycle_init_timestamp) );
+
+//   // 1st Cycle 
+//   rewards_to_distribute = (query_reward_msg["cur_cycle_rewards"] / cycle_duration) * (Math.min(query_reward_msg["current_timestamp"], next_cycle_init_timestamp) -  query_reward_msg["last_distributed"] );
+//   console.log("rewards_to_distribute = " + String(rewards_to_distribute) );
+//   let last_distributed = Math.min(query_reward_msg["current_timestamp"], next_cycle_init_timestamp);
+//   console.log("last_distributed = " + String(last_distributed) );
+
+//   // Following cycles 
+//   if (query_reward_msg["current_timestamp"] >= next_cycle_init_timestamp) {
+//       while (last_distributed == next_cycle_init_timestamp) {
+//         console.log("\n");
+
+//         query_reward_msg["init_timestamp"] = last_distributed;          
+//         console.log("query_reward_msg.init_timestamp = " + String(query_reward_msg["init_timestamp"]));                          
+
+//         next_cycle_init_timestamp = query_reward_msg["init_timestamp"] + cycle_duration;    
+//         console.log("next_cycle_init_timestamp = " + String(next_cycle_init_timestamp) );
+
+//         query_reward_msg["cur_cycle_rewards"] = query_reward_msg["cur_cycle_rewards"] + (query_reward_msg["cur_cycle_rewards"]* reward_increase);  
+//         console.log("query_reward_msg.cur_cycle_rewards = " + String(query_reward_msg["cur_cycle_rewards"]));              
+
+//         rewards_to_distribute += (query_reward_msg["cur_cycle_rewards"] / cycle_duration) * (Math.min(query_reward_msg["current_timestamp"], next_cycle_init_timestamp) - last_distributed );
+//         console.log("rewards_to_distribute = " + String(rewards_to_distribute));              
+
+//         last_distributed = Math.min(query_reward_msg["current_timestamp"], next_cycle_init_timestamp);
+//         console.log("last_distributed = " + String(last_distributed));              
+//     }
+//   }
+
+//   let global_reward_index = query_reward_msg["global_reward_index"] + (rewards_to_distribute / query_reward_msg["total_bond_amount"]);
+//   console.log("global_reward_index = " + String(global_reward_index));              
+
+// }
+
+
+
+
+
+
 main().catch(console.log)
+
+

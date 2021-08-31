@@ -7,7 +7,7 @@ export const bombay_testnet: Config = {
             "init_timestamp": undefined,
             "till_timestamp": undefined, 
             "cycle_rewards": "1000000",
-            "cycle_duration": 300,
+            "cycle_duration": 10,
             "reward_increase": "0.02"
         }
     },

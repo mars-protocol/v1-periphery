@@ -48,7 +48,7 @@ pub enum ExecuteMsg {
         amount: Uint256,
     },
     /// Claim pending rewards
-    Claim {},
+    Claim {}
 }
 
 
@@ -77,7 +77,7 @@ pub enum QueryMsg {
         timestamp: Option<u64>,
     },
     /// Helper function, returns the current timestamp 
-    Timestamp {}
+    Timestamp {}    
 }
 
 
@@ -117,7 +117,7 @@ pub struct ConfigResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
     /// Timestamp at which the current reward cycle begin
-    pub cycle_init_timestamp: u64,
+    pub current_cycle: u64,
     /// MARS rewards to be distributed in the current cycle 
     pub current_cycle_rewards: Uint256,          
     /// Timestamp at which the global_reward_index was last updated
