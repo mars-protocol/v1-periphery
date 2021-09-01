@@ -51,6 +51,8 @@ pub struct State {
     pub total_ust_locked: Uint256,
     /// maUST held by the contract. This value is updated real-time upon each maUST withdrawal from red bank 
     pub total_maust_locked: Uint256,
+    /// Total weighted deposits
+    pub total_deposits_weight: Uint256,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
     pub global_reward_index: Decimal256,
 }

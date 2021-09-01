@@ -96,11 +96,9 @@ pub enum CallbackMsg {
         user: Addr,
         prev_xmars_balance: Uint256
     },
-    UpdateStateOnWithdraw {
+    DissolvePosition {
         user: Addr,
-        duration: u64,
-        m_ust_withdrawn: Uint256,
-        prev_ust_balance: Uint256
+        duration: u64
     }
 }
 
@@ -169,12 +167,6 @@ pub struct LockUpInfoResponse {
         pub maust_balance: Uint256,            
         /// Lockdrop incentive distributed to this position
         pub lockdrop_reward: Uint256,         
-        /// Boolean value indicating if the lockdrop_reward has been claimed or not
-        pub lockdrop_claimed: bool,
-        /// Value used to calculate deposit_rewards accured by this position
-        pub reward_index: Decimal256, 
-        /// Pending rewards to be claimed by the user        
-        pub pending_reward: Uint256,            
         /// Timestamp beyond which this position can be unlocked
         pub unlock_timestamp: u64,   
 }

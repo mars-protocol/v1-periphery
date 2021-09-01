@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Uint128,Deps, QuerierWrapper,CosmosMsg, BankMsg, QueryRequest,WasmQuery, Addr, Coin, DepsMut, Env, MessageInfo, WasmMsg, Response, StdResult, StdError};
+use cosmwasm_std::{to_binary, Binary,Deps, QuerierWrapper,CosmosMsg, BankMsg, QueryRequest,WasmQuery, Addr, Coin, DepsMut, Env, MessageInfo, WasmMsg, Response, StdResult, StdError};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, UpdateConfigMsg, CallbackMsg, QueryMsg, ConfigResponse,GlobalStateResponse, UserInfoResponse, LockUpInfoResponse };
@@ -8,7 +8,7 @@ use crate::state::{Config, CONFIG, State, STATE, UserInfo, USER_INFO, LockupInfo
 
 use mars::address_provider::helpers::{query_address, query_addresses};
 use mars::address_provider::msg::MarsContract;
-
+use mars::error::MarsError;
 use mars::helpers::{cw20_get_balance, option_string_to_addr, zero_address};
 
 const SECONDS_PER_WEEK: u64 = 7*86400 as u64;
@@ -28,7 +28,7 @@ pub fn instantiate( deps: DepsMut,_env: Env,info: MessageInfo,msg: InstantiateMs
     
     // CHECK :: deposit_window,withdrawal_window need to be valid (withdrawal_window < deposit_window)
     if msg.deposit_window == 0u64 || msg.withdrawal_window == 0u64 || msg.deposit_window <= msg.withdrawal_window {
-        return Err(StdError::generic_err("Invalid deposit / withdraw window timeframes"));
+        return Err(StdError::generic_err("Invalid deposit / withdraw window"));
     }
 
     // CHECK :: min_lock_duration , max_lock_duration need to be valid (min_lock_duration < max_lock_duration)
@@ -55,6 +55,7 @@ pub fn instantiate( deps: DepsMut,_env: Env,info: MessageInfo,msg: InstantiateMs
         final_maust_locked: Uint256::zero(),
         total_ust_locked: Uint256::zero(),
         total_maust_locked: Uint256::zero(),
+        total_deposits_weight: Uint256::zero(),
         global_reward_index: Decimal256::zero(),
     };
 
@@ -156,7 +157,7 @@ pub fn try_deposit_ust( deps: DepsMut, env: Env, info: MessageInfo, duration: u6
     let depositor_address = info.sender.clone();
 
     // CHECK :: Lockdrop deposit window open
-    if is_deposit_open(env, config ) {
+    if is_deposit_open(env.block.time.seconds(), &config ) {
         return Err(StdError::generic_err("Deposit window closed"));
     }
 
@@ -175,12 +176,12 @@ pub fn try_deposit_ust( deps: DepsMut, env: Env, info: MessageInfo, duration: u6
     let mut lockup_info = LOCKUP_INFO.may_load(deps.storage, lockup_id.clone().as_bytes() )?.unwrap_or_default();
     lockup_info.ust_locked += deposit_amount;
     lockup_info.duration = duration;
-    lockup_info.unlock_timestamp = calculate_unlock_timestamp(config, duration);
+    lockup_info.unlock_timestamp = calculate_unlock_timestamp(&config, duration);
 
     // USER INFO :: RETRIEVE --> UPDATE 
     let mut user_info = USER_INFO.may_load(deps.storage, &depositor_address.clone() )?.unwrap_or_default();
     user_info.total_ust_locked += deposit_amount;
-    if !is_lockup_present_in_user_info(user_info, lockup_id) {
+    if !is_lockup_present_in_user_info(&user_info, lockup_id.clone()) {
         user_info.lockup_positions.push(lockup_id.clone() );
     }
 
@@ -216,7 +217,7 @@ pub fn try_withdraw_ust( deps: DepsMut, env: Env, info: MessageInfo, duration:u6
     let mut lockup_info = LOCKUP_INFO.may_load(deps.storage, lockup_id.clone().as_bytes() )?.unwrap_or_default();
 
     // CHECK :: Lockdrop withdrawal window open
-    if is_withdraw_open(env, config) {
+    if is_withdraw_open(env.block.time.seconds(), &config) {
         return Err(StdError::generic_err("Withdrawals not allowed"));
     }
 
@@ -275,7 +276,7 @@ pub fn try_deposit_in_red_bank( deps: DepsMut, env: Env, info: MessageInfo) -> S
     }
 
     // CHECK :: Lockdrop deposit window should be closed
-    if env.block.time.seconds() < config.init_timestamp || is_deposit_open(env, config) {
+    if env.block.time.seconds() < config.init_timestamp || is_deposit_open(env.block.time.seconds(), &config) {
         return Err(StdError::generic_err("Lockdrop deposit window open"));
     }    
 
@@ -287,7 +288,7 @@ pub fn try_deposit_in_red_bank( deps: DepsMut, env: Env, info: MessageInfo) -> S
     // FETCH CURRENT BALANCE, PREPARE DEPOSIT MSG 
     let red_bank = query_address( &deps.querier,config.address_provider, MarsContract::RedBank )?;
     let ma_ust_balance = Uint256::from(cw20_get_balance(&deps.querier, config.ma_ust_token.clone(), env.contract.address.clone() )?);
-    let deposit_msg = build_deposit_into_redbank_msg( red_bank, config.denom, state.total_ust_locked )?;
+    let deposit_msg = build_deposit_into_redbank_msg( red_bank, config.denom.clone(), state.total_ust_locked )?;
 
     // COSMOS_MSG :: UPDATE CONTRACT STATE
     let update_state_msg = CallbackMsg::UpdateStateOnRedBankDeposit {   
@@ -313,7 +314,7 @@ pub fn try_claim( deps: DepsMut, env: Env, info: MessageInfo ) -> StdResult<Resp
     let user_info = USER_INFO.may_load(deps.storage, &user_address )?.unwrap_or_default();
 
     // CHECK :: REWARDS CAN BE CLAIMED 
-    if is_deposit_open(env, config)  {
+    if is_deposit_open(env.block.time.seconds(), &config)  {
         return Err(StdError::generic_err("Claim not allowed"));
     }    
      
@@ -362,7 +363,7 @@ pub fn try_unlock_position( deps: DepsMut, env: Env, info: MessageInfo, duration
     let depositor_address = info.sender.clone();
 
     // LOCKUP INFO :: RETRIEVE
-    let lockup_id = depositor_address.to_string() + &duration.to_string();
+    let lockup_id = depositor_address.clone().to_string() + &duration.to_string();
     let lockup_info = LOCKUP_INFO.may_load(deps.storage, lockup_id.as_bytes() )?.unwrap_or_default();
 
     // CHECK :: IS VALID LOCKUP
@@ -377,7 +378,7 @@ pub fn try_unlock_position( deps: DepsMut, env: Env, info: MessageInfo, duration
     }
 
     // MaUST :: AMOUNT TO BE SENT TO THE USER
-    let must_unlocked = calculate_user_ma_ust_share(lockup_info.ust_locked, state.final_ust_locked, state.final_maust_locked );
+    let maust_unlocked = calculate_user_ma_ust_share(lockup_info.ust_locked, state.final_ust_locked, state.final_maust_locked );
 
     // QUERY:: Contract addresses
     let mars_contracts = vec![MarsContract::RedBank, MarsContract::Incentives, MarsContract::XMarsToken];
@@ -398,23 +399,26 @@ pub fn try_unlock_position( deps: DepsMut, env: Env, info: MessageInfo, duration
 
     // CALLBACK MSG :: UPDATE STATE ON CLAIM (before dissolving lockup position)
     let callback_claim_xmars_msg = CallbackMsg::UpdateStateOnClaim {   
-                                                            user: depositor_address,
+                                                            user: depositor_address.clone(),
                                                             prev_xmars_balance: xmars_balance.balance.into()
                                                         }.to_cosmos_msg(&env.contract.address)?;
 
 
-    let callback_dissolve_position_msg = 
+    let callback_dissolve_position_msg = CallbackMsg::DissolvePosition {   
+                                            user: depositor_address.clone(),
+                                            duration: duration
+                                        }.to_cosmos_msg(&env.contract.address)?;
 
     // COSMOS MSG :: TRANSFER USER POSITION's MA-UST SHARE
-    let maust_transfer_msg = build_send_cw20_token_msg(depositor_address, config.ma_ust_token, must_unlocked )?;
+    let maust_transfer_msg = build_send_cw20_token_msg(depositor_address.clone(), config.ma_ust_token, maust_unlocked )?;
 
     Ok(Response::new()
-        .add_messages(vec![claim_xmars_msg, callback_claim_xmars_msg, update_state_msg, maust_transfer_msg])
+        .add_messages(vec![claim_xmars_msg, callback_claim_xmars_msg, callback_dissolve_position_msg, maust_transfer_msg])
         .add_attributes(vec![
             ("action", "lockdrop::ExecuteMsg::UnlockPosition"),
             ("owner", info.sender.as_str()),
             ("duration", duration.to_string().as_str()),
-            ("maUST_withdrawn", maust_to_withdraw.to_string().as_str()),
+            ("maUST_unlocked", maust_unlocked.to_string().as_str()),
         ]))
 }
 
@@ -436,6 +440,7 @@ pub fn update_state_on_red_bank_deposit( deps: DepsMut, env: Env, prev_ma_ust_ba
     // STATE :: UPDATE --> SAVE
     state.final_ust_locked =  state.total_ust_locked;
     state.final_maust_locked =  m_ust_minted;
+    state.total_ust_locked = Uint256::zero();
     state.total_maust_locked =  m_ust_minted;
     STATE.save(deps.storage, &state)?;
 
@@ -456,7 +461,7 @@ pub fn update_state_on_claim(deps: DepsMut, env: Env,  user:Addr , prev_xmars_ba
     
     // QUERY:: Contract addresses
     let mars_contracts = vec![MarsContract::MarsToken, MarsContract::XMarsToken];
-    let addresses_query = query_addresses(&deps.querier,config.address_provider, mars_contracts)?;
+    let mut addresses_query = query_addresses(&deps.querier,config.address_provider.clone(), mars_contracts)?;
     let xmars_address = addresses_query.pop().unwrap();
     let mars_address = addresses_query.pop().unwrap();
 
@@ -481,7 +486,7 @@ pub fn update_state_on_claim(deps: DepsMut, env: Env,  user:Addr , prev_xmars_ba
         let mut rewards = Uint256::zero();
         for lockup_id in &mut user_info.lockup_positions {
             let mut lockup_info = LOCKUP_INFO.may_load(deps.storage, lockup_id.as_bytes())?.unwrap_or_default();
-            rewards = calculate_lockdrop_reward(lockup_info.ust_locked , lockup_info.duration, state.final_ust_locked, total_lockdrop_incentives.clone(), config.weekly_multiplier);
+            rewards = calculate_lockdrop_reward(lockup_info.ust_locked , lockup_info.duration, &config, state.total_deposits_weight);
             lockup_info.lockdrop_reward = rewards;            
             total_mars_rewards += rewards;
             LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
@@ -490,7 +495,7 @@ pub fn update_state_on_claim(deps: DepsMut, env: Env,  user:Addr , prev_xmars_ba
     }
 
     // TO BE CLAIMED :::: CALCULATE ACCRUED MARS AS DEPOSIT INCENTIVES
-    compute_user_accrued_reward(state.clone(), &mut user_info);        
+    compute_user_accrued_reward(&state, &mut user_info);        
     total_xmars_rewards = user_info.pending_reward;  
     user_info.pending_reward = Uint256::zero();
 
@@ -581,6 +586,7 @@ pub fn query_state(deps: Deps) -> StdResult<GlobalStateResponse> {
         total_ust_locked: state.total_ust_locked,
         total_maust_locked: state.total_maust_locked,
         global_reward_index: state.global_reward_index,
+        total_deposits_weight: state.total_deposits_weight
     })
 }
 
@@ -614,16 +620,13 @@ pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<Loc
         ust_locked : lockup_info.ust_locked,         
         maust_balance : calculate_user_ma_ust_share(lockup_info.ust_locked, state.final_ust_locked, state.final_maust_locked),        
         lockdrop_reward : lockup_info.lockdrop_reward,   
-        lockdrop_claimed : lockup_info.lockdrop_claimed,
-        reward_index : lockup_info.reward_index,
-        pending_reward :  lockup_info.pending_reward,       
         unlock_timestamp : lockup_info.unlock_timestamp
     };
 
 
     if lockup_response.lockdrop_reward  == Uint256::zero() {
         let config = CONFIG.load(deps.storage)?;
-        lockup_response.lockdrop_reward = calculate_lockdrop_reward(lockup_response.ust_locked, lockup_response.duration, state.final_ust_locked, config.lockdrop_incentives, config.weekly_multiplier );
+        lockup_response.lockdrop_reward = calculate_lockdrop_reward(lockup_response.ust_locked, lockup_response.duration, &config, state.total_deposits_weight );
     }
 
     Ok(lockup_response)
@@ -638,28 +641,31 @@ pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<Loc
 //----------------------------------------------------------------------------------------
 
 /// true if deposits are allowed
-fn is_deposit_open(env: Env, config: Config ) -> bool {
-    let current_timestamp = env.block.time.seconds();
+fn is_deposit_open(current_timestamp: u64, config: &Config ) -> bool {
     (current_timestamp >= config.init_timestamp) && ((config.init_timestamp + config.deposit_window) > current_timestamp)
 }
 
 /// true if withdrawals are allowed
-fn is_withdraw_open(env: Env, config: Config ) -> bool {
-    let current_timestamp = env.block.time.seconds();
+fn is_withdraw_open(current_timestamp: u64, config: &Config ) -> bool {
     (current_timestamp >= config.init_timestamp) && ((config.init_timestamp + config.withdrawal_window) > current_timestamp)
 }
 
 /// Returns the timestamp when the lockup will get unlocked
-fn calculate_unlock_timestamp(config: Config, duration:u64) -> u64 {
+fn calculate_unlock_timestamp(config: &Config, duration:u64) -> u64 {
     config.init_timestamp + config.deposit_window + duration*SECONDS_PER_WEEK
 }
 
 // Calculate Lockdrop Reward
-fn calculate_lockdrop_reward(deposited_ust:Uint256, duration: u64, final_ust_locked:Uint256, total_rewards: Uint256, weekly_multiplier:Decimal256) -> Uint256 {
-    let _multiplier = Decimal256::from_ratio(duration, 7 as u64) * weekly_multiplier;
-    let user_share = Decimal256::from_ratio(deposited_ust, final_ust_locked);
-    user_share * _multiplier * total_rewards
+fn calculate_lockdrop_reward(deposited_ust:Uint256, duration: u64, config: &Config, total_deposits_weight: Uint256 ) -> Uint256 {
+    let amount_weight = calculate_weight(deposited_ust, duration, config.weekly_multiplier);
+    config.lockdrop_incentives * Decimal256::from_ratio( amount_weight, total_deposits_weight )
 }
+
+// Returns effective weight for the amount to be used for calculating airdrop rewards
+fn calculate_weight(amount:Uint256, duration: u64, weekly_multiplier:Decimal256) -> Uint256 {
+    (amount * Uint256::from(duration)) * weekly_multiplier
+}
+
 
 // native coins
 fn get_denom_amount_from_coins(coins: &[Coin], denom: &str) -> Uint256 {
@@ -681,7 +687,7 @@ fn update_xmars_rewards_index(state: &mut State, xmars_accured: Uint256) {
 } 
 
 // Accrue MARS reward for the user by updating the user reward index and adding rewards to the pending rewards
-fn compute_user_accrued_reward(state: State, user_info: &mut UserInfo) { 
+fn compute_user_accrued_reward(state: &State, user_info: &mut UserInfo) { 
     let user_maust_share = state.total_maust_locked * Decimal256::from_ratio(user_info.total_ust_locked, state.total_ust_locked);
     let pending_reward = (user_maust_share * state.global_reward_index) - (user_maust_share * user_info.reward_index);
     user_info.reward_index = state.global_reward_index;
@@ -694,8 +700,8 @@ fn calculate_user_ma_ust_share(lockup_ust_locked: Uint256, final_ust_locked: Uin
 }
 
 // Returns true if the user_info stuct's lockup_positions vector contains the lockup_id
-fn is_lockup_present_in_user_info(user_info: UserInfo, lockup_id: String) ->bool {
-    if user_info.lockup_positions.iter().any(|&id| id==lockup_id) {
+fn is_lockup_present_in_user_info(user_info: &UserInfo, lockup_id: String) ->bool {
+    if user_info.lockup_positions.iter().any(|id| id == &lockup_id) {
         return true;
     }
     false

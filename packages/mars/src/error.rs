@@ -15,3 +15,10 @@ pub enum MarsError {
     #[error("Incorrect number of addresses, expected {expected:?}, got {actual:?}")]
     AddressesQueryWrongNumber { expected: u32, actual: u32 },
 }
+
+
+impl From<MarsError> for StdError {
+    fn from(error: MarsError ) -> Self {
+        StdError::generic_err(format!("Address provider Error : {}",error))
+    }
+}
