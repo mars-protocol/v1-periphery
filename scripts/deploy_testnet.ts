@@ -65,20 +65,20 @@ async function main() {
 
   // console.log(bombay_testnet.lpStaking_InitMsg.config);
   // const stakingContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_lp_staking.wasm'),  bombay_testnet.lpStaking_InitMsg.config)
-  const stakingContractAddress = "terra1pjculq0tdlmx00z57c8e24y3pvjf9jvll3amv5"
+  const stakingContractAddress = "terra199gy2vjpm52se5jkc24yw0lf98dx0749gf2jve"
   console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
 
 
-  // await stake_LP_Tokens(terra, wallet,stakingContractAddress, lpTokenContractAddress, 10000000);
+  // await stake_LP_Tokens(terra, wallet,stakingContractAddress, lpTokenContractAddress, 100000000);
 
-  // await unstake_LP_Tokens(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS, 20000000)
+  await unstake_LP_Tokens(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS, 20000000)
 
-  // await claim_LPstaking_rewards(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS);
+  await claim_LPstaking_rewards(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS);
 
   // await  update_LP_Staking_config(terra, wallet,stakingContractAddress, { "update_config": {"new_config": {"cycle_duration": 1000}} } )
 
   // TRANSFER MARS TOKENS TO THE STAKING CONTRACT :: TO BE DISTRIBUTED AS REWARDS
-  // let mars_rewards = 5000000000;
+  // let mars_rewards = 50000000000;
   // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, stakingContractAddress, mars_rewards);
 
 

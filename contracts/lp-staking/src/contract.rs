@@ -192,14 +192,9 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256) -> St
     let accrued_rewards = staker_info.pending_reward;
     staker_info.pending_reward = Uint256::zero();
 
-    // Store or remove Staker info, depends on the left bond amount
-    if staker_info.bond_amount == Uint256::zero() {
-        STAKER_INFO.remove( deps.storage, &sender_addr);
-    } else {
-        STAKER_INFO.save( deps.storage, &sender_addr, &staker_info)?;
-    }
-
-    STATE.save( deps.storage, &state )?;                     // Store updated state
+    // Store Staker info, depends on the left bond amount
+    STAKER_INFO.save( deps.storage, &sender_addr, &staker_info)?;
+    STATE.save( deps.storage, &state )?;                    
 
     let mut messages = vec![];
     messages.push( build_send_cw20_token_msg(sender_addr.clone(), config.staking_token, amount.into())? ) ;

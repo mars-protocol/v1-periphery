@@ -36,7 +36,8 @@ export async function unstake_LP_Tokens(terra: LCDClient, wallet:Wallet, staking
     let unstake_msg = { "unbond":{"amount":amount.toString()} };
     let resp = await executeContract(terra, wallet, stakingContractAddress, unstake_msg );
     let new_mars_balance = await queryContract(terra, marsTokenAddress, {"balance": {"address": wallet.key.accAddress}} );
-    console.log(" LP Tokens unstaked. " + (new_mars_balance - mars_balance).toString() + " $MARS (scale = 1e6) claimed as rewards" );
+    let rewards_claimed = (new_mars_balance["balance"] - mars_balance["balance"])/10**6 ;
+    console.log(" LP Tokens unstaked. " + rewards_claimed.toString() + " $MARS (scale = 1e6) claimed as rewards" );
 }  
 
 
@@ -46,7 +47,8 @@ export async function claim_LPstaking_rewards(terra: LCDClient, wallet:Wallet, s
     let claim_msg = { "claim":{} };
     let resp = await executeContract(terra, wallet, stakingContractAddress, claim_msg );
     let new_mars_balance = await queryContract(terra, marsTokenAddress, {"balance": {"address": wallet.key.accAddress}} );
-    console.log((new_mars_balance - mars_balance).toString() + " $MARS (scale = 1e6) claimed as LP Staking rewards" );
+    let rewards_claimed = (new_mars_balance["balance"] - mars_balance["balance"])/10**6 ;
+    console.log(rewards_claimed.toString() + " $MARS (scale = 1e6) claimed as LP Staking rewards" );
 }  
 
 
