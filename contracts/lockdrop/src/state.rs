@@ -22,11 +22,15 @@ pub struct Config {
     pub address_provider: Addr,              
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Addr,                      
-    /// Timestamp till when deposits can be made
+    /// Timestamp when Contract will start accepting deposits 
     pub init_timestamp: u64,                   
-    /// Min. no. of days allowed for lockup 
+    /// Deposit Window Length
+    pub deposit_window: u64,                   
+    /// Withdrawal Window Length 
+    pub withdrawal_window: u64,                   
+    /// Min. no. of weeks allowed for lockup 
     pub min_lock_duration: u64,                
-    /// Max. no. of days allowed for lockup 
+    /// Max. no. of weeks allowed for lockup 
     pub max_lock_duration: u64,                
     /// Lockdrop Reward multiplier 
     pub weekly_multiplier: Decimal256,          
@@ -58,14 +62,23 @@ pub struct UserInfo {
     /// Total UST amount deposited by the user across all his lockup positions
     pub total_ust_locked: Uint256,
     /// Contains lockup Ids of the User's lockup positions with different durations / deposit amounts
-    pub lockup_positions: Vec<String>
+    pub lockup_positions: Vec<String>,
+    /// Boolean value indicating if the lockdrop_rewards for the lockup positions have been claimed or not
+    pub lockdrop_claimed: bool,
+    /// Value used to calculate deposit_rewards (XMARS) accured by the user
+    pub reward_index: Decimal256, 
+    /// Pending rewards to be claimed by the user        
+    pub pending_reward: Uint256,            
 }
 
 impl Default for UserInfo {
     fn default() -> Self {
         UserInfo {
             total_ust_locked: Uint256::zero(),
-            lockup_positions: vec![]
+            lockup_positions: vec![],
+            lockdrop_claimed: false,
+            reward_index: Decimal256::zero(),
+            pending_reward: Uint256::zero()
         }
     }
 }
@@ -80,12 +93,6 @@ pub struct LockupInfo {
     pub ust_locked: Uint256,            
     /// Lockdrop incentive distributed to this position
     pub lockdrop_reward: Uint256,         
-    /// Boolean value indicating if the lockdrop_reward has been claimed or not
-    pub lockdrop_claimed: bool,
-    /// Value used to calculate deposit_rewards accured by this position
-    pub reward_index: Decimal256, 
-    /// Pending rewards to be claimed by the user        
-    pub pending_reward: Uint256,            
     /// Timestamp beyond which this position can be unlocked
     pub unlock_timestamp: u64,              
 }
@@ -95,10 +102,7 @@ impl Default for LockupInfo {
         LockupInfo {
             duration: 0 as u64,
             ust_locked: Uint256::zero(),
-            reward_index: Decimal256::zero(),
-            pending_reward: Uint256::zero(),
             lockdrop_reward: Uint256::zero(),
-            lockdrop_claimed: false,
             unlock_timestamp: 0 as u64,
         }
     }

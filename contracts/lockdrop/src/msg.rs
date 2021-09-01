@@ -9,6 +9,33 @@ use crate::state::{State};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Account who can update config
+    pub owner: String,
+    /// Contract used to query addresses related to red-bank (MARS Token)
+    pub address_provider: Option<String>,
+    ///  maUST token address - Minted upon UST deposits into red bank
+    pub ma_ust_token: Option<String>,
+    /// Timestamp till when deposits can be made
+    pub init_timestamp: u64,
+    /// Number of seconds for which lockup deposits will be accepted 
+    pub deposit_window: u64,
+    /// Number of seconds for which lockup withdrawals will be allowed 
+    pub withdrawal_window: u64,
+    /// Min. no. of days allowed for lockup 
+    pub min_duration: u64,
+    /// Max. no. of days allowed for lockup 
+    pub max_duration: u64,
+    /// "uusd" - Native token accepted by the contract for deposits
+    pub denom: Option<String>,
+    /// Lockdrop Reward multiplier 
+    pub weekly_multiplier: Option<Decimal256>,
+    /// Total MARS lockdrop incentives to be distributed among the users
+    pub lockdrop_incentives: Option<Uint256>
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateConfigMsg {
+    /// Account who can update config
     pub owner: Option<String>,
     /// Contract used to query addresses related to red-bank (MARS Token)
     pub address_provider: Option<String>,
@@ -16,17 +43,26 @@ pub struct InstantiateMsg {
     pub ma_ust_token: Option<String>,
     /// Timestamp till when deposits can be made
     pub init_timestamp: Option<u64>,
+    /// Number of seconds for which lockup deposits will be accepted 
+    pub deposit_window: Option<u64>,
+    /// Number of seconds for which lockup withdrawals will be allowed 
+    pub withdrawal_window: Option<u64>,
     /// Min. no. of days allowed for lockup 
     pub min_duration: Option<u64>,
     /// Max. no. of days allowed for lockup 
     pub max_duration: Option<u64>,
-    /// "uusd" - Native token accepted by the contract for deposits
-    pub denom: Option<String>,
     /// Lockdrop Reward multiplier 
-    pub multiplier: Option<Decimal256>,
+    pub weekly_multiplier: Option<Decimal256>,
     /// Total MARS lockdrop incentives to be distributed among the users
     pub lockdrop_incentives: Option<Uint256>
 }
+
+
+
+
+
+
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -44,7 +80,7 @@ pub enum ExecuteMsg {
     ClaimRewards {
     },
     UpdateConfig {
-        new_config: InstantiateMsg,
+        new_config: UpdateConfigMsg,
     },    
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),    
@@ -55,6 +91,10 @@ pub enum ExecuteMsg {
 pub enum CallbackMsg {
     UpdateStateOnRedBankDeposit {
         prev_ma_ust_balance: Uint256
+    },
+    UpdateStateOnClaim {
+        user: Addr,
+        prev_xmars_balance: Uint256
     },
     UpdateStateOnWithdraw {
         user: Addr,

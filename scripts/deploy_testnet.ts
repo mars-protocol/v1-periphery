@@ -48,6 +48,9 @@ async function main() {
   const lpTokenContractAddress = "terra1mr4fzf3xketmyxdtxunqgacslntm8xzpawqp4w"
   console.log("LP Token Contract Address: " + lpTokenContractAddress)
 
+  // TRANSFER MARS TOKENS TO THE STAKING CONTRACT :: TO BE DISTRIBUTED AS REWARDS
+  // let mars_rewards = 50000000000;
+  // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, stakingContractAddress, mars_rewards);
 
   // /*************************************** Deploy LP Staking Contract *****************************************/
   // console.log("Deploying LP Staking Contract...")
@@ -69,43 +72,70 @@ async function main() {
   console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
 
 
-  // await stake_LP_Tokens(terra, wallet,stakingContractAddress, lpTokenContractAddress, 100000000);
+  // /*************************************** LP Staking Contract :: Function Calls *****************************************/
+  
+  // // await stake_LP_Tokens(terra, wallet,stakingContractAddress, lpTokenContractAddress, 100000000);
+  // await unstake_LP_Tokens(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS, 20000000)
+  // await claim_LPstaking_rewards(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS);
+  // // await  update_LP_Staking_config(terra, wallet,stakingContractAddress, { "update_config": {"new_config": {"cycle_duration": 1000}} } )
 
-  await unstake_LP_Tokens(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS, 20000000)
+  // let config = await query_LPStaking_config(terra, stakingContractAddress);
+  // console.log(config);
+  // console.log("\n");
+  // let global_state = await query_LPStaking_state(terra, stakingContractAddress, 0);
+  // console.log(global_state);
+  // console.log("\n");
+  // let position_info = await query_LPStaking_stakerInfo(terra, stakingContractAddress, wallet.key.accAddress , 0);
+  // console.log(position_info);
+  // console.log("\n");
+  // let timestamp = await query_LPStaking_timestamp(terra, stakingContractAddress);
+  // console.log(timestamp);
 
-  await claim_LPstaking_rewards(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS);
+  // /*************************************** Deploy LOCKDROP Contract *****************************************/
+  console.log("Deploying Lockdrop Contract...")
 
-  // await  update_LP_Staking_config(terra, wallet,stakingContractAddress, { "update_config": {"new_config": {"cycle_duration": 1000}} } )
+  // let init_timestamp = parseInt((Date.now()/1000).toFixed(0));
+  // let till_timestamp = init_timestamp + 1000000;
 
-  // TRANSFER MARS TOKENS TO THE STAKING CONTRACT :: TO BE DISTRIBUTED AS REWARDS
-  // let mars_rewards = 50000000000;
-  // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, stakingContractAddress, mars_rewards);
+  // // SETTING CONFIG
+  // bombay_testnet.lpStaking_InitMsg.config.owner = wallet.key.accAddress;
+  // bombay_testnet.lpStaking_InitMsg.config.address_provider = ADDRESS_PROVIDER;
+  // bombay_testnet.lpStaking_InitMsg.config.staking_token = lpTokenContractAddress;
+  // bombay_testnet.lpStaking_InitMsg.config.init_timestamp = init_timestamp;
+  // bombay_testnet.lpStaking_InitMsg.config.till_timestamp = till_timestamp;
+
+
+  // console.log(bombay_testnet.lpStaking_InitMsg.config);
+  // const stakingContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_lp_staking.wasm'),  bombay_testnet.lpStaking_InitMsg.config)
+  const stakingContractAddress = "terra199gy2vjpm52se5jkc24yw0lf98dx0749gf2jve"
+  console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
 
 
 
 
-  let config = await query_LPStaking_config(terra, stakingContractAddress);
-  console.log(config);
-  console.log("\n");
-  let global_state = await query_LPStaking_state(terra, stakingContractAddress, 0);
-  console.log(global_state);
-  console.log("\n");
-  let position_info = await query_LPStaking_stakerInfo(terra, stakingContractAddress, wallet.key.accAddress , 0);
-  console.log(position_info);
-  console.log("\n");
-  let timestamp = await query_LPStaking_timestamp(terra, stakingContractAddress);
-  console.log(timestamp);
 
-  // let query_reward_msg = {
-  //   "compute_rewards" : {
-  //     "init_timestamp": 1630040000,
-  //     "cur_cycle_rewards": "3000",
-  //     "last_distributed": 1630040100,
-  //     "total_bond_amount": "10000000",
-  //     "global_reward_index": "0",
-  //     "current_timestamp": 1630040776 
-  //   }
-  // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // let compute_reward_response = await queryContract(terra, stakingContractAddress, query_reward_msg)
   // console.log(compute_reward_response)
