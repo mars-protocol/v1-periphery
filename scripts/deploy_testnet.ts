@@ -9,12 +9,13 @@ import {
   setTimeoutDuration,
   uploadContract,
 } from "./helpers/helpers.js"
-import { LCDClient, LocalTerra, Wallet, MnemonicKey } from "@terra-money/terra.js"
-// import { testnet, bombay, local } from "./deploy_configs.js"
+import { LCDClient } from "@terra-money/terra.js"
 import { join } from "path"
 import { update_LP_Staking_config, stake_LP_Tokens, claim_LPstaking_rewards, unstake_LP_Tokens
         , query_LPStaking_config, query_LPStaking_state, query_LPStaking_stakerInfo,query_LPStaking_timestamp } from "./helpers/lpStaking_helpers.js"
-import { parse } from 'dotenv/types'
+        import { update_Lockdrop_config, deposit_UST_Lockdrop, withdraw_UST_Lockdrop, claim_rewards_lockdrop
+          , unlock_deposit, query_lockdrop_config, query_lockdrop_state,query_lockdrop_userInfo, query_lockdrop_lockupInfo, query_lockdrop_lockupInfoWithId } from "./helpers/lockdrop_helpers.js"
+  import { parse } from 'dotenv/types'
 import { bombay_testnet } from "./configs.js"
 
 const MARS_ARTIFACTS_PATH = "../artifacts"
@@ -52,6 +53,11 @@ async function main() {
   // let mars_rewards = 50000000000;
   // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, stakingContractAddress, mars_rewards);
 
+
+
+
+
+
   // /*************************************** Deploy LP Staking Contract *****************************************/
   // console.log("Deploying LP Staking Contract...")
 
@@ -79,38 +85,62 @@ async function main() {
   // await claim_LPstaking_rewards(terra, wallet,stakingContractAddress, MARS_TOKEN_ADDRESS);
   // // await  update_LP_Staking_config(terra, wallet,stakingContractAddress, { "update_config": {"new_config": {"cycle_duration": 1000}} } )
 
-  // let config = await query_LPStaking_config(terra, stakingContractAddress);
-  // console.log(config);
+  // let lp_staking_config = await query_LPStaking_config(terra, stakingContractAddress);
+  // console.log(lp_staking_config);
   // console.log("\n");
-  // let global_state = await query_LPStaking_state(terra, stakingContractAddress, 0);
-  // console.log(global_state);
+  // let lp_staking_global_state = await query_LPStaking_state(terra, stakingContractAddress, 0);
+  // console.log(lp_staking_global_state);
   // console.log("\n");
-  // let position_info = await query_LPStaking_stakerInfo(terra, stakingContractAddress, wallet.key.accAddress , 0);
-  // console.log(position_info);
+  // let lp_staking_position_info = await query_LPStaking_stakerInfo(terra, stakingContractAddress, wallet.key.accAddress , 0);
+  // console.log(lp_staking_position_info);
   // console.log("\n");
   // let timestamp = await query_LPStaking_timestamp(terra, stakingContractAddress);
   // console.log(timestamp);
 
+
+
+
+
+
   // /*************************************** Deploy LOCKDROP Contract *****************************************/
-  console.log("Deploying Lockdrop Contract...")
+  // console.log("\n Deploying Lockdrop Contract...")
 
-  // let init_timestamp = parseInt((Date.now()/1000).toFixed(0));
-  // let till_timestamp = init_timestamp + 1000000;
+  // let init_timestamp = parseInt((Date.now()/1000).toFixed(0)) + 100;
 
-  // // SETTING CONFIG
-  // bombay_testnet.lpStaking_InitMsg.config.owner = wallet.key.accAddress;
-  // bombay_testnet.lpStaking_InitMsg.config.address_provider = ADDRESS_PROVIDER;
-  // bombay_testnet.lpStaking_InitMsg.config.staking_token = lpTokenContractAddress;
-  // bombay_testnet.lpStaking_InitMsg.config.init_timestamp = init_timestamp;
-  // bombay_testnet.lpStaking_InitMsg.config.till_timestamp = till_timestamp;
+  // // // SETTING CONFIG
+  // bombay_testnet.lockdrop_InitMsg.config.owner = wallet.key.accAddress;
+  // bombay_testnet.lockdrop_InitMsg.config.init_timestamp = init_timestamp;
 
+  // console.log(bombay_testnet.lockdrop_InitMsg.config);
+  // const lockdropContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'lockdrop.wasm'),  bombay_testnet.lockdrop_InitMsg.config)
+  const lockdropContractAddress = "terra1tcxhm9v5st0mcs0e0cctxq2ccjkcp0hs94z2xh"
+  console.log("LOCKDROP Contract Address: " + lockdropContractAddress + "\n")
 
-  // console.log(bombay_testnet.lpStaking_InitMsg.config);
-  // const stakingContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_lp_staking.wasm'),  bombay_testnet.lpStaking_InitMsg.config)
-  const stakingContractAddress = "terra199gy2vjpm52se5jkc24yw0lf98dx0749gf2jve"
-  console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
+  // /*************************************** LOCKDROP Contract :: Function Calls *****************************************/
 
+  // let new_config_msg = {};
+  // await update_Lockdrop_config(terra, wallet,lockdropContractAddress, 100000000, new_config_msg);  
+  await deposit_UST_Lockdrop(terra, wallet,lockdropContractAddress, 1000000000, 2);
+  await withdraw_UST_Lockdrop(terra, wallet,lockdropContractAddress, 100000000, 1);
+  // await claim_rewards_lockdrop(terra, wallet,lockdropContractAddress);
+  // await  unlock_deposit(terra, wallet,lockdropContractAddress, 1 );
 
+  let lockdrop_config = await query_lockdrop_config(terra, lockdropContractAddress);
+  console.log(lockdrop_config);
+  console.log("\n");
+  let lockdrop_global_state = await query_lockdrop_state(terra, lockdropContractAddress);
+  console.log(lockdrop_global_state);
+  console.log("\n");
+  let lockdrop_user_info = await query_lockdrop_userInfo(terra, lockdropContractAddress, wallet.key.accAddress);
+  console.log(lockdrop_user_info);
+  console.log("\n");
+  let duration = 1;
+  let lockup_info = await query_lockdrop_lockupInfo(terra, lockdropContractAddress, wallet.key.accAddress, duration);
+  console.log(lockup_info);
+  console.log("\n");
+  let lockupId = "";
+  let lockup_info_with_id = await query_lockdrop_lockupInfoWithId(terra, lockdropContractAddress, lockupId);
+  console.log(lockup_info_with_id);
 
 
 

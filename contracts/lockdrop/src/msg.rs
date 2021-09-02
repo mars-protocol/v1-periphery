@@ -67,18 +67,17 @@ pub struct UpdateConfigMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    DepositUST {  
+    DepositUst {  
         duration: u64 
     },
-    WithdrawUST {
+    WithdrawUst {
         duration: u64,
         amount: Uint256
     },
     Unlock {  
         duration: u64 
     },
-    ClaimRewards {
-    },
+    ClaimRewards {},
     UpdateConfig {
         new_config: UpdateConfigMsg,
     },    
@@ -152,7 +151,7 @@ pub type GlobalStateResponse = State;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfoResponse {
     pub total_ust_locked: Uint256,
-    pub total_maust_share: Uint256,
+    pub total_maust_locked: Uint256,
     pub lockup_position_ids: Vec<String>
 }
 

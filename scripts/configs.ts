@@ -13,15 +13,17 @@ export const bombay_testnet: Config = {
     },
     lockdrop_InitMsg: {
         "config" : { 
-            "owner": undefined,
+            "owner": "",
             "address_provider": undefined,
             "ma_ust_token": undefined,
-            "init_timestamp": undefined,
-            "min_duration": 30, 
-            "max_duration": 270,
+            "init_timestamp": 0,
+            "deposit_window": 1800,         // 30 min
+            "withdrawal_window": 900,       // 15 min
+            "min_duration": 1,         
+            "max_duration": 5,
             "denom": "uusd",
-            "multiplier": "0.02",
-            "lockdrop_incentives": "5000000000000"
+            "weekly_multiplier": "0.02",    // 2% 
+            "lockdrop_incentives": "50000000000"
         }
     },
     airdrop_InitMsg: {
@@ -56,14 +58,16 @@ interface LPStakingInitMsg {
 
 interface LockdropInitMsg {
     config : { 
-        owner?: string
+        owner: string
         address_provider?: string
         ma_ust_token?: string
-        init_timestamp?: number
-        min_duration?: number 
+        init_timestamp: number
+        deposit_window: number 
+        withdrawal_window: number 
+        min_duration: number 
         max_duration: number
         denom: string
-        multiplier: string
+        weekly_multiplier: string
         lockdrop_incentives: string
     }
 }
