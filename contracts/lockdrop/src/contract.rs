@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary,Deps, QuerierWrapper,CosmosMsg, BankMsg, QueryRequest,WasmQuery, Addr, Coin, DepsMut, Env, MessageInfo, WasmMsg, Response, StdResult, StdError};
+use cosmwasm_std::{to_binary, Binary,Deps, Uint128, QuerierWrapper,CosmosMsg, BankMsg, QueryRequest,WasmQuery, Addr, Coin, DepsMut, Env, MessageInfo, WasmMsg, Response, StdResult, StdError};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, UpdateConfigMsg, CallbackMsg, QueryMsg, ConfigResponse,GlobalStateResponse, UserInfoResponse, LockUpInfoResponse };
@@ -9,8 +9,10 @@ use crate::state::{Config, CONFIG, State, STATE, UserInfo, USER_INFO, LockupInfo
 use mars::address_provider::helpers::{query_address, query_addresses};
 use mars::address_provider::msg::MarsContract;
 use mars::helpers::{cw20_get_balance, option_string_to_addr, zero_address};
+use mars::tax::{deduct_tax};
+use mars::incentives::msg::QueryMsg::{UserUnclaimedRewards};
 
-const SECONDS_PER_WEEK: u64 = 864 as u64;       // 7*86400 as u64;
+const SECONDS_PER_WEEK: u64 = 30 as u64;       // 7*86400 as u64;
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -70,6 +72,7 @@ pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecuteMsg) -> 
         ExecuteMsg::UpdateConfig { new_config } => update_config(deps, _env, info, new_config),
         ExecuteMsg::DepositUst { duration } => try_deposit_ust(deps, _env, info,  duration),
         ExecuteMsg::WithdrawUst { duration, amount } => try_withdraw_ust(deps, _env, info,  duration, amount),
+        ExecuteMsg::DepositUstInRedBank {} => try_deposit_in_red_bank(deps, _env, info),
         ExecuteMsg::ClaimRewards { } => try_claim(deps, _env, info),
         ExecuteMsg::Unlock { duration } => try_unlock_position(deps, _env, info, duration),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, _env, info, msg),
@@ -140,6 +143,7 @@ pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: Up
         config.lockdrop_incentives = new_config.lockdrop_incentives.unwrap_or(config.lockdrop_incentives );
     }
 
+    CONFIG.save( deps.storage, &config)?;
     Ok(Response::new().add_attribute("action", "lockdrop::ExecuteMsg::UpdateConfig"))
 }
 
@@ -198,9 +202,7 @@ pub fn try_deposit_ust( deps: DepsMut, env: Env, info: MessageInfo, duration: u6
         ("action", "lockdrop::ExecuteMsg::LockUST"),
         ("user", &depositor_address.to_string()),
         ("duration", duration.to_string().as_str()),
-        ("ust_deposited", deposit_amount.to_string().as_str()),
-        ("total_ust_in_lockup", lockup_info.ust_locked.to_string().as_str()),
-        ("total_ust_deposited_by_user", user_info.total_ust_locked.to_string().as_str())
+        ("ust_deposited", deposit_amount.to_string().as_str())
     ]))
 }
 
@@ -250,7 +252,7 @@ pub fn try_withdraw_ust( deps: DepsMut, env: Env, info: MessageInfo, duration:u6
     USER_INFO.save(deps.storage, &withdrawer_address, &user_info)?;
 
     // COSMOS_MSG ::TRANSFER WITHDRAWN UST
-    let withdraw_msg =  build_send_native_asset_msg(withdrawer_address.clone(), &config.denom.clone(), withdraw_amount)? ;
+    let withdraw_msg =  build_send_native_asset_msg(deps.as_ref(),withdrawer_address.clone(), &config.denom.clone(), withdraw_amount)? ;
 
     Ok(Response::new()
     .add_messages(vec![withdraw_msg])
@@ -258,9 +260,7 @@ pub fn try_withdraw_ust( deps: DepsMut, env: Env, info: MessageInfo, duration:u6
         ("action", "lockdrop::ExecuteMsg::WithdrawUST"),
         ("user", &withdrawer_address.to_string()),
         ("duration", duration.to_string().as_str()),
-        ("ust_withdrawn", withdraw_amount.to_string().as_str()),
-        ("total_ust_in_lockup", lockup_info.ust_locked.to_string().as_str()),
-        ("total_ust_deposited_by_user", user_info.total_ust_locked.to_string().as_str())
+        ("ust_withdrawn", withdraw_amount.to_string().as_str())
     ]))
 }
 
@@ -278,7 +278,7 @@ pub fn try_deposit_in_red_bank( deps: DepsMut, env: Env, info: MessageInfo) -> S
 
     // CHECK :: Lockdrop deposit window should be closed
     if env.block.time.seconds() < config.init_timestamp || is_deposit_open(env.block.time.seconds(), &config) {
-        return Err(StdError::generic_err("Lockdrop deposit window open"));
+        return Err(StdError::generic_err("Lockdrop deposits haven't concluded yet"));
     }    
 
     // CHECK :: Revert in-case funds have already been deposited in red-bank
@@ -286,10 +286,12 @@ pub fn try_deposit_in_red_bank( deps: DepsMut, env: Env, info: MessageInfo) -> S
         return Err(StdError::generic_err("Already deposited"));
     }
 
-    // FETCH CURRENT BALANCE, PREPARE DEPOSIT MSG 
+    // FETCH CURRENT BALANCES (UST / maUST), PREPARE DEPOSIT MSG 
     let red_bank = query_address( &deps.querier,config.address_provider, MarsContract::RedBank )?;
     let ma_ust_balance = Uint256::from(cw20_get_balance(&deps.querier, config.ma_ust_token.clone(), env.contract.address.clone() )?);
-    let deposit_msg = build_deposit_into_redbank_msg( red_bank, config.denom.clone(), state.total_ust_locked )?;
+
+    // COSMOS_MSG :: DEPOSIT UST IN RED BANK
+    let deposit_msg = build_deposit_into_redbank_msg( deps.as_ref(), red_bank, config.denom.clone(), state.total_ust_locked )?;
 
     // COSMOS_MSG :: UPDATE CONTRACT STATE
     let update_state_msg = CallbackMsg::UpdateStateOnRedBankDeposit {   
@@ -330,27 +332,44 @@ pub fn try_claim( deps: DepsMut, env: Env, info: MessageInfo ) -> StdResult<Resp
     let xmars_address = addresses_query.pop().unwrap();
     let incentives_address = addresses_query.pop().unwrap();
 
+    // QUERY :: ARE XMARS REWARDS TO BE CLAIMED > 0 ?
+    let xmars_unclaimed : Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                                                        contract_addr: incentives_address.to_string(),
+                                                        msg: to_binary(&UserUnclaimedRewards {
+                                                            user_address: env.contract.address.to_string(),
+                                                        }).unwrap(),
+                                                    })).unwrap();
+
     // Get XMARS Balance
     let xmars_balance: cw20::BalanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                                                                contract_addr: xmars_address.to_string(),
-                                                                msg: to_binary(&mars::xmars_token::msg::QueryMsg::Balance {
-                                                                    address: env.contract.address.to_string(),
-                                                                }).unwrap(),
-                                                            })).unwrap();
+                                                                    contract_addr: xmars_address.to_string(),
+                                                                    msg: to_binary(&mars::xmars_token::msg::QueryMsg::Balance {
+                                                                        address: env.contract.address.to_string(),
+                                                                    }).unwrap(),
+                                                                })).unwrap();
 
-    // COSMOS MSG's :: CLAIM XMARS REWARDS, UPDATE STATE VIA CALLBACK
-    let claim_xmars_msg = build_claim_xmars_rewards(incentives_address.clone())?;
+    let mut messages_ = vec![];
+
+    // COSMOS MSG's :: IF UNCLAIMED XMARS REWARDS > 0, CLAIM THESE REWARDS
+    if xmars_unclaimed > Uint128::zero() {
+        messages_.push(build_claim_xmars_rewards(incentives_address.clone())?);
+    }
+
+    // COSMOS MSG's ::  UPDATE STATE VIA CALLBACK    
     let callback_msg = CallbackMsg::UpdateStateOnClaim {   
                             user: user_address,
                             prev_xmars_balance: xmars_balance.balance.into()
                         }.to_cosmos_msg(&env.contract.address)?;
-
-
+    messages_.push(callback_msg);
 
     Ok(Response::new()
-        .add_messages(vec![claim_xmars_msg, callback_msg])
+        .add_messages(messages_)
         .add_attributes(vec![
-            ("action", "lockdrop::ExecuteMsg::ClaimRewards")
+            ("action", "lockdrop::ExecuteMsg::ClaimRewards"),
+            ("xmars_address", &xmars_address.to_string() ),
+            ("incentives_address", &incentives_address.to_string() ),
+            ("xmars_balance", &xmars_balance.balance.to_string() ),
+            ("xmars_unclaimed", &xmars_unclaimed.to_string() ),            
         ]))    
 }
 
@@ -389,32 +408,47 @@ pub fn try_unlock_position( deps: DepsMut, env: Env, info: MessageInfo, duration
 
     // QUERY :: XMARS Balance
     let xmars_balance: cw20::BalanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: xmars_address.to_string(),
-        msg: to_binary(&mars::xmars_token::msg::QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        }).unwrap(),
-    })).unwrap();
+                                                    contract_addr: xmars_address.to_string(),
+                                                    msg: to_binary(&mars::xmars_token::msg::QueryMsg::Balance {
+                                                        address: env.contract.address.to_string(),
+                                                    }).unwrap(),
+                                                })).unwrap();
 
-    // COSMOS MSG :: CLAIM XMARS REWARDS
-    let claim_xmars_msg = build_claim_xmars_rewards(incentives_address.clone())?;
+    // QUERY :: ARE XMARS REWARDS TO BE CLAIMED > 0 ?
+    let xmars_unclaimed : Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                                        contract_addr: incentives_address.to_string(),
+                                        msg: to_binary(&UserUnclaimedRewards {
+                                            user_address: env.contract.address.to_string(),
+                                        }).unwrap(),
+                                    })).unwrap();
+
+    let mut messages_ = vec![];
+
+    // COSMOS MSG's :: IF UNCLAIMED XMARS REWARDS > 0, CLAIM THESE REWARDS (before dissolving lockup position)
+    if xmars_unclaimed > Uint128::zero() {
+        messages_.push(build_claim_xmars_rewards(incentives_address.clone())?);
+    }
 
     // CALLBACK MSG :: UPDATE STATE ON CLAIM (before dissolving lockup position)
     let callback_claim_xmars_msg = CallbackMsg::UpdateStateOnClaim {   
                                                             user: depositor_address.clone(),
                                                             prev_xmars_balance: xmars_balance.balance.into()
                                                         }.to_cosmos_msg(&env.contract.address)?;
-
-
+    messages_.push(callback_claim_xmars_msg);
+    
+    // CALLBACK MSG :: DISSOLVE LOCKUP POSITION
     let callback_dissolve_position_msg = CallbackMsg::DissolvePosition {   
-                                            user: depositor_address.clone(),
-                                            duration: duration
-                                        }.to_cosmos_msg(&env.contract.address)?;
+                                                        user: depositor_address.clone(),
+                                                        duration: duration
+                                                    }.to_cosmos_msg(&env.contract.address)?;
+    messages_.push(callback_dissolve_position_msg);
 
     // COSMOS MSG :: TRANSFER USER POSITION's MA-UST SHARE
     let maust_transfer_msg = build_send_cw20_token_msg(depositor_address.clone(), config.ma_ust_token, maust_unlocked )?;
+    messages_.push(maust_transfer_msg);
 
     Ok(Response::new()
-        .add_messages(vec![claim_xmars_msg, callback_claim_xmars_msg, callback_dissolve_position_msg, maust_transfer_msg])
+        .add_messages(messages_)
         .add_attributes(vec![
             ("action", "lockdrop::ExecuteMsg::UnlockPosition"),
             ("owner", info.sender.as_str()),
@@ -476,11 +510,7 @@ pub fn update_state_on_claim(deps: DepsMut, env: Env,  user:Addr , prev_xmars_ba
     // XMARS REWARDS CLAIMED (can be 0 in edge cases)                                                           
     let xmars_accured = Uint256::from(cur_xmars_balance.balance) - prev_xmars_balance;
 
-    // UPDATE :: GLOBAL INDEX (XMARS rewards tracker)
-    update_xmars_rewards_index(&mut state, xmars_accured);
-
     let mut total_mars_rewards = Uint256::zero();
-    let mut total_xmars_rewards = Uint256::zero();
 
     // LOCKDROP :: LOOP OVER ALL LOCKUP POSITIONS TO CALCULATE THE LOCKDROP REWARD (if its not already claimed)
     if !user_info.lockdrop_claimed {
@@ -495,10 +525,16 @@ pub fn update_state_on_claim(deps: DepsMut, env: Env,  user:Addr , prev_xmars_ba
         user_info.lockdrop_claimed = true;        
     }
 
-    // TO BE CLAIMED :::: CALCULATE ACCRUED MARS AS DEPOSIT INCENTIVES
-    compute_user_accrued_reward(&state, &mut user_info);        
-    total_xmars_rewards = user_info.pending_reward;  
-    user_info.pending_reward = Uint256::zero();
+    let mut total_xmars_rewards = Uint256::zero();
+
+    // UPDATE :: GLOBAL INDEX (XMARS rewards tracker)
+    // TO BE CLAIMED :::: CALCULATE ACCRUED X-MARS AS DEPOSIT INCENTIVES
+    if xmars_accured > Uint256::zero() {
+        update_xmars_rewards_index(&mut state, xmars_accured);        
+        compute_user_accrued_reward(&state, &mut user_info);        
+        total_xmars_rewards = user_info.pending_xmars;  
+        user_info.pending_xmars = Uint256::zero();
+    }
 
     // SAVE UPDATED STATES
     STATE.save(deps.storage, &state)?;
@@ -532,10 +568,14 @@ pub fn update_state_on_claim(deps: DepsMut, env: Env,  user:Addr , prev_xmars_ba
 // CALLBACK :: CALLED BY try_unlock_position FUNCTION --> DELETES LOCKUP POSITION
 pub fn try_dissolve_position( deps: DepsMut, _env: Env, user: Addr, duration: u64 ) -> StdResult<Response> { 
 
-    // RETRIEVE :: User_Info and lockup position
+    // RETRIEVE :: State, User_Info and lockup position
+    let mut state = STATE.load(deps.storage)?; // total_maust_locked is updated
     let mut user_info = USER_INFO.may_load(deps.storage, &user )?.unwrap_or_default();
     let lockup_id = user.to_string() + &duration.to_string();
     let mut lockup_info = LOCKUP_INFO.may_load(deps.storage, lockup_id.clone().as_bytes() )?.unwrap_or_default();
+
+    // UPDATE STATE
+    state.total_maust_locked = state.total_maust_locked - calculate_user_ma_ust_share(lockup_info.ust_locked , state.final_ust_locked, state.final_maust_locked);
 
     // UPDATE USER INFO
     user_info.total_ust_locked = user_info.total_ust_locked - lockup_info.ust_locked;
@@ -544,6 +584,7 @@ pub fn try_dissolve_position( deps: DepsMut, _env: Env, user: Addr, duration: u6
     lockup_info.ust_locked = Uint256::zero();
     remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone());
 
+    STATE.save(deps.storage, &state)?;
     USER_INFO.save(deps.storage, &user, &user_info)?;
     LOCKUP_INFO.save(deps.storage, lockup_id.clone().as_bytes(), &lockup_info)?;
 
@@ -570,6 +611,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         address_provider: config.address_provider.to_string(),       
         ma_ust_token: config.ma_ust_token.to_string(),                 
         init_timestamp: config.init_timestamp,
+        deposit_window: config.deposit_window,
+        withdrawal_window: config.withdrawal_window,
         min_duration: config.min_lock_duration,
         max_duration: config.max_lock_duration,
         multiplier: config.weekly_multiplier,
@@ -601,7 +644,10 @@ pub fn query_user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> 
     Ok(UserInfoResponse {
         total_ust_locked: user_info.total_ust_locked,
         total_maust_locked: calculate_user_ma_ust_share(user_info.total_ust_locked, state.final_ust_locked, state.final_maust_locked),
-        lockup_position_ids: user_info.lockup_positions
+        lockup_position_ids: user_info.lockup_positions,
+        is_lockdrop_claimed: user_info.lockdrop_claimed,
+        reward_index: user_info.reward_index, 
+        pending_xmars: user_info.pending_xmars     
     })
 }
 
@@ -694,18 +740,18 @@ fn update_xmars_rewards_index(state: &mut State, xmars_accured: Uint256) {
 
 // Accrue MARS reward for the user by updating the user reward index and adding rewards to the pending rewards
 fn compute_user_accrued_reward(state: &State, user_info: &mut UserInfo) { 
-    let user_maust_share = state.total_maust_locked * Decimal256::from_ratio(user_info.total_ust_locked, state.total_ust_locked);
-    let pending_reward = (user_maust_share * state.global_reward_index) - (user_maust_share * user_info.reward_index);
+    let user_maust_share = calculate_user_ma_ust_share( user_info.total_ust_locked, state.final_ust_locked , state.final_maust_locked);
+    let pending_xmars = (user_maust_share * state.global_reward_index) - (user_maust_share * user_info.reward_index);
     user_info.reward_index = state.global_reward_index;
-    user_info.pending_reward += pending_reward;
+    user_info.pending_xmars += pending_xmars;
 }
 
 // Returns User's maUST Token share :: Calculated as =  (User's deposited UST / Final UST deposited) * Final maUST Locked
-fn calculate_user_ma_ust_share(lockup_ust_locked: Uint256, final_ust_locked: Uint256, final_maust_locked: Uint256 ) -> Uint256 {
+fn calculate_user_ma_ust_share(ust_locked_share: Uint256, final_ust_locked: Uint256, final_maust_locked: Uint256 ) -> Uint256 {
     if final_ust_locked == Uint256::zero() {
         return Uint256::zero();
     }
-    final_maust_locked * Decimal256::from_ratio(lockup_ust_locked, final_ust_locked)
+    final_maust_locked * Decimal256::from_ratio(ust_locked_share, final_ust_locked)
 }
 
 // Returns true if the user_info stuct's lockup_positions vector contains the lockup_id
@@ -728,13 +774,16 @@ fn remove_lockup_pos_from_user_info(user_info: &mut UserInfo, lockup_id: String)
 //-----------------------------
 
 
-fn build_send_native_asset_msg( recipient: Addr, denom: &str, amount: Uint256) -> StdResult<CosmosMsg> {
+fn build_send_native_asset_msg( deps: Deps, recipient: Addr, denom: &str, amount: Uint256) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Bank(BankMsg::Send {
         to_address: recipient.into(),
-        amount: vec![ Coin {
-                        denom: denom.to_string(),
-                        amount: amount.into(),
-                }],
+        amount: vec![deduct_tax(
+                        deps,
+                        Coin {
+                            denom: denom.to_string(),
+                            amount: amount.into(),
+                        },
+                    )?],
         }))
     }
      
@@ -749,10 +798,10 @@ fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amou
     }))
 }
      
-fn build_deposit_into_redbank_msg(redbank_address: Addr, denom_stable: String, amount: Uint256) -> StdResult<CosmosMsg> {
+fn build_deposit_into_redbank_msg( deps: Deps, redbank_address: Addr, denom_stable: String, amount: Uint256) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: redbank_address.to_string(),
-            funds: vec![ Coin { denom: denom_stable.clone(), amount: amount.into() } ],
+            funds: vec![deduct_tax( deps,  Coin {  denom: denom_stable.to_string(),  amount: amount.into(), }, )?],
             msg: to_binary(&mars::red_bank::msg::ExecuteMsg::DepositNative {
                 denom: denom_stable,
             })?,

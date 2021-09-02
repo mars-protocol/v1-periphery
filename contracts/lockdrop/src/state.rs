@@ -70,7 +70,7 @@ pub struct UserInfo {
     /// Value used to calculate deposit_rewards (XMARS) accured by the user
     pub reward_index: Decimal256, 
     /// Pending rewards to be claimed by the user        
-    pub pending_reward: Uint256,            
+    pub pending_xmars: Uint256,            
 }
 
 impl Default for UserInfo {
@@ -80,7 +80,7 @@ impl Default for UserInfo {
             lockup_positions: vec![],
             lockdrop_claimed: false,
             reward_index: Decimal256::zero(),
-            pending_reward: Uint256::zero()
+            pending_xmars: Uint256::zero()
         }
     }
 }

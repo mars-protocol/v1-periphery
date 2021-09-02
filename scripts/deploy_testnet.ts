@@ -14,14 +14,14 @@ import { join } from "path"
 import { update_LP_Staking_config, stake_LP_Tokens, claim_LPstaking_rewards, unstake_LP_Tokens
         , query_LPStaking_config, query_LPStaking_state, query_LPStaking_stakerInfo,query_LPStaking_timestamp } from "./helpers/lpStaking_helpers.js"
         import { update_Lockdrop_config, deposit_UST_Lockdrop, withdraw_UST_Lockdrop, claim_rewards_lockdrop
-          , unlock_deposit, query_lockdrop_config, query_lockdrop_state,query_lockdrop_userInfo, query_lockdrop_lockupInfo, query_lockdrop_lockupInfoWithId } from "./helpers/lockdrop_helpers.js"
+          , unlock_deposit, deposit_UST_in_RedBank, query_lockdrop_config, query_lockdrop_state,query_lockdrop_userInfo, query_lockdrop_lockupInfo, query_lockdrop_lockupInfoWithId } from "./helpers/lockdrop_helpers.js"
   import { parse } from 'dotenv/types'
 import { bombay_testnet } from "./configs.js"
 
 const MARS_ARTIFACTS_PATH = "../artifacts"
-const MARS_TOKEN_ADDRESS = "terra1tv2sewn80vmf2pjv9q0sgqul8sv5axg5tezf0r";
-let ADDRESS_PROVIDER = "terra1ja787s45w0s5fj7h9wjst3eatka79xghd63p0v";
-
+const MARS_TOKEN_ADDRESS = "terra1rfuctcuyyxqz468wha5m805vt43g83tep4rm5x";
+let ADDRESS_PROVIDER = "terra1xam9sgq9zdgxmetuy6m69usl94urjqpesj8yu2";
+let MA_UST_TOKEN_ADDRESS = "terra1gucxqmygvxcly9n4qkxmndqt0g38y0zu7hywkt";
 
 async function main() {
 
@@ -52,7 +52,7 @@ async function main() {
   // TRANSFER MARS TOKENS TO THE STAKING CONTRACT :: TO BE DISTRIBUTED AS REWARDS
   // let mars_rewards = 50000000000;
   // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, stakingContractAddress, mars_rewards);
-
+  
 
 
 
@@ -113,33 +113,47 @@ async function main() {
 
   // console.log(bombay_testnet.lockdrop_InitMsg.config);
   // const lockdropContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'lockdrop.wasm'),  bombay_testnet.lockdrop_InitMsg.config)
-  const lockdropContractAddress = "terra1tcxhm9v5st0mcs0e0cctxq2ccjkcp0hs94z2xh"
+  const lockdropContractAddress = "terra1rnd2tcfwg0ahvgcsu39j8vfqcysjkk9nseqdfr"
   console.log("LOCKDROP Contract Address: " + lockdropContractAddress + "\n")
+  // TRANSFER TO LOCKDROP CONTRACT
+  // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, lockdropContractAddress, 50000000000 );
+  // // TRANSFER TO INCENTIVES CONTRACT
+  // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, "terra1htw9xdgmvzyd5y0u9f9gp57hz04xpet9gx23k7", 50000000000);
+  
+  
+  // {"user_unclaimed_rewards":{ "user_address":"terra1x2y4fc5ev82f6qhvap8y0m424zsnq774swcvfl" }}
 
   // /*************************************** LOCKDROP Contract :: Function Calls *****************************************/
 
   // let new_config_msg = {};
-  // await update_Lockdrop_config(terra, wallet,lockdropContractAddress, 100000000, new_config_msg);  
-  await deposit_UST_Lockdrop(terra, wallet,lockdropContractAddress, 1000000000, 2);
-  await withdraw_UST_Lockdrop(terra, wallet,lockdropContractAddress, 100000000, 1);
+  // await update_Lockdrop_config(terra, wallet,lockdropContractAddress, { "update_config": {"new_config": {"address_provider": ADDRESS_PROVIDER, "ma_ust_token": MA_UST_TOKEN_ADDRESS}} } );  
+  // await deposit_UST_in_RedBank(terra, wallet, lockdropContractAddress);
+ 
+  // await deposit_UST_Lockdrop(terra, wallet,lockdropContractAddress, 100000000, 1);
+  // await deposit_UST_Lockdrop(terra, wallet,lockdropContractAddress, 100000000, 2);
+  // await deposit_UST_Lockdrop(terra, wallet,lockdropContractAddress, 100000000, 3);
+  // await deposit_UST_Lockdrop(terra, wallet,lockdropContractAddress, 100000000, 4);
+  // await deposit_UST_Lockdrop(terra, wallet,lockdropContractAddress, 100000000, 5);
+  // await withdraw_UST_Lockdrop(terra, wallet,lockdropContractAddress, 1000000, 1);
   // await claim_rewards_lockdrop(terra, wallet,lockdropContractAddress);
-  // await  unlock_deposit(terra, wallet,lockdropContractAddress, 1 );
+  // await  unlock_deposit(terra, wallet,lockdropContractAddress, 3 );
 
-  let lockdrop_config = await query_lockdrop_config(terra, lockdropContractAddress);
-  console.log(lockdrop_config);
-  console.log("\n");
-  let lockdrop_global_state = await query_lockdrop_state(terra, lockdropContractAddress);
-  console.log(lockdrop_global_state);
-  console.log("\n");
+
+  // let lockdrop_config = await query_lockdrop_config(terra, lockdropContractAddress);
+  // console.log(lockdrop_config);
+  // console.log("\n");
+  // let lockdrop_global_state = await query_lockdrop_state(terra, lockdropContractAddress);
+  // console.log(lockdrop_global_state);
+  // console.log("\n");
   let lockdrop_user_info = await query_lockdrop_userInfo(terra, lockdropContractAddress, wallet.key.accAddress);
   console.log(lockdrop_user_info);
   console.log("\n");
   let duration = 1;
-  let lockup_info = await query_lockdrop_lockupInfo(terra, lockdropContractAddress, wallet.key.accAddress, duration);
-  console.log(lockup_info);
-  console.log("\n");
-  let lockupId = "";
-  let lockup_info_with_id = await query_lockdrop_lockupInfoWithId(terra, lockdropContractAddress, lockupId);
+  // let lockup_info = await query_lockdrop_lockupInfo(terra, lockdropContractAddress, wallet.key.accAddress, duration);
+  // console.log(lockup_info);
+  // console.log("\n");
+  // let lockupId = "";
+  let lockup_info_with_id = await query_lockdrop_lockupInfoWithId(terra, lockdropContractAddress, "terra1yskm9s4r0h0egg3lxe5wmmppr9s6lfau4j8yhc3");
   console.log(lockup_info_with_id);
 
 

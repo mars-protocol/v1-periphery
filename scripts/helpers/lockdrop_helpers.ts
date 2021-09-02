@@ -6,6 +6,7 @@ import { Coins, Coin,StdFee, LCDClient, Wallet } from "@terra-money/terra.js"
 // - update_Lockdrop_config(terra, wallet, lockdropContractAddress, new_config_msg) --> UPDATE CONFIG
 // - deposit_UST_Lockdrop(terra, wallet, lockdropContractAddress, amount, duration) --> DEPOSIT UST
 // - withdraw_UST_Lockdrop(terra, wallet, lockdropContractAddress, amount, duration) --> WITHDRAW UST
+// - deposit_UST_in_RedBank(terra, wallet, lockdropContractAddress) --> DEPOSIT UST IN THE RED BANK
 // - claim_rewards_lockdrop(terra, wallet, lockdropContractAddress) --> CLAIM ACCURED REWARDS
 // - unlock_deposit(terra, wallet, lockdropContractAddress, duration) --> UNLOCK DEPOSITED UST
 //------------------------------------------------------
@@ -54,6 +55,10 @@ export async function unlock_deposit( terra: LCDClient,  wallet:Wallet, lockdrop
 }  
 
 
+export async function deposit_UST_in_RedBank(terra: LCDClient, wallet:Wallet, lockdropContractAddress:string) {
+    let resp = await executeContract(terra, wallet, lockdropContractAddress, {"deposit_ust_in_red_bank":{}} );
+    console.log(" LOCKDROP CONTRACT : UST DEPOSITED IN RED BANK");
+}
 
 
 

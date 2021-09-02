@@ -81,6 +81,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         new_config: UpdateConfigMsg,
     },    
+    DepositUstInRedBank {},
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),    
 }
@@ -135,9 +136,13 @@ pub struct ConfigResponse {
     pub ma_ust_token: String,    
     /// Timestamp till when deposits can be made
     pub init_timestamp: u64,
-    /// Min. no. of days allowed for lockup 
+    /// Number of seconds for which lockup deposits will be accepted 
+    pub deposit_window: u64,
+    /// Number of seconds for which lockup withdrawals will be allowed 
+    pub withdrawal_window: u64,
+    /// Min. no. of weeks allowed for lockup 
     pub min_duration: u64,
-    /// Max. no. of days allowed for lockup 
+    /// Max. no. of weeks allowed for lockup 
     pub max_duration: u64,
     /// Lockdrop Reward multiplier 
     pub multiplier: Decimal256,
@@ -152,7 +157,10 @@ pub type GlobalStateResponse = State;
 pub struct UserInfoResponse {
     pub total_ust_locked: Uint256,
     pub total_maust_locked: Uint256,
-    pub lockup_position_ids: Vec<String>
+    pub lockup_position_ids: Vec<String>,
+    pub is_lockdrop_claimed: bool,
+    pub reward_index: Decimal256,
+    pub pending_xmars: Uint256
 }
 
 
