@@ -1,27 +1,27 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{ 
-    attr, entry_point, Binary, Deps, Api, DepsMut, MessageInfo, Env, Response, 
+    attr, Binary, Deps, Api, DepsMut, MessageInfo, Env, Response, 
     StdError, StdResult, Uint128, WasmMsg, to_binary, Addr, CosmosMsg
 };
 use std::convert::{TryInto, TryFrom};
 use std::cmp::Ordering;
 
 use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
-use crate::utils::{ normalize_recovery_id, hash_message, get_public_key_from_verify_key };
+use crate::utils::{ normalize_recovery_id, hash_message, get_public_key_from_verify_key};
 use crate::msg::{ClaimResponse, ConfigResponse,SignatureResponse, ExecuteMsg, InstantiateMsg, QueryMsg  } ;
 use crate::state::{Config, CONFIG, CLAIMEES};
-
 use hex;
 use k256::ecdsa::recoverable::{Id as RecoverableId, Signature as RecoverableSignature};
 use k256::ecdsa::Signature;
 use sha3::{ Digest, Keccak256 };
-
 
 //----------------------------------------------------------------------------------------
 // Entry points
 //----------------------------------------------------------------------------------------
 
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate( deps: DepsMut, _env: Env, _info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
 
     if msg.till_timestamp.unwrap() <= _env.block.time.seconds() {
@@ -42,7 +42,7 @@ pub fn instantiate( deps: DepsMut, _env: Env, _info: MessageInfo, msg: Instantia
 }
 
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute( deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg)  -> Result<Response, StdError> {
     match msg {
         ExecuteMsg::UpdateConfig { 
@@ -67,13 +67,13 @@ pub fn execute( deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg)  ->
     }
 }
 
-
-pub fn query(deps: Deps, msg: QueryMsg,) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg,) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::IsClaimed { 
             address 
-        } => to_binary(&check_terra_user_claimed(deps, address)?),
+        } => to_binary(&check_user_claimed(deps, address)?),
         QueryMsg::IsValidSignature { 
             user_address, 
             eth_signature, 
@@ -107,6 +107,7 @@ pub fn handle_update_config( deps: DepsMut, env: Env, info: MessageInfo, new_con
     config.from_timestamp = new_config.from_timestamp.unwrap_or(config.from_timestamp);
     config.till_timestamp = new_config.till_timestamp.unwrap_or(config.till_timestamp );
 
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::new().add_attribute("action", "lockdrop::ExecuteMsg::UpdateConfig"))
 }
 
@@ -126,7 +127,7 @@ pub fn handle_terra_user_claim(
 ) -> Result<Response, StdError> {
 
     let config = CONFIG.load(deps.storage)?;
-    let user_account =  info.sender;
+    let user_account =  info.sender.clone();
 
     // CHECK IF AIRDROP CLIAIM WINDOW IS OPEN
     if config.from_timestamp > _env.block.time.seconds() {
@@ -134,15 +135,16 @@ pub fn handle_terra_user_claim(
     }
 
     // CHECK IF AIRDROP CLIAIM WINDOW IS NOT CLOSED YET
-    if config.till_timestamp <= _env.block.time.seconds() {
+    if config.till_timestamp < _env.block.time.seconds() {
         return Err(StdError::generic_err("Claim period has concluded"));
     }
 
     // CLAIM : CHECK IF CLAIMED
-    let res = CLAIMEES.load(deps.storage, &user_account.as_bytes() )?;
-    if res {
+    let mut claim_check = CLAIMEES.may_load(deps.storage, &user_account.to_string().as_bytes() )?.unwrap_or_default();
+    if claim_check.is_claimed {
             return Err(StdError::generic_err("Already claimed"));
-        }
+    }
+    claim_check.is_claimed = true;
   
     // MERKLE PROOF VERIFICATION
     if !verify_claim(user_account.to_string() , claim_amount, merkle_proof.clone(), config.terra_merkle_roots[root_index as usize].clone()) {
@@ -150,7 +152,7 @@ pub fn handle_terra_user_claim(
     }
 
     // CLAIM : MARK CLAIMED
-    CLAIMEES.save(deps.storage, &user_account.as_bytes(), &true )?;
+    CLAIMEES.save(deps.storage, &user_account.as_bytes(), &claim_check )?;
 
     // COSMOS MSG :: CLAIM AMOUNT TRANSFERRED
     let transfer_msg = build_send_cw20_token_msg(user_account.clone(), config.mars_token_address.to_string(), claim_amount.into())?;
@@ -196,10 +198,11 @@ pub fn handle_evm_user_claim(
     }
 
     // CLAIM : CHECK IF CLAIMED
-    let res = CLAIMEES.load(deps.storage, eth_address.clone().as_bytes() )?;
-    if res {
-        return Err(StdError::generic_err("Account has already claimed the Airdrop"));
+    let mut claim_check = CLAIMEES.may_load(deps.storage, &eth_address.as_bytes() )?.unwrap_or_default();
+    if claim_check.is_claimed {
+            return Err(StdError::generic_err("Already claimed"));
     }
+    claim_check.is_claimed = true;
 
     // MERKLE PROOF VERIFICATION
     if !verify_claim(eth_address.clone() , claim_amount, merkle_proof.clone(), config.evm_merkle_roots[root_index as usize].clone()) {
@@ -213,8 +216,7 @@ pub fn handle_evm_user_claim(
     }
 
     // CLAIM : MARK CLAIMED
-    CLAIMEES.save(deps.storage, eth_address.clone().as_bytes(), &true )?;
-
+    CLAIMEES.save(deps.storage, &eth_address.as_bytes(), &claim_check )?;
 
     // COSMOS MSG :: CLAIM AMOUNT TRANSFERRED
     let transfer_msg = build_send_cw20_token_msg(recepient_account.clone(), config.mars_token_address.to_string(), claim_amount.into())?;
@@ -285,10 +287,9 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 /// @dev Returns true if the user has claimed the airdrop [EVM addresses to be provided in lower-case without the '0x' prefix]
-fn check_terra_user_claimed(deps: Deps, address: String  ) -> StdResult<ClaimResponse> {
-
-    let res = CLAIMEES.load(deps.storage, address.clone().as_bytes() )?;
-    Ok(ClaimResponse {  is_claimed: res }) 
+fn check_user_claimed(deps: Deps, address: String  ) -> StdResult<ClaimResponse> {
+    let res = CLAIMEES.may_load(deps.storage, &address.as_bytes() )?.unwrap_or_default();
+    Ok(ClaimResponse {  is_claimed: res.is_claimed }) 
 }
 
 /// @dev Returns true if the ECDSA signature string generated by signing the 'msg' with the ethereum wallet is valid. [EVM addresses to be provided in lower-case without the '0x' prefix]
@@ -353,7 +354,7 @@ pub fn handle_verify_signature( address: String, eth_signature: String, msg: Str
     let verify_key = recoverable_signature.recover_verify_key_from_digest_bytes( message_hash.as_ref().into() ).unwrap(); //.or_else(|_| return false);
     let public_key = get_public_key_from_verify_key(&verify_key );
 
-    return public_key == address;
+    public_key == address
 }
 
 

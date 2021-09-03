@@ -7,7 +7,10 @@
   "dependencies": {
     "@terra-money/terra.js": "^2.0.0-beta.16",
     "bignumber.js": "^9.0.1",
-    "dotenv": "^8.2.0"
+    "dotenv": "^8.2.0",
+    "keccak256": "^1.0.3",
+    "merkletreejs": "^0.2.20",
+    "web3": "^1.5.2"
   },
   "devDependencies": {
     "eslint": "^7.24.0",

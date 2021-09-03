@@ -13,9 +13,9 @@ import { LCDClient } from "@terra-money/terra.js"
 import { join } from "path"
 import { update_LP_Staking_config, stake_LP_Tokens, claim_LPstaking_rewards, unstake_LP_Tokens
         , query_LPStaking_config, query_LPStaking_state, query_LPStaking_stakerInfo,query_LPStaking_timestamp } from "./helpers/lpStaking_helpers.js"
-        import { update_Lockdrop_config, deposit_UST_Lockdrop, withdraw_UST_Lockdrop, claim_rewards_lockdrop
+import { update_Lockdrop_config, deposit_UST_Lockdrop, withdraw_UST_Lockdrop, claim_rewards_lockdrop
           , unlock_deposit, deposit_UST_in_RedBank, query_lockdrop_config, query_lockdrop_state,query_lockdrop_userInfo, query_lockdrop_lockupInfo, query_lockdrop_lockupInfoWithId } from "./helpers/lockdrop_helpers.js"
-  import { parse } from 'dotenv/types'
+import { parse } from 'dotenv/types'
 import { bombay_testnet } from "./configs.js"
 
 const MARS_ARTIFACTS_PATH = "../artifacts"
@@ -145,21 +145,16 @@ async function main() {
   // let lockdrop_global_state = await query_lockdrop_state(terra, lockdropContractAddress);
   // console.log(lockdrop_global_state);
   // console.log("\n");
-  let lockdrop_user_info = await query_lockdrop_userInfo(terra, lockdropContractAddress, wallet.key.accAddress);
-  console.log(lockdrop_user_info);
-  console.log("\n");
-  let duration = 1;
-  // let lockup_info = await query_lockdrop_lockupInfo(terra, lockdropContractAddress, wallet.key.accAddress, duration);
-  // console.log(lockup_info);
+  // let lockdrop_user_info = await query_lockdrop_userInfo(terra, lockdropContractAddress, wallet.key.accAddress);
+  // console.log(lockdrop_user_info);
   // console.log("\n");
-  // let lockupId = "";
-  let lockup_info_with_id = await query_lockdrop_lockupInfoWithId(terra, lockdropContractAddress, "terra1yskm9s4r0h0egg3lxe5wmmppr9s6lfau4j8yhc3");
-  console.log(lockup_info_with_id);
-
-
-
-
-
+  // let duration = 1;
+  // // let lockup_info = await query_lockdrop_lockupInfo(terra, lockdropContractAddress, wallet.key.accAddress, duration);
+  // // console.log(lockup_info);
+  // // console.log("\n");
+  // // let lockupId = "";
+  // let lockup_info_with_id = await query_lockdrop_lockupInfoWithId(terra, lockdropContractAddress, "terra1yskm9s4r0h0egg3lxe5wmmppr9s6lfau4j8yhc3");
+  // console.log(lockup_info_with_id);
 
 
 

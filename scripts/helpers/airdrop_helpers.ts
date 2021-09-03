@@ -60,24 +60,39 @@ export async function transferMarsByAdminFromAirdropContract( terra: LCDClient, 
 
 // GET CONFIG : CONTRACT QUERY
 export async function airdrop_getConfig(  terra: LCDClient, airdropContractAdr: string) {
-    let verify_signature_msg = { "config": {} };
-    let res = await terra.wasm.contractQuery(airdropContractAdr, verify_signature_msg)
-    return res;
-  }
+    try {
+        let res = await terra.wasm.contractQuery(airdropContractAdr, { "config": {} })
+        return res;
+    }
+    catch {
+        console.log("ERROR IN airdrop_getConfig QUERY")
+    }    
+}
 
 // IS CLAIMED : CONTRACT QUERY
 export async function airdrop_is_claimed(  terra: LCDClient, airdropContractAdr: string, address: string ) {
     let is_claimed_msg = { "is_claimed": {'address': address }};
-    let res = await terra.wasm.contractQuery(airdropContractAdr, is_claimed_msg)
-    return res;
+    try {
+        let res = await terra.wasm.contractQuery(airdropContractAdr, is_claimed_msg)
+        return res;
+    }
+    catch {
+        console.log("ERROR IN airdrop_is_claimed QUERY")
+    }
+    
 }
   
 
 // EVM SIGNATURE VERIFICATION : CONTRACT QUERY
 export async function airdrop_verifySignature(  terra: LCDClient, airdropContractAdr: string, eth_user_address: string, signature: string, msg: string ) {
-    let verify_signature_msg = { "is_valid_signature": {'user_address': eth_user_address.substr(2,42).toLowerCase() , 'eth_signature': signature, 'signed_msg': msg }};
-    let res = await terra.wasm.contractQuery(airdropContractAdr, verify_signature_msg)
-    return res;
+    try {
+        let verify_signature_msg = { "is_valid_signature": {'user_address': eth_user_address.substr(2,42).toLowerCase() , 'eth_signature': signature, 'signed_msg': msg }};
+        let res = await terra.wasm.contractQuery(airdropContractAdr, verify_signature_msg)
+        return res;
+    }
+    catch {
+        console.log("ERROR IN airdrop_verifySignature QUERY")
+    }        
 }
   
 // // GET CW20 TOKEN BALANCE

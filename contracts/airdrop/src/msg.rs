@@ -72,10 +72,3 @@ pub struct ClaimResponse {
 pub struct SignatureResponse {
     pub is_valid: bool,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Asset {
-    Cw20 { contract_addr: Addr },
-    Native { denom: String },
-}

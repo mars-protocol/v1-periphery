@@ -1,7 +1,7 @@
 import  {Terra_Merkle_Tree}  from "./terra_merkle_tree.js";
 import  {EVM_Merkle_Tree}  from "./evm_merkle_tree.js";
-import airdropdataTerra from "./data/userAddressesWithAirdropAmountTerra.json";
-import airdropdataEvm from "./data/userAddressesWithAirdropAmountEvm.json";
+import airdropdataTerra from "./airdrop_data/Terra_airdrop_recepients.json";
+import airdropdataEvm from "./airdrop_data/EVM_airdrop_recepients.json";
 import utils from 'web3-utils';
 import Web3 from 'web3';
 
@@ -42,7 +42,7 @@ export async function getMerkleRootsForEVMUsers() {
   
 
 // TERRA ECOSYSTEM AIRDROP :: RETURNS MERKLE PROOF
-export function get_Terra_MerkleProof( leaf ) {
+export function get_Terra_MerkleProof( leaf: {address: string; amount: string;} ) {
     let terra_merkle_trees = [];
     let n = TERRA_MERKLE_ROOTS;
   
@@ -63,7 +63,7 @@ export function get_Terra_MerkleProof( leaf ) {
   }  
 
 // EVM ECOSYSTEM AIRDROP :: RETURNS MERKLE PROOF
-export function get_EVM_MerkleProof( leaf ) {
+export function get_EVM_MerkleProof( leaf: {address: string; amount: string;} ) {
     let evm_merkle_trees = [];
     let n = EVM_MERKLE_ROOTS;
   
@@ -85,7 +85,7 @@ export function get_EVM_MerkleProof( leaf ) {
 }
 
 // PREPARE DATA FOR THE MERKLE TREE
-export function prepareDataForMerkleTree( data, str, end ) { 
+export function prepareDataForMerkleTree( data:(string | number)[][], str:number, end:number ) { 
     let dataArray = [];
     for ( let i=str; i < end; i++  ) {  
         let dataObj = JSON.parse( JSON.stringify(data[i]) );
@@ -96,7 +96,7 @@ export function prepareDataForMerkleTree( data, str, end ) {
 }
 
 // EVM AIRDROP : SIGN THE MESSAGE
-export function get_EVM_Signature(evm_account, msg) {
+export function get_EVM_Signature(evm_account:any, msg:string) {
     var message = utils.isHexStrict(msg) ? utils.hexToUtf8(msg) : msg;
     var ethMessage = "\x19Ethereum Signed Message:\n" + message.length + message;
     let signature =  evm_account.sign(msg);    
