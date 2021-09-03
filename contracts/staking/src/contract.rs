@@ -138,13 +138,14 @@ pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: In
     let mut config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
-    // ACCURE CURRENT REWARDS IN-CASE `reward_increase` / `current_cycle_rewards` ARE UPDATED
-    compute_reward(&config, &mut state, env.block.time.seconds());      // Compute global reward & staker reward
-
     // ONLY OWNER CAN UPDATE CONFIG
     if info.sender != config.owner {
         return Err(StdError::generic_err("Only owner can update configuration"));
     }
+
+    // ACCURE CURRENT REWARDS IN-CASE `reward_increase` / `current_cycle_rewards` ARE UPDATED
+    compute_reward(&config, &mut state, env.block.time.seconds());      // Compute global reward & staker reward
+
 
     // UPDATE :: ADDRESSES IF PROVIDED
     config.address_provider = option_string_to_addr(deps.api, new_config.address_provider, config.address_provider)?;
