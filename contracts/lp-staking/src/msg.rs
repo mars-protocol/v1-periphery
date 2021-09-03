@@ -21,7 +21,7 @@ pub struct InstantiateMsg {
     pub init_timestamp: Option<u64>,                        
     /// Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp
     pub till_timestamp: Option<u64>,                       
-    /// $MARS Rewards distributed during the 1st cycle 
+    /// $MARS Rewards distributed during the 1st cycle. 
     pub cycle_rewards: Option<Uint256>,                    
     /// Cycle duration in timestamps
     pub cycle_duration: Option<u64>,         
@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         new_config: InstantiateMsg,
     },
-    /// Decrease the total LP shares Bonded by by the user
+    /// Decrease the total LP shares Bonded by the user
     /// Accrued rewards are claimed along-with this function 
     /// @param amount The no. of LP shares to be subtracted from the total Bonded and sent back to the user 
     Unbond {

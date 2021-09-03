@@ -1,6 +1,6 @@
 # LP Staking Contract to incentivize MARS-UST Liquidity Providers
 
-This Contract contains the logic for LP Token staking and reward distribution. MARS tokens allocated for as liquidity incentives are distributed pro-rata to stakers of the MARS-UST Astroswap pair LP token.
+This Contract contains the logic for LP Token staking and reward distribution. MARS tokens allocated as liquidity incentives are distributed pro-rata to stakers of the MARS-UST Astroswap pair LP token.
 
 
 ## Incentive Structure
@@ -18,7 +18,7 @@ The current cycle number and the number of MARS tokens to be distributed during 
 | `ExecuteMsg::Unbond`   |  Reduces user's staked position. Pending rewards are claimed and the amount by which the position is reduced are sent back to the user                                                           |
 | `ExecuteMsg::Claim`    | Claim accrued MARS Rewards                                         |
 | `ExecuteMsg::UpdateConfig`          | Can only be called by the admin. Can be used to update configuration parameters like % increase per cycle, cycle duration, timestamp till which staking incentives are active etc.                                     |
-|)                                                           |
+
 
 ### Query Messages
 

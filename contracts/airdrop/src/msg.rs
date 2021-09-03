@@ -27,9 +27,11 @@ pub enum ExecuteMsg {
     EvmClaim {
         eth_address: String,
         claim_amount: Uint128,
-        signature: String,
         merkle_proof: Vec<String>,
-        root_index: u32
+        root_index: u32,
+        signature: String,
+        msg_hash: String
+        
     },
     TransferMarsTokens {
         recepient: String,
@@ -45,9 +47,8 @@ pub enum QueryMsg {
         address: String,
      },
      IsValidSignature {
-        user_address: String,
         eth_signature: String,
-        signed_msg: String,                
+        signed_msg_hash: String,                
      },
 }
 
@@ -70,5 +71,5 @@ pub struct ClaimResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SignatureResponse {
-    pub is_valid: bool,
+    pub is_valid: bool
 }

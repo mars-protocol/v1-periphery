@@ -37,9 +37,9 @@ export async function claimAirdropForTerraUser( terra: LCDClient, wallet:Wallet,
   
   
 // AIRDROP CLAIM BY EVM USER : EXECUTE TX
-export async function claimAirdropForEVMUser( terra: LCDClient, wallet:Wallet, airdropContractAdr: string,  claim_amount: number, merkle_proof: any, root_index: number, eth_address: string, signature: string) {
+export async function claimAirdropForEVMUser( terra: LCDClient, wallet:Wallet, airdropContractAdr: string, eth_address: string, claim_amount: number, merkle_proof: any, root_index: number, signature: string, msg_hash:string ) {
     if ( merkle_proof.length > 1 ) {
-        let claim_for_evm_msg = { "evm_claim": {'eth_address': eth_address.substr(2,42).toLowerCase(), 'claim_amount': claim_amount.toString(), 'signature': signature, 'merkle_proof': merkle_proof, "root_index": root_index }};
+        let claim_for_evm_msg = { "evm_claim": {'eth_address': eth_address.substr(2,42).toLowerCase(), 'claim_amount': claim_amount.toString(), 'merkle_proof': merkle_proof, 'root_index': root_index, "signature": signature , "msg_hash": msg_hash}};
         let resp = await executeContract(terra, wallet, airdropContractAdr, claim_for_evm_msg );
         return resp;        
     } else {
@@ -84,9 +84,9 @@ export async function airdrop_is_claimed(  terra: LCDClient, airdropContractAdr:
   
 
 // EVM SIGNATURE VERIFICATION : CONTRACT QUERY
-export async function airdrop_verifySignature(  terra: LCDClient, airdropContractAdr: string, eth_user_address: string, signature: string, msg: string ) {
+export async function airdrop_verifySignature(  terra: LCDClient, airdropContractAdr: string, signature: string, msg: string ) {
     try {
-        let verify_signature_msg = { "is_valid_signature": {'user_address': eth_user_address.substr(2,42).toLowerCase() , 'eth_signature': signature, 'signed_msg': msg }};
+        let verify_signature_msg = { "is_valid_signature": {'eth_signature': signature, 'signed_msg_hash': msg }};
         let res = await terra.wasm.contractQuery(airdropContractAdr, verify_signature_msg)
         return res;
     }

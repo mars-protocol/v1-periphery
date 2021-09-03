@@ -45,26 +45,26 @@ impl Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    /// Timestamp at which the current reward cycle begin
+    /// Keeps track of the MARS distribution cycle
     pub current_cycle: u64,
-    /// MARS rewards to be distributed in the current cycle      
+    /// Number of MARS tokens to be distributed during the current cycle      
     pub current_cycle_rewards: Uint256,        
     /// Timestamp at which the global_reward_index was last updated
     pub last_distributed: u64,
-    /// Total number of MARS-UST LP tokens deposited in the contract
+    /// Total number of MARS-UST LP tokens staked with the contract
     pub total_bond_amount: Uint256,
-    ///  total MARS rewards / total_bond_amount ratio. Used to calculate MARS rewards accured over time elapsed
+    /// Used to calculate MARS rewards accured over time elapsed. Ratio =  Total distributed MARS tokens / total bond amount
     pub global_reward_index: Decimal256,
 }
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakerInfo {
-    /// MARS-UST LP tokens deposited by the user
+    /// Number of MARS-UST LP tokens staked by the user
     pub bond_amount: Uint256,
-    /// MARS rewards / bond_amount ratio.  Used to calculate MARS rewards accured over time elapsed
+    /// Used to calculate MARS rewards accured over time elapsed. Ratio = distributed MARS tokens / user's bonded amount 
     pub reward_index: Decimal256,
-    /// Pending MARS rewards which are yet to be claimed
+    /// Pending MARS tokens which are yet to be claimed
     pub pending_reward: Uint256,
 }
 

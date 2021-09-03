@@ -102,5 +102,5 @@ export function get_EVM_Signature(evm_account:any, msg:string) {
     let signature =  evm_account.sign(msg);    
     var web3 = new Web3(Web3.givenProvider || 'ws://some.local-or-remote.node:8546');
     let signee = web3.eth.accounts.recover(msg, signature.signature);
-    return signature.signature.substr(2,132);
+    return signature;
   }
