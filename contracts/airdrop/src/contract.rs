@@ -4,15 +4,15 @@ use cosmwasm_std::{
     attr, Binary, Deps, Api, DepsMut, MessageInfo, Env, Response, 
     StdError, StdResult, Uint128, WasmMsg, to_binary, Addr, CosmosMsg, 
 };
-use std::convert::{TryInto, TryFrom};
-use std::cmp::Ordering;
-
-use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
 use crate::msg::{ClaimResponse, ConfigResponse,SignatureResponse, ExecuteMsg, InstantiateMsg, QueryMsg  } ;
 use crate::state::{Config, CONFIG, CLAIMEES};
-// use hex;
+
+use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
 use sha3::{ Digest, Keccak256 };
-use hex_literal::hex;
+use std::cmp::Ordering;
+use std::convert::{TryInto};
+
+
 //----------------------------------------------------------------------------------------
 // Entry points
 //----------------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ pub fn instantiate( deps: DepsMut, _env: Env, _info: MessageInfo, msg: Instantia
 
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner.unwrap())?,
-        mars_token_address: deps.api.addr_validate(&msg.mars_token_address.unwrap())?,
+        mars_token_address: deps.api.addr_validate(&msg.mars_token_address.unwrap_or(Addr::unchecked("").to_string() ))?,
         terra_merkle_roots: msg.terra_merkle_roots.unwrap_or(vec![]) ,
         evm_merkle_roots: msg.evm_merkle_roots.unwrap_or(vec![]) ,
         from_timestamp: msg.from_timestamp.unwrap_or( _env.block.time.seconds()) ,
@@ -44,20 +44,20 @@ pub fn execute( deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg)  ->
     match msg {
         ExecuteMsg::UpdateConfig { 
             new_config 
-        }  => handle_update_config(deps, env, info,  new_config),
-        ExecuteMsg::TerraClaim { 
-            amount, 
+        }  => handle_update_config(deps, info,  new_config),
+        ExecuteMsg::ClaimByTerraUser { 
+            claim_amount, 
             merkle_proof, 
             root_index
-        } => handle_terra_user_claim(deps, env, info,  amount, merkle_proof, root_index),
-        ExecuteMsg::EvmClaim { 
+        } => handle_terra_user_claim(deps, env, info,  claim_amount, merkle_proof, root_index),
+        ExecuteMsg::ClaimByEvmUser { 
             eth_address, 
             claim_amount, 
             merkle_proof, 
             root_index,
             signature, 
-            msg_hash
-        } => handle_evm_user_claim(deps, env, info,  eth_address, claim_amount, merkle_proof, root_index, signature, msg_hash),       
+            signed_msg_hash
+        } => handle_evm_user_claim(deps, env, info,  eth_address, claim_amount, merkle_proof, root_index, signature, signed_msg_hash),       
         ExecuteMsg::TransferMarsTokens { 
             recepient, 
             amount 
@@ -72,10 +72,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg,) -> StdResult<Binary> {
         QueryMsg::IsClaimed { 
             address 
         } => to_binary(&check_user_claimed(deps, address)?),
-        QueryMsg::IsValidSignature {  
-            eth_signature, 
+        QueryMsg::IsValidSignature { 
+            evm_address, 
+            evm_signature, 
             signed_msg_hash 
-        } => to_binary(&verify_signature(deps, eth_signature, signed_msg_hash )?),
+        } => to_binary(&verify_signature(deps, evm_address, evm_signature, signed_msg_hash )?),
     }
 }
 
@@ -85,12 +86,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg,) -> StdResult<Binary> {
 //----------------------------------------------------------------------------------------
 
 
-
-pub fn handle_update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: InstantiateMsg ) -> StdResult<Response> { 
-
+/// @dev Admin function to update Configuration parameters
+/// @param new_config : Same as InstantiateMsg struct
+pub fn handle_update_config( deps: DepsMut, info: MessageInfo, new_config: InstantiateMsg ) -> StdResult<Response> { 
     let mut config = CONFIG.load(deps.storage)?;
     
-    if info.sender != config.owner {
+    // CHECK :: ONLY OWNER CAN CALL THIS FUNCTION
+    if info.sender != config.owner {    
         return Err(StdError::generic_err("Only owner can update configuration"));
     }
 
@@ -105,13 +107,13 @@ pub fn handle_update_config( deps: DepsMut, env: Env, info: MessageInfo, new_con
     config.till_timestamp = new_config.till_timestamp.unwrap_or(config.till_timestamp );
 
     CONFIG.save(deps.storage, &config)?;
-    Ok(Response::new().add_attribute("action", "lockdrop::ExecuteMsg::UpdateConfig"))
+    Ok(Response::new().add_attribute("action", "Airdrop::ExecuteMsg::UpdateConfig"))
 }
 
 
 
-/// @dev Executes an airdrop claim by a Terra Address
-/// @param amount : Airdrop to be claimed by the account
+/// @dev Executes an airdrop claim for a Terra User
+/// @param claim_amount : Airdrop to be claimed by the user
 /// @param merkle_proof : Array of hashes to prove the input is a leaf of the Merkle Tree
 /// @param root_index : Merkle Tree root identifier to be used for verification
 pub fn handle_terra_user_claim( 
@@ -122,21 +124,20 @@ pub fn handle_terra_user_claim(
     merkle_proof: Vec<String>, 
     root_index: u32
 ) -> Result<Response, StdError> {
-
     let config = CONFIG.load(deps.storage)?;
     let user_account =  info.sender.clone();
 
-    // CHECK IF AIRDROP CLIAIM WINDOW IS OPEN
+    // CHECK :: IS AIRDROP CLIAIM WINDOW OPEN ? 
     if config.from_timestamp > _env.block.time.seconds() {
         return Err(StdError::generic_err("Claim not allowed"));
     }
 
-    // CHECK IF AIRDROP CLIAIM WINDOW IS NOT CLOSED YET
+    // CHECK :: IS AIRDROP CLIAIM WINDOW OPEN ? 
     if config.till_timestamp < _env.block.time.seconds() {
         return Err(StdError::generic_err("Claim period has concluded"));
     }
 
-    // CLAIM : CHECK IF CLAIMED
+    // CHECK :  IF ALREADY CLAIMED ? 
     let mut claim_check = CLAIMEES.may_load(deps.storage, &user_account.to_string().as_bytes() )?.unwrap_or_default();
     if claim_check.is_claimed {
             return Err(StdError::generic_err("Already claimed"));
@@ -157,19 +158,22 @@ pub fn handle_terra_user_claim(
     Ok(Response::new()        
     .add_message(transfer_msg)    
     .add_attributes(vec![
-        attr("action", "claim_for_terra"),
-        attr("claimed", user_account.to_string() ),
-        attr("amount", claim_amount)
+        attr("action", "Airdrop::ExecuteMsg::ClaimByTerraUser"),
+        attr("claimee", user_account.to_string() ),
+        attr("recepient", user_account.to_string() ),
+        attr("airdrop", claim_amount)
     ]))
 }
 
 
-/// @dev Executes an airdrop claim by an EVM Address
-/// @param eth_address : EVM address claiming the airdop
+/// @dev Executes an airdrop claim by an EVM User
+/// @param eth_address : EVM address claiming the airdop. Needs to be in lower case without the `0x` prefix
 /// @param claim_amount : Airdrop amount claimed by the user
-/// @param signature : ECDSA Signature string generated by singing the message = ethereum address (lower-case without '0x' prefix) + recepient address + claim amount
 /// @param merkle_proof : Array of hashes to prove the input is a leaf of the Merkle Tree
 /// @param root_index : Merkle Tree root identifier to be used for verification
+/// @param signature : ECDSA Signature string generated by signing the message (without the `0x` prefix and the last 2 characters which originate from `v`)
+/// @param signed_msg_hash : Keccak256 hash of the signed message following the ethereum prefix standard.(without the `0x` prefix) 
+/// https://web3js.readthedocs.io/en/v1.2.2/web3-eth-accounts.html#hashmessage
 pub fn handle_evm_user_claim( 
     deps: DepsMut,
     _env: Env, 
@@ -181,21 +185,20 @@ pub fn handle_evm_user_claim(
     signature: String, 
     signed_msg_hash: String
 ) -> Result<Response, StdError> {
-
     let config = CONFIG.load(deps.storage)?;
     let recepient_account =  info.sender;
 
-    // CHECK IF AIRDROP CLIAIM WINDOW IS OPEN
+    // CHECK :: IS AIRDROP CLIAIM WINDOW OPEN ? 
     if config.from_timestamp > _env.block.time.seconds() {
         return Err(StdError::generic_err("Claim not allowed"));
     }
 
-    // CHECK IF AIRDROP CLIAIM WINDOW IS NOT CLOSED YET
-    if config.till_timestamp <= _env.block.time.seconds() {
+    // CHECK :: IS AIRDROP CLIAIM WINDOW OPEN ? 
+    if config.till_timestamp < _env.block.time.seconds() {
         return Err(StdError::generic_err("Claim period has concluded"));
     }
 
-    // CLAIM : CHECK IF CLAIMED
+    // CLAIM : IS CLAIMED ?
     let mut claim_check = CLAIMEES.may_load(deps.storage, &eth_address.as_bytes() )?.unwrap_or_default();
     if claim_check.is_claimed {
             return Err(StdError::generic_err("Already claimed"));
@@ -208,7 +211,8 @@ pub fn handle_evm_user_claim(
     }
 
     // SIGNATURE VERIFICATION
-    if !handle_verify_signature(deps.api,  signature.clone(),  signed_msg_hash.clone()) {
+    let sig_verification_response = handle_verify_signature(deps.api,  eth_address.clone(), signature.clone(),  signed_msg_hash.clone());
+    if !sig_verification_response.is_valid {
         return Err(StdError::generic_err("Invalid Signature"));
     }
 
@@ -221,16 +225,16 @@ pub fn handle_evm_user_claim(
     Ok(Response::new()        
     .add_message(transfer_msg)    
     .add_attributes(vec![
-        attr("action", "claim_for_evm"),
-        attr("claimed", eth_address.to_string() ),
+        attr("action", "Airdrop::ExecuteMsg::ClaimByEvmUser"),
+        attr("claimee", eth_address.to_string() ),
         attr("recepient", recepient_account.to_string() ),
-        attr("amount", claim_amount),
+        attr("airdrop", claim_amount.to_string() ),
     ]))
 
 }
 
  
-/// @dev Transfer MARS Tokens to the recepient address
+/// @dev Admin function to transfer MARS Tokens to the recepient address
 /// @param recepient Recepient receiving the MARS tokens
 /// @param amount Amount of MARS to be transferred
 pub fn handle_transfer_mars( 
@@ -243,7 +247,7 @@ pub fn handle_transfer_mars(
 
     let config = CONFIG.load(deps.storage)?;
 
-    // owner RESTRICTION CHECK
+    // CHECK :: CAN ONLY BE CALLED BY THE OWNER 
     if info.sender != config.owner {
         return Err(StdError::generic_err("Sender not authorized!"));        
     }
@@ -254,7 +258,7 @@ pub fn handle_transfer_mars(
     Ok(Response::new()
     .add_message(transfer_msg)        
     .add_attributes(vec![
-        attr("action", "TransferMarsTokens"),
+        attr("action", "Airdrop::ExecuteMsg::TransferMarsTokens"),
         attr("recepient", recepient.to_string() ),
         attr("amount", amount ),
     ]))
@@ -289,13 +293,19 @@ fn check_user_claimed(deps: Deps, address: String  ) -> StdResult<ClaimResponse>
     Ok(ClaimResponse {  is_claimed: res.is_claimed }) 
 }
 
-/// @dev Returns true if the ECDSA signature string generated by signing the 'msg' with the ethereum wallet is valid. [EVM addresses to be provided in lower-case without the '0x' prefix]
-fn verify_signature(_deps: Deps, eth_signature: String, signed_msg: String  ) -> StdResult<SignatureResponse> {
+
+/// @dev Returns the recovered public key, evm address and a boolean value which is true if the evm address provided was used for signing the message.
+/// @param evm_address : EVM address claiming the airdop. Needs to be in lower case without the `0x` prefix
+/// @param evm_signature : ECDSA Signature string generated by signing the message (without the `0x` prefix and the last 2 characters which originate from `v`)
+/// @param signed_msg_hash : Keccak256 hash of the signed message following the EIP-191 prefix standard.(without the `0x` prefix) 
+fn verify_signature(_deps: Deps, evm_address:String, evm_signature: String, signed_msg_hash: String  ) -> StdResult<SignatureResponse> {
     
-    let is_valid = handle_verify_signature(_deps.api,  eth_signature,  signed_msg);
+    let verification_response = handle_verify_signature(_deps.api,  evm_address, evm_signature,  signed_msg_hash);
     
     Ok(SignatureResponse {
-        is_valid: is_valid
+        is_valid: verification_response.is_valid,
+        public_key: verification_response.public_key,
+        recovered_address: verification_response.recovered_address
     }) 
 
 }
@@ -303,21 +313,6 @@ fn verify_signature(_deps: Deps, eth_signature: String, signed_msg: String  ) ->
 //----------------------------------------------------------------------------------------
 // Helper functions
 //----------------------------------------------------------------------------------------
-
-/// Normalizes recovery id for recoverable signature.
-/// Copied from https://github.com/gakonst/ethers-rs/blob/01cc80769c291fc80f5b1e9173b7b580ae6b6413/ethers-core/src/types/signature.rs#L142
-pub fn normalize_recovery_id(v: u8) -> u8 {
-    match v {
-        0 => 0,
-        1 => 1,
-        27 => 0,
-        28 => 1,
-        v if v >= 35 => ((v - 1) % 2) as _,
-        _ => 4,
-    }
-}
-
-
 
 
 /// @dev Verify whether a claim is valid
@@ -345,25 +340,74 @@ fn verify_claim( account: String, amount: Uint128, merkle_proof: Vec<String>, me
     }
         
     hash_str = hex::encode(hash_buf);
-    return merkle_root == hash_str;
+    
+    merkle_root == hash_str
 }
 
 
 /// @dev Verify whether Signature provided is valid
-/// @param address Ethereum account (without '0x' prefix) on behalf of which the airdrop is to be claimed
-/// @param eth_signature Encoded hexadecimal string of the ECDSA signature of the signed message
-/// @param msg Message signed by the user 
-pub fn handle_verify_signature( api: &dyn Api, eth_signature: String, signed_msg_hash: String ) -> bool {
-
+/// @param evm_address : EVM address claiming to have signed the message. Needs to be in lower case without the `0x` prefix
+/// @param evm_signature : ECDSA Signature string generated by signing the message (without the `0x` prefix and the last 2 characters which originate from `v`)
+/// @param signed_msg_hash : Keccak256 hash of the signed message following the EIP-191 prefix standard.(without the `0x` prefix) 
+pub fn handle_verify_signature( api: &dyn Api, evm_address:String, evm_signature: String, signed_msg_hash: String ) -> SignatureResponse {
     let msg_hash = hex::decode(signed_msg_hash).unwrap();
-    let signature = hex::decode(eth_signature).unwrap();
+    let signature = hex::decode(evm_signature).unwrap();
     let recovery_param = normalize_recovery_id(signature[63]);
-    let recovered_public_key = api.secp256k1_recover_pubkey(&msg_hash, &signature, recovery_param ).unwrap_or([].to_vec()) ;
 
-    api.secp256k1_verify(&msg_hash, &signature, &recovered_public_key ).unwrap_or(false)
+    let mut recovered_public_key = vec![0; 64];
+    recovered_public_key = api.secp256k1_recover_pubkey(&msg_hash, &signature, recovery_param ).unwrap_or([].to_vec()) ;
+    let recovered_public_key_string = hex::encode(&recovered_public_key );
+
+    let recovered_address = evm_address_raw(&recovered_public_key ).unwrap_or([0;20] ) ;
+    let recovered_address_string = hex::encode(recovered_address);
+  
+    SignatureResponse {
+        is_valid: evm_address == recovered_address_string,
+        public_key: recovered_public_key_string,
+        recovered_address: recovered_address_string 
+    }
 }
 
 
+/// Returns a raw 20 byte Ethereum address
+/// Copied from https://github.com/CosmWasm/cosmwasm/blob/96a1f888f0cdb7446e29f60054165e635b258e39/contracts/crypto-verify/src/ethereum.rs#L99
+pub fn evm_address_raw(pubkey: &[u8]) -> StdResult<[u8; 20]> {
+    let (tag, data) = match pubkey.split_first() {
+        Some(pair) => pair,
+        None => return Err(StdError::generic_err("Public key must not be empty")),
+    };
+    if *tag != 0x04 {
+        return Err(StdError::generic_err("Public key must start with 0x04"));
+    }
+    if data.len() != 64 {
+        return Err(StdError::generic_err("Public key must be 65 bytes long"));
+    }
+
+    let hash = Keccak256::digest(data);
+    Ok(hash[hash.len() - 20..].try_into().unwrap())
+}
+
+
+/// Normalizes recovery id for recoverable signature while getting the recovery param from the value `v`
+/// See [EIP-155] for how `v` is composed.
+/// [EIP-155]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md
+/// Copied from https://github.com/gakonst/ethers-rs/blob/01cc80769c291fc80f5b1e9173b7b580ae6b6413/ethers-core/src/types/signature.rs#L142
+pub fn normalize_recovery_id(v: u8) -> u8 {
+    match v {
+        0 => 0,
+        1 => 1,
+        27 => 0,
+        28 => 1,
+        v if v >= 35 => ((v - 1) % 2) as _,
+        _ => 4,
+    }
+}
+
+
+/// @dev Helper function which returns a cosmos wasm msg to transfer cw20 tokens to a recepient address 
+/// @param recipient : Address to be transferred cw20 tokens to
+/// @param token_contract_address : Contract address of the cw20 token to transfer
+/// @param amount : Number of tokens to transfer
 fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: String, amount: Uint128) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_contract_address,

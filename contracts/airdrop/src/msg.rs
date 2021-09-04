@@ -19,18 +19,18 @@ pub enum ExecuteMsg {
     UpdateConfig {
         new_config: InstantiateMsg,
     },
-    TerraClaim {
-        amount: Uint128,
+    ClaimByTerraUser {
+        claim_amount: Uint128,
         merkle_proof: Vec<String>,
         root_index: u32
     },
-    EvmClaim {
+    ClaimByEvmUser {
         eth_address: String,
         claim_amount: Uint128,
         merkle_proof: Vec<String>,
         root_index: u32,
         signature: String,
-        msg_hash: String
+        signed_msg_hash: String
         
     },
     TransferMarsTokens {
@@ -47,7 +47,8 @@ pub enum QueryMsg {
         address: String,
      },
      IsValidSignature {
-        eth_signature: String,
+        evm_address: String,
+        evm_signature: String,
         signed_msg_hash: String,                
      },
 }
@@ -71,5 +72,7 @@ pub struct ClaimResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SignatureResponse {
-    pub is_valid: bool
+    pub is_valid: bool,
+    pub public_key: String,
+    pub recovered_address: String
 }

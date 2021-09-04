@@ -84,9 +84,9 @@ export async function airdrop_is_claimed(  terra: LCDClient, airdropContractAdr:
   
 
 // EVM SIGNATURE VERIFICATION : CONTRACT QUERY
-export async function airdrop_verifySignature(  terra: LCDClient, airdropContractAdr: string, signature: string, msg: string ) {
+export async function airdrop_verifySignature(  terra: LCDClient, airdropContractAdr: string, user_address: string, signature: string, msg: string ) {
     try {
-        let verify_signature_msg = { "is_valid_signature": {'eth_signature': signature, 'signed_msg_hash': msg }};
+        let verify_signature_msg = { "is_valid_signature": {'evm_address':user_address, 'evm_signature': signature, 'signed_msg_hash': msg }};
         let res = await terra.wasm.contractQuery(airdropContractAdr, verify_signature_msg)
         return res;
     }

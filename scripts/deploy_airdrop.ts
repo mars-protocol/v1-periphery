@@ -44,16 +44,16 @@ async function main() {
   bombay_testnet.airdrop_InitMsg.config.evm_merkle_roots = evm_merkle_roots;
   bombay_testnet.airdrop_InitMsg.config.from_timestamp = FROM_TIMESTAMP;
   bombay_testnet.airdrop_InitMsg.config.till_timestamp = TILL_TIMESTAMP;
-  console.log(bombay_testnet.airdrop_InitMsg.config)
+  // console.log(bombay_testnet.airdrop_InitMsg.config)
 
   const airdrop_contract_address = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_airdrop.wasm'),  bombay_testnet.airdrop_InitMsg.config)
-  // const airdrop_contract_address = "terra19n85m4kjxsvxxtdzjqtefqjfc45wz62ckavhha"
+  // const airdrop_contract_address = "terra1h8f84ztltpa530qdv9vc387zr48dru7gvr3703"
   console.log('AIRDROP CONTRACT ADDRESS : ' + airdrop_contract_address )
 
   // TRANSFER MARS TOKENS TO THE AIRDROP CONTRACT
-  let mars_rewards = 50000000000;
-  await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, airdrop_contract_address, mars_rewards);
-  console.log( (mars_rewards/(10**6)).toString() +  ' MARS TRANSFERRED TO THE AIRDROP CONTRACT :: ' + airdrop_contract_address )
+  // let mars_rewards = 50000000000;
+  // await transferCW20Tokens(terra, wallet, MARS_TOKEN_ADDRESS, airdrop_contract_address, mars_rewards);
+  // console.log( (mars_rewards/(10**6)).toString() +  ' MARS TRANSFERRED TO THE AIRDROP CONTRACT :: ' + airdrop_contract_address )
 
 // /*************************************** AIRDROP CONTRACT :: TESTING FUNCTION CALLS  *****************************************/
   let web3 = new Web3(Web3.givenProvider || 'ws://some.local-or-remote.node:8546');
@@ -69,48 +69,49 @@ async function main() {
   // console.log(is_claimed);
 
   // VERIFY SIGNATURE VIA CONTRACT QUERY
-  // let test_evm_account = web3.eth.accounts.privateKeyToAccount('89fa5355adfd0879b7dc568ac8b5d543d7609a96b0d8aa0486305403b7429c50');
-  // let test_msg_to_sign = "Testing"
-  // let test_signature = get_EVM_Signature(test_evm_account, test_msg_to_sign);
+  let test_evm_account = web3.eth.accounts.privateKeyToAccount('89fa5355adfd0879b7dc568ac8b5d543d7609a96b0d8aa0486305403b7429c50');
+  let test_msg_to_sign = "testing"
+  let test_signature = get_EVM_Signature(test_evm_account, test_msg_to_sign);
 
-  // let msg_hash = test_signature["messageHash"].substr(2,66)
-  // let signature_hash = test_signature["signature"].substr(2,128) 
+  let msg_hash = test_signature["messageHash"].substr(2,66)  
+  let signature_hash = test_signature["signature"].substr(2,128) 
 
-  // console.log("msg_hash = " + msg_hash)
-  // console.log("signature_hash = " + signature_hash)
+  console.log("a/c address = " + test_evm_account.address)
+  console.log("msg_hash = " + msg_hash)
+  console.log("signature_hash = " + signature_hash)
 
-  // // console.log(test_signature)
-  // let verify_response = await airdrop_verifySignature(terra, airdrop_contract_address,signature_hash, msg_hash);
-  // console.log(verify_response);
+  console.log(test_signature)
+  let verify_response = await airdrop_verifySignature(terra, airdrop_contract_address,test_evm_account.address.replace('0x', '').toLowerCase() , signature_hash, msg_hash);
+  console.log(verify_response);
 
 
   // // AIRDROP CLAIM : GET MERKLE PROOF FOR TERRA USER --> CLAIM AIRDROP IF VALID PROOF
-  let airdrop_claim_amount = 474082154
-  let terra_user_merkle_proof = get_Terra_MerkleProof( { "address":wallet.key.accAddress, "amount":airdrop_claim_amount.toString() } );
-  console.log(terra_user_merkle_proof)
-  await claimAirdropForTerraUser(terra, wallet, airdrop_contract_address, airdrop_claim_amount, terra_user_merkle_proof["proof"], terra_user_merkle_proof["root_index"])
+  // let airdrop_claim_amount = 474082154
+  // let terra_user_merkle_proof = get_Terra_MerkleProof( { "address":wallet.key.accAddress, "amount":airdrop_claim_amount.toString() } );
+  // console.log(terra_user_merkle_proof)
+  // await claimAirdropForTerraUser(terra, wallet, airdrop_contract_address, airdrop_claim_amount, terra_user_merkle_proof["proof"], terra_user_merkle_proof["root_index"])
 
-  let is_claimed_ = await airdrop_is_claimed(terra, airdrop_contract_address, wallet.key.accAddress );
-  console.log(is_claimed_);
+  // let is_claimed_ = await airdrop_is_claimed(terra, airdrop_contract_address, wallet.key.accAddress );
+  // console.log(is_claimed_);
 
 
-  // // AIRDROP CLAIM : GET MERKLE PROOF, SIGNATURE FOR EVM USER --> CLAIM AIRDROP IF VALID PROOF
-  let eth_user_ = web3.eth.accounts.privateKeyToAccount('89fa5355adfd0879b7dc568ac8b5d543d7609a96b0d8aa0486305403b7429c50');
-  let eth_user_address = eth_user_.address;
-  // const eth_user_address = ""
-  let airdrop_claim_amount_evm_user = 324473973
-  let  evm_user_merkle_proof = get_EVM_MerkleProof( { "address":eth_user_address, "amount":airdrop_claim_amount_evm_user.toString() } );
-  let msg_to_sign = "Testing" //eth_user_address.substr(2,42).toLowerCase()  + wallet.key.accAddress + airdrop_claim_amount_evm_user.toString();  
-  let signature =  get_EVM_Signature(eth_user_, msg_to_sign);
+  // // // AIRDROP CLAIM : GET MERKLE PROOF, SIGNATURE FOR EVM USER --> CLAIM AIRDROP IF VALID PROOF
+  // let eth_user_ = web3.eth.accounts.privateKeyToAccount('89fa5355adfd0879b7dc568ac8b5d543d7609a96b0d8aa0486305403b7429c50');
+  // let eth_user_address = eth_user_.address;
+  // // const eth_user_address = ""
+  // let airdrop_claim_amount_evm_user = 324473973
+  // let  evm_user_merkle_proof = get_EVM_MerkleProof( { "address":eth_user_address, "amount":airdrop_claim_amount_evm_user.toString() } );
+  // let msg_to_sign = "Testing" //eth_user_address.substr(2,42).toLowerCase()  + wallet.key.accAddress + airdrop_claim_amount_evm_user.toString();  
+  // let signature =  get_EVM_Signature(eth_user_, msg_to_sign);
 
-  let msg_hash = signature["messageHash"].substr(2,66)
-  let signature_hash = signature["signature"].substr(2,128) 
+  // let msg_hash = signature["messageHash"].substr(2,66)
+  // let signature_hash = signature["signature"].substr(2,128) 
 
-  // let is_valid_sig = await verifySignature( terra, airdrop_contract_address, eth_user_address, signature, msg_to_sign );
-  await claimAirdropForEVMUser( terra, wallet, airdrop_contract_address, eth_user_address, airdrop_claim_amount_evm_user, evm_user_merkle_proof["proof"], evm_user_merkle_proof["root_index"], signature_hash, msg_hash );
+  // // let is_valid_sig = await verifySignature( terra, airdrop_contract_address, eth_user_address, signature, msg_to_sign );
+  // await claimAirdropForEVMUser( terra, wallet, airdrop_contract_address, eth_user_address, airdrop_claim_amount_evm_user, evm_user_merkle_proof["proof"], evm_user_merkle_proof["root_index"], signature_hash, msg_hash );
   
-  let is_claimed_evm = await airdrop_is_claimed(terra, airdrop_contract_address, eth_user_address.substr(2,42).toLowerCase() );
-  console.log(is_claimed_evm);
+  // let is_claimed_evm = await airdrop_is_claimed(terra, airdrop_contract_address, eth_user_address.substr(2,42).toLowerCase() );
+  // console.log(is_claimed_evm);
 
 
   // // ADMIN FUNCTION : TRANSFER MARS FROM AIRDROP CONTRACT TO RECEPIENT
