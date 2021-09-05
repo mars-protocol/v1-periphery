@@ -15,7 +15,6 @@ import {
 import Web3 from 'web3';
 import { LCDClient } from "@terra-money/terra.js"
 import { join } from "path"
-import {hashMessage} from "./helpers/evm_hashmsg.js"
 
 
 /*************************************** DEPLOYMENT :: AIRDROP CONTRACT  *****************************************/

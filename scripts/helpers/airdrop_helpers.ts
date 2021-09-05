@@ -1,6 +1,7 @@
 import {executeContract, queryContract} from "./helpers.js";
 import {Coins, Coin,StdFee, MsgExecuteContract, LCDClient, Wallet} from "@terra-money/terra.js";
-
+import utils from 'web3-utils';
+import Web3 from 'web3';
 
 //-----------------------------------------------------
 // ------ ExecuteContract :: Function signatures ------
@@ -123,3 +124,14 @@ export async function airdrop_verifySignature(  terra: LCDClient, airdropContrac
 //       }
 //     }
 //   }
+
+
+// EVM AIRDROP : SIGN THE MESSAGE
+export function get_EVM_Signature(evm_account:any, msg:string) {
+    var message = utils.isHexStrict(msg) ? utils.hexToUtf8(msg) : msg;
+    var ethMessage = "\x19Ethereum Signed Message:\n" + message.length + message;
+    let signature =  evm_account.sign(msg);    
+    var web3 = new Web3(Web3.givenProvider || 'ws://some.local-or-remote.node:8546');
+    let signee = web3.eth.accounts.recover(msg, signature.signature);
+    return signature;
+}

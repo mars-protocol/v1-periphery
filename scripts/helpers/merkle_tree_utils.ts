@@ -97,10 +97,8 @@ export function prepareDataForMerkleTree( data:(string | number)[][], str:number
 
 // EVM AIRDROP : SIGN THE MESSAGE
 export function get_EVM_Signature(evm_account:any, msg:string) {
-    var message = utils.isHexStrict(msg) ? utils.hexToUtf8(msg) : msg;
-    var ethMessage = "\x19Ethereum Signed Message:\n" + message.length + message;
+    // var message = utils.isHexStrict(msg) ? utils.hexToUtf8(msg) : msg;
+    // var ethMessage = "\x19Ethereum Signed Message:\n" + message.length + message;
     let signature =  evm_account.sign(msg);    
-    var web3 = new Web3(Web3.givenProvider || 'ws://some.local-or-remote.node:8546');
-    let signee = web3.eth.accounts.recover(msg, signature.signature);
     return signature;
-  }
+}
