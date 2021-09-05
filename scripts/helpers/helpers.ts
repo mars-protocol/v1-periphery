@@ -35,7 +35,7 @@ const LOCAL_TERRA_FEE = new StdFee(
   [new Coin('uusd', 45000000)]
 )
 
-export async function performTransaction(terra: LCDClient, wallet: Wallet, msg: Msg) {
+export async function performTransaction( terra: LocalTerra | LCDClient, wallet: Wallet, msg: Msg) {
   let options: CreateTxOptions = {
     msgs: [msg],
     gasPrices: [new Coin("uusd", 0.15)]
@@ -57,7 +57,7 @@ export async function performTransaction(terra: LCDClient, wallet: Wallet, msg: 
   return result
 }
 
-export async function createTransaction(terra: LCDClient, wallet: Wallet, msg: Msg) {
+export async function createTransaction( terra: LocalTerra | LCDClient, wallet: Wallet, msg: Msg) {
   let options: CreateTxOptions = {
     msgs: [msg],
     gasPrices: [new Coin("uusd", 0.15)]
@@ -70,40 +70,40 @@ export async function createTransaction(terra: LCDClient, wallet: Wallet, msg: M
   return await wallet.createTx(options)
 }
 
-export async function uploadContract(terra: LCDClient, wallet: Wallet, filepath: string) {
+export async function uploadContract( terra: LocalTerra | LCDClient, wallet: Wallet, filepath: string) {
   const contract = readFileSync(filepath, 'base64');
   const uploadMsg = new MsgStoreCode(wallet.key.accAddress, contract);
   let result = await performTransaction(terra, wallet, uploadMsg);
   return Number(result.logs[0].eventsByType.store_code.code_id[0]) // code_id
 }
 
-export async function instantiateContract(terra: LCDClient, wallet: Wallet, codeId: number, msg: object) {
+export async function instantiateContract( terra: LocalTerra | LCDClient, wallet: Wallet, codeId: number, msg: object) {
   const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, undefined , codeId, msg, undefined);
   let result = await performTransaction(terra, wallet, instantiateMsg)
   const attributes = result.logs[0].events[0].attributes
   return attributes[attributes.length - 1].value // contract address
 }
 
-export async function executeContract(terra: LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: any) {
+export async function executeContract( terra: LocalTerra | LCDClient, wallet: Wallet, contractAddress: string, msg: object, coins?: any) {
   const executeMsg = new MsgExecuteContract(wallet.key.accAddress, contractAddress, msg, coins);
   return await performTransaction(terra, wallet, executeMsg);
 }
 
-export async function queryContract(terra: LCDClient, contractAddress: string, query: object): Promise<any> {
+export async function queryContract( terra: LocalTerra | LCDClient, contractAddress: string, query: object): Promise<any> {
   return await terra.wasm.contractQuery(contractAddress, query)
 }
 
-export async function deployContract(terra: LCDClient, wallet: Wallet, filepath: string, initMsg: object) {
+export async function deployContract( terra: LocalTerra | LCDClient, wallet: Wallet, filepath: string, initMsg: object) {
   const codeId = await uploadContract(terra, wallet, filepath);
   return await instantiateContract(terra, wallet, codeId, initMsg);
 }
 
-export async function migrate(terra: LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number) {
+export async function migrate( terra: LocalTerra | LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number) {
   const migrateMsg = new MsgMigrateContract(wallet.key.accAddress, contractAddress, newCodeId, {});
   return await performTransaction(terra, wallet, migrateMsg);
 }
 
-export function recover(terra: LCDClient, mnemonic: string) {
+export function recover( terra: LocalTerra | LCDClient, mnemonic: string) {
   const mk = new MnemonicKey({ mnemonic: mnemonic });
   return terra.wallet(mk);
 }

@@ -15,9 +15,9 @@ export async function getMerkleRootsForTerraUsers() {
     let n = TERRA_MERKLE_ROOTS;
   
     for (let i=0; i<n; i++ ) {
-        let terra = prepareDataForMerkleTree(airdropdataTerra.data , i * Math.round(airdropdataTerra.data.length/n) , (i+1) * Math.round(airdropdataTerra.data.length/n)  );
-        let airdrop = new Terra_Merkle_Tree(terra);
-        let terra_merkle_root = airdrop.getMerkleRoot();
+        let terra_data = prepareDataForMerkleTree(airdropdataTerra.data , i * Math.round(airdropdataTerra.data.length/n) , (i+1) * Math.round(airdropdataTerra.data.length/n)  );
+        let airdrop_tree = new Terra_Merkle_Tree(terra_data);
+        let terra_merkle_root = airdrop_tree.getMerkleRoot();
         terra_merkle_roots.push(terra_merkle_root);            
     }
   
@@ -31,9 +31,9 @@ export async function getMerkleRootsForEVMUsers() {
     let n = EVM_MERKLE_ROOTS;
   
     for (let i=0; i<n; i++ ) {
-        let evm = prepareDataForMerkleTree(airdropdataEvm.data , i * Math.round(airdropdataEvm.data.length/n) , (i+1) * Math.round(airdropdataEvm.data.length/n)  );
-        let airdrop = new EVM_Merkle_Tree(evm);
-        let evm_merkle_root = airdrop.getMerkleRoot();
+        let evm_data = prepareDataForMerkleTree(airdropdataEvm.data , i * Math.round(airdropdataEvm.data.length/n) , (i+1) * Math.round(airdropdataEvm.data.length/n)  );
+        let airdrop_tree = new EVM_Merkle_Tree(evm_data);
+        let evm_merkle_root = airdrop_tree.getMerkleRoot();
         evm_merkle_roots.push(evm_merkle_root);
     }
   

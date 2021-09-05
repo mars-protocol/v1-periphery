@@ -11,7 +11,7 @@ import {
   } from "./helpers/helpers.js";
   import { bombay_testnet } from "./configs.js";
   import {updateAirdropConfig, claimAirdropForTerraUser, claimAirdropForEVMUser, transferMarsByAdminFromAirdropContract
-,airdrop_getConfig, airdrop_is_claimed, airdrop_verifySignature }  from "./helpers/airdrop_helpers.js";
+,getAirdropConfig, isAirdropClaimed, verify_EVM_SignatureForAirdrop }  from "./helpers/airdrop_helpers.js";
 import Web3 from 'web3';
 import { LCDClient } from "@terra-money/terra.js"
 import { join } from "path"
@@ -59,12 +59,12 @@ async function main() {
 
 
   // GET CONFIGURATION
-  // let config = await airdrop_getConfig(terra, airdrop_contract_address);
+  // let config = await getAirdropConfig(terra, airdrop_contract_address);
   // console.log(config);
 
   // CHECK IF CLAIMED
   // let test_terra_address = wallet.key.accAddress
-  // let is_claimed = await airdrop_is_claimed(terra, airdrop_contract_address, test_terra_address );
+  // let is_claimed = await isAirdropClaimed(terra, airdrop_contract_address, test_terra_address );
   // console.log(is_claimed);
 
   // VERIFY SIGNATURE VIA CONTRACT QUERY
@@ -80,7 +80,7 @@ async function main() {
   console.log("signature_hash = " + signature_hash)
 
   console.log(test_signature)
-  let verify_response = await airdrop_verifySignature(terra, airdrop_contract_address,test_evm_account.address.replace('0x', '').toLowerCase() , signature_hash, msg_hash);
+  let verify_response = await verify_EVM_SignatureForAirdrop(terra, airdrop_contract_address,test_evm_account.address.replace('0x', '').toLowerCase() , signature_hash, msg_hash);
   console.log(verify_response);
 
 
@@ -90,7 +90,7 @@ async function main() {
   // console.log(terra_user_merkle_proof)
   // await claimAirdropForTerraUser(terra, wallet, airdrop_contract_address, airdrop_claim_amount, terra_user_merkle_proof["proof"], terra_user_merkle_proof["root_index"])
 
-  // let is_claimed_ = await airdrop_is_claimed(terra, airdrop_contract_address, wallet.key.accAddress );
+  // let is_claimed_ = await isAirdropClaimed(terra, airdrop_contract_address, wallet.key.accAddress );
   // console.log(is_claimed_);
 
 
@@ -109,7 +109,7 @@ async function main() {
   // // let is_valid_sig = await verifySignature( terra, airdrop_contract_address, eth_user_address, signature, msg_to_sign );
   // await claimAirdropForEVMUser( terra, wallet, airdrop_contract_address, eth_user_address, airdrop_claim_amount_evm_user, evm_user_merkle_proof["proof"], evm_user_merkle_proof["root_index"], signature_hash, msg_hash );
   
-  // let is_claimed_evm = await airdrop_is_claimed(terra, airdrop_contract_address, eth_user_address.substr(2,42).toLowerCase() );
+  // let is_claimed_evm = await isAirdropClaimed(terra, airdrop_contract_address, eth_user_address.substr(2,42).toLowerCase() );
   // console.log(is_claimed_evm);
 
 
