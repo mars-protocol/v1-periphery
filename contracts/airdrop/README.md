@@ -40,15 +40,14 @@ import Web3 from 'web3';
 
 var evm_wallet = web3.eth.accounts.privateKeyToAccount('<PRIVATE KEY>')
 var msg_to_sign = <message to sign>
-var signature =  evm_wallet.sign(msg)
+var signature =  evm_wallet.sign(msg_to_sign)
 
 var evm_wallet_address = evm_wallet.replace('0x', '').toLowerCase()
 var signed_msg_hash = signature["messageHash"].substr(2,66)
 var signature_hash = signature["signature"].substr(2,128) 
 
-var airdrop_contract_address = "
+var airdrop_contract_address = <Insert Contract Address>
 var terra = new LCDClient({ URL: 'https://bombay-lcd.terra.dev', chainID: 'bombay-10'})
-var wallet = recover(terra, process.env.TERRA_WALLET_KEY!)
 verify_signature_msg = { "is_valid_signature": {
                             'evm_address':evm_wallet_address, 
                             'evm_signature': signature_hash, 
