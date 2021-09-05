@@ -27,12 +27,13 @@ Refer to the blog here to understand how the MARS airdrop for Terra, Ethereum an
 | `QueryMsg::IsValidSignature` | Returns the recovered public key, corresponding evm address (lower case without `0x` prefix) and a boolean value indicating if the message was indeed signed by the provided address or not                                           |
 
 
-## Get Merkle Proof
- <TB ADDED>
+## How to Guide :: Get merkle proof
+```
+to be added
+```
 
 
-
-## How to Guide :: Verify evm signatures
+## How to Guide :: verify evm signatures
 
 ```
 import utils from 'web3-utils';
