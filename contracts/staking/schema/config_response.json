@@ -1,75 +1,57 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "ConfigResponse",
   "type": "object",
+  "required": [
+    "address_provider",
+    "cycle_duration",
+    "init_timestamp",
+    "mars_token",
+    "owner",
+    "reward_increase",
+    "staking_token",
+    "till_timestamp"
+  ],
   "properties": {
     "address_provider": {
-      "description": "Contract used to query addresses related to red-bank (MARS Token)",
-      "type": [
-        "string",
-        "null"
-      ]
+      "description": "Contract used to query addresses related to red-bank",
+      "type": "string"
     },
     "cycle_duration": {
       "description": "Cycle duration in timestamps",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
-    },
-    "cycle_rewards": {
-      "description": "$MARS Rewards distributed during the 1st cycle.",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Uint256"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "init_timestamp": {
       "description": "Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
+    "mars_token": {
+      "description": "$MARS token address",
+      "type": "string"
+    },
     "owner": {
       "description": "Account who can update config",
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "reward_increase": {
       "description": "Percent increase in Rewards per cycle",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/Decimal256"
-        },
-        {
-          "type": "null"
         }
       ]
     },
     "staking_token": {
-      "description": "MARS-UST LP token address - accepted by the contract via Cw20ReceiveMsg function",
-      "type": [
-        "string",
-        "null"
-      ]
+      "description": "MARS-UST LP token address",
+      "type": "string"
     },
     "till_timestamp": {
       "description": "Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     }
@@ -77,9 +59,6 @@
   "definitions": {
     "Decimal256": {
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal256(1_000_000_000_000_000_000) == 1.0 The greatest possible value that can be represented is 115792089237316195423570985008687907853269984665640564039457.584007913129639935 (which is (2^128 - 1) / 10^18)",
-      "type": "string"
-    },
-    "Uint256": {
       "type": "string"
     }
   }

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "State",
+  "title": "StateResponse",
   "type": "object",
   "required": [
     "current_cycle",
@@ -11,13 +11,13 @@
   ],
   "properties": {
     "current_cycle": {
-      "description": "Keeps track of the MARS distribution cycle",
+      "description": "Timestamp at which the current reward cycle begin",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "current_cycle_rewards": {
-      "description": "Number of MARS tokens to be distributed during the current cycle",
+      "description": "MARS rewards to be distributed in the current cycle",
       "allOf": [
         {
           "$ref": "#/definitions/Uint256"
@@ -25,7 +25,7 @@
       ]
     },
     "global_reward_index": {
-      "description": "Used to calculate MARS rewards accured over time elapsed. Ratio =  Total distributed MARS tokens / total bond amount",
+      "description": "total MARS rewards / total_bond_amount ratio. Used to calculate MARS rewards accured over time elapsed",
       "allOf": [
         {
           "$ref": "#/definitions/Decimal256"
@@ -39,7 +39,7 @@
       "minimum": 0.0
     },
     "total_bond_amount": {
-      "description": "Total number of MARS-UST LP tokens staked with the contract",
+      "description": "Total number of MARS-UST LP tokens deposited in the contract",
       "allOf": [
         {
           "$ref": "#/definitions/Uint256"

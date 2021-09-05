@@ -1,14 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CountResponse",
+  "title": "IsClaimed",
   "type": "object",
   "required": [
-    "count"
+    "is_claimed"
   ],
   "properties": {
-    "count": {
-      "type": "integer",
-      "format": "int32"
+    "is_claimed": {
+      "type": "boolean"
     }
   }
 }

@@ -479,22 +479,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mars-lp-staking"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-bignumber",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus",
- "cw20",
- "mars",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -690,6 +674,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "987637c5ae6b3121aba9d513f869bd2bff11c4cc086c22473befd6649c0bd521"
 dependencies = [
  "der",
+]
+
+[[package]]
+name = "staking"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus",
+ "cw20",
+ "mars",
+ "schemars",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]

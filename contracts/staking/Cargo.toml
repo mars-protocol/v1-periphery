@@ -1,5 +1,5 @@
 [package]
-name = "mars-lp-staking"
+name = "staking"
 version = "0.1.0"
 authors = ["Alien hunter no. 42 <84127070+alienHunterOnMars@users.noreply.github.com>"]
 edition = "2018"
@@ -30,8 +30,6 @@ overflow-checks = true
 [features]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
-# use library feature to disable all instantiate/execute/query exports
-library = []
 
 [dependencies]
 mars = { path = "../../packages/mars", version = "0.1.0" }

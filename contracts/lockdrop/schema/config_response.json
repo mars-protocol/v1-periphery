@@ -1,29 +1,23 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "ConfigResponse",
   "type": "object",
   "required": [
+    "address_provider",
     "deposit_window",
     "init_timestamp",
+    "lockdrop_incentives",
+    "ma_ust_token",
     "max_duration",
     "min_duration",
+    "multiplier",
     "owner",
     "withdrawal_window"
   ],
   "properties": {
     "address_provider": {
       "description": "Contract used to query addresses related to red-bank (MARS Token)",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "denom": {
-      "description": "\"uusd\" - Native token accepted by the contract for deposits",
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "deposit_window": {
       "description": "Number of seconds for which lockup deposits will be accepted",
@@ -39,48 +33,39 @@
     },
     "lockdrop_incentives": {
       "description": "Total MARS lockdrop incentives to be distributed among the users",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/Uint256"
-        },
-        {
-          "type": "null"
         }
       ]
     },
     "ma_ust_token": {
       "description": "maUST token address - Minted upon UST deposits into red bank",
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "max_duration": {
-      "description": "Max. no. of days allowed for lockup",
+      "description": "Max. no. of weeks allowed for lockup",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "min_duration": {
-      "description": "Min. no. of days allowed for lockup",
+      "description": "Min. no. of weeks allowed for lockup",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
+    "multiplier": {
+      "description": "Lockdrop Reward multiplier",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal256"
+        }
+      ]
+    },
     "owner": {
       "description": "Account who can update config",
       "type": "string"
-    },
-    "weekly_multiplier": {
-      "description": "Lockdrop Reward multiplier",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Decimal256"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "withdrawal_window": {
       "description": "Number of seconds for which lockup withdrawals will be allowed",

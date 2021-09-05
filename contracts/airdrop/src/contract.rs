@@ -431,205 +431,293 @@ pub fn option_string_to_addr( api: &dyn Api, option_string: Option<String>, defa
 
 
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use cosmwasm_std::{
-//         testing::{mock_env, mock_info, mock_dependencies, MOCK_CONTRACT_ADDR},
-//         Addr, BankMsg, CosmosMsg, OwnedDeps, Timestamp,BlockInfo, ContractInfo
-//     };
-//     // use cosmwasm_std::testing::{mock_env, mock_info, mock_dependencies, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-//     use crate::state::{Config, CONFIG, CLAIMEES};
-//     use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
-//     use crate::msg::{ClaimResponse, ConfigResponse,SignatureResponse, ExecuteMsg, InstantiateMsg, QueryMsg  } ;
-//     use cosmwasm_std::{coin, from_binary};
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::{Timestamp,BlockInfo, ContractInfo, attr, Coin, coin, from_binary, Decimal, OwnedDeps, SubMsg};
+    // use cosmwasm_std::testing::{mock_env, mock_info, mock_dependencies, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
+    use crate::state::{Config, CONFIG, CLAIMEES};
+    use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
+    use crate::msg::{ClaimResponse, ConfigResponse,SignatureResponse, InstantiateMsg, QueryMsg  } ;
+    use crate::msg::ExecuteMsg::{UpdateConfig, ClaimByTerraUser , ClaimByEvmUser, TransferMarsTokens};
 
-
-//     pub struct MockEnvParams {
-//         pub block_time: Timestamp,
-//         pub block_height: u64,
-//     }
+    pub struct MockEnvParams {
+        pub block_time: Timestamp,
+        pub block_height: u64,
+    }
     
-//     impl Default for MockEnvParams {
-//         fn default() -> Self {
-//             MockEnvParams {
-//                 block_time: Timestamp::from_nanos(1_571_797_419_879_305_533),
-//                 block_height: 1,
-//             }
-//         }
-//     }
+    impl Default for MockEnvParams {
+        fn default() -> Self {
+            MockEnvParams {
+                block_time: Timestamp::from_nanos(1_571_797_419_879_305_533),
+                block_height: 1,
+            }
+        }
+    }
     
-//     /// mock_env replacement for cosmwasm_std::testing::mock_env
-//     pub fn mock_env_custom(mock_env_params: MockEnvParams) -> Env {
-//         Env {
-//             block: BlockInfo {
-//                 height: mock_env_params.block_height,
-//                 time: mock_env_params.block_time,
-//                 chain_id: "cosmos-testnet-14002".to_string(),
-//             },
-//             contract: ContractInfo {
-//                 address: Addr::unchecked(MOCK_CONTRACT_ADDR),
-//             },
-//         }
-//     }
+    /// mock_env replacement for cosmwasm_std::testing::mock_env
+    pub fn mock_env(mock_env_params: MockEnvParams) -> Env {
+        Env {
+            block: BlockInfo {
+                height: mock_env_params.block_height,
+                time: mock_env_params.block_time,
+                chain_id: "cosmos-testnet-14002".to_string(),
+            },
+            contract: ContractInfo {
+                address: Addr::unchecked(MOCK_CONTRACT_ADDR),
+            },
+        }
+    }
 
     // quick mock info with just the sender
     // TODO: Maybe this one does not make sense given there's a very smilar helper in cosmwasm_std
-    // pub fn mock_info_custom(sender: &str) -> MessageInfo {
-    //     MessageInfo {
-    //         sender: Addr::unchecked(sender),
-    //         funds: vec![],
-    //     }
-    // }
+    pub fn mock_info(sender: &str) -> MessageInfo {
+        MessageInfo {
+            sender: Addr::unchecked(sender),
+            funds: vec![],
+        }
+    }
+
+    /// mock_dependencies replacement for cosmwasm_std::testing::mock_dependencies
+    pub fn mock_dependencies(
+        contract_balance: &[Coin],
+    ) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+        let contract_addr = Addr::unchecked(MOCK_CONTRACT_ADDR);
+        let custom_querier: MockQuerier = MockQuerier::new(&[(
+            &contract_addr.to_string(),
+            contract_balance,
+        )]);
+
+        OwnedDeps {
+            storage: MockStorage::default(),
+            api: MockApi::default(),
+            querier: custom_querier,
+        }
+    }
 
 
-    // #[test]
-    // fn test_proper_initialization() {
-    //     let mut deps = mock_dependencies(&[]);
+    #[test]
+    fn test_proper_initialization() {
+        let mut deps = mock_dependencies(&[]);
 
-    //     let terra_merkle_roots = vec!["terra_merkle_roots".to_string()];
-    //     let evm_merkle_roots = vec![ "evm_merkle_roots".to_string() ];
-    //     let init_timestamp = 1_000_000_000;
+        let terra_merkle_roots = vec!["terra_merkle_roots".to_string()];
+        let evm_merkle_roots = vec![ "evm_merkle_roots".to_string() ];
+        let till_timestamp = 1_000_000_00000;
+        let from_timestamp = 1_000_000_000;
 
-    //     let msg = InstantiateMsg {
-    //         mars_token_address: "mars_token_contract".to_string(),
-    //         owner: "owner_address".to_string(),
-    //         from_timestamp: from_timestamp + 1000,
-    //         till_timestamp: init_timestamp + 1000,
-    //         terra_merkle_roots: terra_merkle_roots.clone(),
-    //         evm_merkle_roots: evm_merkle_roots.clone() 
-    //     };
+        // Config with valid base params 
+        let base_config = InstantiateMsg {
+            owner: Some("owner_address".to_string()),
+            mars_token_address: Some("mars_token_contract".to_string()),
+            terra_merkle_roots: Some(terra_merkle_roots.clone()),
+            evm_merkle_roots: Some(evm_merkle_roots.clone()), 
+            from_timestamp: Some(from_timestamp),
+            till_timestamp: Some(till_timestamp)
+        };
 
-    //     let info = mock_info("creator", &[]);
-    //     let env = mock_env_custom(MockEnvParams {
-    //         block_time: Timestamp::from_seconds(init_timestamp),
-    //         ..Default::default()
-    //     });
+        let info = mock_info("creator");
+        let env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(from_timestamp),
+            ..Default::default()
+        });
 
-    //     // we can just call .unwrap() to assert this was a success
-    //     let res = instantiate(deps.as_mut(), env,info, msg).unwrap();
-    //     assert_eq!(0, res.messages.len());
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), env.clone(), info, base_config).unwrap();
+        assert_eq!(0, res.messages.len());
 
-    //     // it worked, let's query the state
-    //     let res = query(deps.as_ref(), QueryMsg::Config {}).unwrap();
-    //     let value: ConfigResponse = from_binary(&res).unwrap();
-    //     assert_eq!("mars_token_contract".to_string(), value.mars_token_address);
-    //     assert_eq!("owner_address".to_string(), value.owner);
-    //     assert_eq!(terra_merkle_roots.clone(), value.terra_merkle_roots);
-    //     assert_eq!(evm_merkle_roots.clone(), value.evm_merkle_roots);
-    // }
+        // it worked, let's query the state
+        let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
+        let value: ConfigResponse = from_binary(&res).unwrap();
+
+        assert_eq!("mars_token_contract".to_string(), value.mars_token_address);
+        assert_eq!("owner_address".to_string(), value.owner);
+        assert_eq!(terra_merkle_roots.clone(), value.terra_merkle_roots);
+        assert_eq!(evm_merkle_roots.clone(), value.evm_merkle_roots);
+        assert_eq!(from_timestamp.clone(), value.from_timestamp);
+        assert_eq!(till_timestamp.clone(), value.till_timestamp);
+    }
 
 
 
-    // #[test]
-    // fn test_update_terra_user_claim() {
+    #[test]
+    fn test_update_config() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env(MockEnvParams::default());
+        let not_admin_info = mock_info("not_owner");
+        let admin_info = mock_info("creator");
+        
+        // *** Test updating the owner and the mars token address ***
+        let msg = InstantiateMsg {
+            owner: Some("new_owner_address".to_string()),
+            mars_token_address:  Some("new_mars_token".to_string()),
+            terra_merkle_roots: None,
+            evm_merkle_roots: None,
+            from_timestamp: None,
+            till_timestamp: None
+        };
+        let mut ex_msg = UpdateConfig {
+            new_config: msg.clone(),
+        };        
+        
+        // should fail as only owner can update config
+        let mut res_f = execute(deps.as_mut(), env.clone(), not_admin_info.clone(), ex_msg.clone() );
+        assert_generic_error_message(res_f,"Only owner can update configuration");
 
-    //     let mut deps = mock_dependencies(&[]);
+        // should be a success
+        let mut res_s = execute(deps.as_mut(), env.clone(), admin_info.clone(), ex_msg.clone()).unwrap();
+        assert_eq!(0, res_s.messages.len());
+        let mut new_config = CONFIG.load(&deps.storage).unwrap();
+        assert_eq!(new_config.owner, Addr::unchecked("new_owner_address"));
+        assert_eq!(new_config.mars_token_address, Addr::unchecked("new_mars_token"));
 
-    //     // INIT
-    //     let terra_merkle_roots = vec!["815cc797fb6186940e0f85a83da235e9b6342c9cc2830a5bd3ca10fd2947ed9c".to_string()];
-    //     let evm_merkle_roots = vec![ "evm_merkle_roots".to_string() ];
+        // *** Test updating the merkle roots ***
+        let update_roots_msg = InstantiateMsg {
+            owner: None,
+            mars_token_address: None,
+            terra_merkle_roots: Some( vec!["new_terra_merkle_roots".to_string()] ),
+            evm_merkle_roots: Some( vec!["new_evm_merkle_roots".to_string()] ),
+            from_timestamp: None,
+            till_timestamp: None
+        };
+        ex_msg = UpdateConfig {
+            new_config: update_roots_msg.clone(),
+        };        
+        
+        // should fail as only owner can update config
+        res_f = execute(deps.as_mut(), env.clone(), not_admin_info.clone(), ex_msg.clone() );
+        assert_generic_error_message(res_f,"Only owner can update configuration");
 
-    //     let msg = InitMsg {
-    //         token: HumanAddr::from("mars_token_contract"),
-    //         owner: HumanAddr::from("owner"),
-    //         terra_merkle_roots: terra_merkle_roots.clone(),
-    //         evm_merkle_roots: evm_merkle_roots.clone() 
-    //     };
+        // should be a success
+        res_s = execute(deps.as_mut(), env.clone(), admin_info.clone(), ex_msg.clone()).unwrap();
+        assert_eq!(0, res_s.messages.len());
+        new_config = CONFIG.load(&deps.storage).unwrap();
+        assert_eq!(new_config.terra_merkle_roots, vec!["new_terra_merkle_roots".to_string()] );
+        assert_eq!(new_config.evm_merkle_roots, vec!["new_evm_merkle_roots".to_string()] );
 
-    //     let env = mock_env();
+        // *** Test updating timestamps ***
+        let update_timestamps_msg = InstantiateMsg {
+            owner: None,
+            mars_token_address: None,
+            terra_merkle_roots: None,
+            evm_merkle_roots: None,
+            from_timestamp: Some(1_040_000_00000),
+            till_timestamp: Some(1_940_000_00000)
+        };
+        ex_msg = UpdateConfig {
+            new_config: update_timestamps_msg.clone(),
+        };        
+        
+        // should fail as only owner can update config
+        res_f = execute(deps.as_mut(), env.clone(), not_admin_info, ex_msg.clone() );
+        assert_generic_error_message(res_f,"Only owner can update configuration");
 
-    //     // we can just call .unwrap() to assert this was a success
-    //     let res = init(&mut deps, env, msg).unwrap();
-    //     assert_eq!(0, res.messages.len());        
+        // should be a success
+        res_s = execute(deps.as_mut(), env, admin_info, ex_msg.clone() ).unwrap();
+        assert_eq!(0, res_s.messages.len());
+        new_config = CONFIG.load(&deps.storage).unwrap();
+        assert_eq!(new_config.from_timestamp, 1_040_000_00000 );
+        assert_eq!(new_config.till_timestamp, 1_940_000_00000 );
+    }
+
+
+
+
+
+
+
+        // // INIT
+        // let terra_merkle_roots = vec!["815cc797fb6186940e0f85a83da235e9b6342c9cc2830a5bd3ca10fd2947ed9c".to_string()];
+        // let evm_merkle_roots = vec![ "evm_merkle_roots".to_string() ];
+        // // Read config from state
         
 
-    //     // DOES NOT WORK (INCORRECT MERKLE PROOF)
-    //     let account = "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
-    //     let claim_amount = Uint128::from(100000u128);
-    //     let merkle_proof = vec!["df2a7ea1c1acdc80a731e836d654ddbf2f24d636715be4188919c8680e041318".to_string(),
-    //                             "9e0c8ccb935470d698b00917420343fd75a85373f4055995ceba08fc87450ae1".to_string()];
-    //     let root_index = 0;
+        // // DOES NOT WORK (INCORRECT MERKLE PROOF)
+        // let account = "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
+        // let claim_amount = Uint128::from(100000u128);
+        // let merkle_proof = vec!["df2a7ea1c1acdc80a731e836d654ddbf2f24d636715be4188919c8680e041318".to_string(),
+        //                         "9e0c8ccb935470d698b00917420343fd75a85373f4055995ceba08fc87450ae1".to_string()];
+        // let root_index = 0;
 
-    //     let env = mock_env(account.clone(), &[]);
-    //     let msg = ExecuteMsg::TerraClaim {
-    //         amount: claim_amount,
-    //         merkle_proof: merkle_proof.clone(),
-    //         root_index: root_index
-    //     };
-    //     let res = handle(&mut deps, env, msg.clone());
-    //     assert_generic_error_message(res,"Incorrect Merkle Proof" );
+        // let env = mock_env(account.clone(), &[]);
+        // let msg = ExecuteMsg::TerraClaim {
+        //     amount: claim_amount,
+        //     merkle_proof: merkle_proof.clone(),
+        //     root_index: root_index
+        // };
+        // let res = handle(&mut deps, env, msg.clone());
+        // assert_generic_error_message(res,"Incorrect Merkle Proof" );
 
-    //     let query_res = query(&deps, QueryMsg::IsClaimed { 
-    //         address: account.to_string(),
-    //     }).unwrap();
-    //     let claim_res: ClaimResponse = from_binary(&query_res).unwrap();
-    //     assert_eq!(false, claim_res.is_claimed);
+        // let query_res = query(&deps, QueryMsg::IsClaimed { 
+        //     address: account.to_string(),
+        // }).unwrap();
+        // let claim_res: ClaimResponse = from_binary(&query_res).unwrap();
+        // assert_eq!(false, claim_res.is_claimed);
 
-    //     // DOES NOT WORK (INCORRECT MERKLE PROOF : SENT BY DIFFERENT USER)
-    //     let account = "terra1x45rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
-    //     let claim_amount = Uint128::from(100000u128);
-    //     let merkle_proof = vec!["df1a7ea1c1acdc80a731e836d654ddbf2f24d636715be4188919c8680e041318".to_string(),
-    //                             "9e0c8ccb935470d698b00917420343fd75a85373f4055995ceba08fc87450ae1".to_string()];
-    //     let root_index = 0;
+        // // DOES NOT WORK (INCORRECT MERKLE PROOF : SENT BY DIFFERENT USER)
+        // let account = "terra1x45rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
+        // let claim_amount = Uint128::from(100000u128);
+        // let merkle_proof = vec!["df1a7ea1c1acdc80a731e836d654ddbf2f24d636715be4188919c8680e041318".to_string(),
+        //                         "9e0c8ccb935470d698b00917420343fd75a85373f4055995ceba08fc87450ae1".to_string()];
+        // let root_index = 0;
 
-    //     let env = mock_env(account.clone(), &[]);
-    //     let msg = ExecuteMsg::TerraClaim {
-    //         amount: claim_amount,
-    //         merkle_proof: merkle_proof.clone(),
-    //         root_index: root_index
-    //     };
-    //     let res = handle(&mut deps, env, msg.clone());
-    //     assert_generic_error_message(res,"Incorrect Merkle Proof" );
+        // let env = mock_env(account.clone(), &[]);
+        // let msg = ExecuteMsg::TerraClaim {
+        //     amount: claim_amount,
+        //     merkle_proof: merkle_proof.clone(),
+        //     root_index: root_index
+        // };
+        // let res = handle(&mut deps, env, msg.clone());
+        // assert_generic_error_message(res,"Incorrect Merkle Proof" );
 
-    //     let query_res = query(&deps, QueryMsg::IsClaimed { 
-    //         address: account.to_string(),
-    //     }).unwrap();
-    //     let claim_res: ClaimResponse = from_binary(&query_res).unwrap();
-    //     assert_eq!(false, claim_res.is_claimed);
+        // let query_res = query(&deps, QueryMsg::IsClaimed { 
+        //     address: account.to_string(),
+        // }).unwrap();
+        // let claim_res: ClaimResponse = from_binary(&query_res).unwrap();
+        // assert_eq!(false, claim_res.is_claimed);
 
-    //     // WORKS 
-    //     let account = "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
-    //     let claim_amount = Uint128::from(100000u128);
-    //     let merkle_proof = vec!["df1a7ea1c1acdc80a731e836d654ddbf2f24d636715be4188919c8680e041318".to_string(),
-    //                             "9e0c8ccb935470d698b00917420343fd75a85373f4055995ceba08fc87450ae1".to_string()];
-    //     let root_index = 0;
+        // // WORKS 
+        // let account = "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
+        // let claim_amount = Uint128::from(100000u128);
+        // let merkle_proof = vec!["df1a7ea1c1acdc80a731e836d654ddbf2f24d636715be4188919c8680e041318".to_string(),
+        //                         "9e0c8ccb935470d698b00917420343fd75a85373f4055995ceba08fc87450ae1".to_string()];
+        // let root_index = 0;
 
-    //     let env = mock_env(account.clone(), &[]);
-    //     let msg = ExecuteMsg::TerraClaim {
-    //         amount: claim_amount,
-    //         merkle_proof: merkle_proof.clone(),
-    //         root_index: root_index
-    //     };
-    //     let res = handle(&mut deps, env, msg.clone()).unwrap();
-    //     assert_eq!(
-    //         res.attributes,
-    //         vec![
-    //             attr("action", "claim_for_terra"),
-    //             attr("claimed", "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v"),
-    //             attr("amount", "100000"),
-    //         ]
-    //     );
-    //     assert_eq!(
-    //         res.messages,
-    //         vec![ SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-    //                 contract_addr: HumanAddr::from("mars_token_contract"),
-    //                 send: vec![],
-    //                 msg: to_binary(&CW20ExecuteMsg::Transfer {
-    //                     recipient: HumanAddr::from(account),
-    //                     amount: claim_amount,
-    //                 }).unwrap(),
-    //         }))]
-    //     );
+        // let env = mock_env(account.clone(), &[]);
+        // let msg = ExecuteMsg::TerraClaim {
+        //     amount: claim_amount,
+        //     merkle_proof: merkle_proof.clone(),
+        //     root_index: root_index
+        // };
+        // let res = handle(&mut deps, env, msg.clone()).unwrap();
+        // assert_eq!(
+        //     res.attributes,
+        //     vec![
+        //         attr("action", "claim_for_terra"),
+        //         attr("claimed", "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v"),
+        //         attr("amount", "100000"),
+        //     ]
+        // );
+        // assert_eq!(
+        //     res.messages,
+        //     vec![ SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        //             contract_addr: HumanAddr::from("mars_token_contract"),
+        //             send: vec![],
+        //             msg: to_binary(&CW20ExecuteMsg::Transfer {
+        //                 recipient: HumanAddr::from(account),
+        //                 amount: claim_amount,
+        //             }).unwrap(),
+        //     }))]
+        // );
 
-    //     let query_res = query(&deps, QueryMsg::IsClaimed {  address: account.to_string() }).unwrap();
-    //     let claim_res: ClaimResponse = from_binary(&query_res).unwrap();
-    //     assert_eq!(true, claim_res.is_claimed);
+        // let query_res = query(&deps, QueryMsg::IsClaimed {  address: account.to_string() }).unwrap();
+        // let claim_res: ClaimResponse = from_binary(&query_res).unwrap();
+        // assert_eq!(true, claim_res.is_claimed);
 
-    //     let env = mock_env(account.clone(), &[]);
-    //     let res = handle(&mut deps, env, msg.clone());
-    //     assert_generic_error_message(res,"Account has already claimed the Airdrop");
-    // }
+        // let env = mock_env(account.clone(), &[]);
+        // let res = handle(&mut deps, env, msg.clone());
+        // assert_generic_error_message(res,"Account has already claimed the Airdrop");
+    
 
 
 
@@ -757,13 +845,13 @@ pub fn option_string_to_addr( api: &dyn Api, option_string: Option<String>, defa
     // }
 
 
-//     /// Assert StdError::GenericErr message with expected_msg
-//     pub fn assert_generic_error_message<T>(response: StdResult<T>, expected_msg: &str) {
-//         match response {
-//             Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, expected_msg),
-//             Err(other_err) => panic!("Unexpected error: {:?}", other_err),
-//             Ok(_) => panic!("SHOULD NOT ENTER HERE!"),
-//         }
-//     }
+    /// Assert StdError::GenericErr message with expected_msg
+    pub fn assert_generic_error_message<T>(response: StdResult<T>, expected_msg: &str) {
+        match response {
+            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, expected_msg),
+            Err(other_err) => panic!("Unexpected error: {:?}", other_err),
+            Ok(_) => panic!("SHOULD NOT ENTER HERE!"),
+        }
+    }
 
-// }
+}

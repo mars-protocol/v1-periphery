@@ -1,18 +1,43 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "State",
+  "title": "Config",
   "type": "object",
   "required": [
-    "count",
-    "owner"
+    "evm_merkle_roots",
+    "from_timestamp",
+    "mars_token_address",
+    "owner",
+    "terra_merkle_roots",
+    "till_timestamp"
   ],
   "properties": {
-    "count": {
+    "evm_merkle_roots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "from_timestamp": {
       "type": "integer",
-      "format": "int32"
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "mars_token_address": {
+      "$ref": "#/definitions/Addr"
     },
     "owner": {
       "$ref": "#/definitions/Addr"
+    },
+    "terra_merkle_roots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "till_timestamp": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     }
   },
   "definitions": {

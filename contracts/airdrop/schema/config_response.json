@@ -1,51 +1,41 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "ConfigResponse",
   "type": "object",
+  "required": [
+    "evm_merkle_roots",
+    "from_timestamp",
+    "mars_token_address",
+    "owner",
+    "terra_merkle_roots",
+    "till_timestamp"
+  ],
   "properties": {
     "evm_merkle_roots": {
-      "type": [
-        "array",
-        "null"
-      ],
+      "type": "array",
       "items": {
         "type": "string"
       }
     },
     "from_timestamp": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "mars_token_address": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "owner": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "terra_merkle_roots": {
-      "type": [
-        "array",
-        "null"
-      ],
+      "type": "array",
       "items": {
         "type": "string"
       }
     },
     "till_timestamp": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     }
