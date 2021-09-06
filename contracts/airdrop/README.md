@@ -121,14 +121,6 @@ cargo schema
 cargo test
 ```
 
-## Build airdrop contract
-
-```
-cargo build
-
-```
-
-
 
 ## License
 
