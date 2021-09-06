@@ -27,10 +27,64 @@ Refer to the blog here to understand how the MARS airdrop for Terra, Ethereum an
 | `QueryMsg::IsValidSignature` | Returns the recovered public key, corresponding evm address (lower case without `0x` prefix) and a boolean value indicating if the message was indeed signed by the provided address or not                                           |
 
 
-## How to Guide :: Get merkle proof
+## How to Guide :: Get merkle proofs
+
+#### Create distribution lists for terra and evm users
+
+terra_claimees_data.json
+
 ```
-to be added
+{[ { address: 'terra1k0jntykt7e4g3y88ltc60czgjuqdy4c9ax8tx2',
+    amount: '43454523323'
+  },
+  { address: 'terra1xzlgeyuuyqje79ma6vllregprkmgwgavjx2h6m',
+    amount: '1343252443'
+  }
+]}
 ```
+
+evm_claimees_data.json
+
+```
+{[ { address: '0x4dc06eeb995484aE670D4400238bA6C467A81315',
+    amount: '15432'
+  },
+  { address: '0x0CF2570Ab8F962867e64313f34785E55845EF31C',
+    amount: '4365434'
+  }
+]}
+```
+
+#### Get proof with user input
+```
+    const terra_merkle_tree = new Terra_Merkle_Tree(terra_claimees_data);
+    const terra_tree_root = terra_merkle_tree.getMerkleRoot();
+
+    const evm_merkle_tree = new EVM_Merkle_Tree(evm_claimees_data);
+    const evm_tree_root = evm_merkle_tree.getMerkleRoot();
+
+    let merkle_proof_for_terra_user_ = terra_merkle_tree.getMerkleProof({  "address":"terra1k0jntykt7e4g3y88ltc60czgjuqdy4c9ax8tx2", 
+                                                                            "amount": (43454523323).toString()
+                                                                        } );
+
+    let merkle_proof_for_evm_user_ = terra_merkle_tree.getMerkleProof({  "address":"0x4dc06eeb995484aE670D4400238bA6C467A81315", 
+                                                                            "amount": (15432).toString()
+                                                                        } );
+    console.log("Terra Merkle Root ", terra_tree_root)
+    console.log("Terra Merkle Proof ", merkle_proof_for_terra_user_)
+    console.log("Verify Terra Merkle Proof ", terra_merkle_tree.verify({  "address":"terra1k0jntykt7e4g3y88ltc60czgjuqdy4c9ax8tx2", 
+                                                                            "amount": (43454523323).toString()
+                                                                        }) )
+
+
+    console.log("Evm Merkle Root ", evm_tree_root)
+    console.log("Evm Merkle Proof ", merkle_proof_for_evm_user_)
+    console.log("Verify Evm Merkle Proof ", evm_merkle_tree.verify({  "address":"0x4dc06eeb995484aE670D4400238bA6C467A81315", 
+                                                                            "amount": (15432).toString()
+                                                                        }) )    
+```
+
+
 
 
 ## How to Guide :: verify evm signatures

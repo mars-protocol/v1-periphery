@@ -116,7 +116,7 @@ async function testUpdateConfig(terra_merkle_roots: [string], evm_merkle_roots: 
 
 async function testClaimByTerraUser(claimeeWallet:Wallet, amountClaimed:number, merkle_proof: any, root_index: number ) {
     process.stdout.write( `Should process claim by terra user  ${chalk.cyan(claimeeWallet.key.accAddress)} correctly... `);
-    
+
    let is_claimed_before = await isAirdropClaimed(terra, airdrop_contract_address, claimeeWallet.key.accAddress);
    expect( is_claimed_before ).to.deep.equal( { is_claimed: false } );
 
@@ -144,7 +144,7 @@ async function testClaimByTerraUser(claimeeWallet:Wallet, amountClaimed:number, 
 
 async function testClaimByEvmUser(recepientWallet:Wallet, evm_address:string, amountClaimed:number, public_key:string, signed_msg_hash:string, signature:string, merkle_proof: any, root_index: number ) {
     process.stdout.write(`Should process claim by evm user ${chalk.cyan(evm_address)} correctly... `);
-    
+
     var contract_mars_balance_before_claim = await getCW20Balance(terra, mars_token_address, airdrop_contract_address);
     var recepient_mars_balance_before_claim = await getCW20Balance(terra, mars_token_address, recepientWallet.key.accAddress );
 
@@ -249,12 +249,10 @@ async function testTransferMarsByAdmin(recepient_address:string, amountToTransfe
     let evm_tree_root = merkle_tree_evm.getMerkleRoot();
 
     await testUpdateConfig( [terra_tree_root], [evm_tree_root] );
-    
 
     // TransferMarsTokens :: Test 
     console.log(chalk.yellow("\nTest: Transfer MARS Tokens by Admin : "));
     await testTransferMarsByAdmin(terra.wallets.test5.key.accAddress, 41000 * 10**6);
-
 
     // ClaimByTerraUser :: Test #1
     console.log(chalk.yellow("\nTest #1: Airdrop Claim By Terra user : " +  chalk.cyan(terra_user_1.key.accAddress)  ));
@@ -275,8 +273,6 @@ async function testTransferMarsByAdmin(recepient_address:string, amountToTransfe
     console.log(chalk.yellow("\nTest #4: Airdrop Claim By Terra user : " + chalk.cyan(terra_user_4.key.accAddress) ));
     let merkle_proof_for_terra_user_4 = merkle_tree_terra.getMerkleProof( {"address":terra_user_4.key.accAddress, "amount": ( 10**6).toString()} );
     await testClaimByTerraUser(terra_user_4, Number(terra_claimees_data[3]["amount"]), merkle_proof_for_terra_user_4, 0 )
-
-
 
     // ClaimByEVMUser :: Test #1
     console.log(chalk.yellow("\nTest #1: Airdrop Claim By EVM user : " + chalk.cyan(evm_user_1.address ) ));
