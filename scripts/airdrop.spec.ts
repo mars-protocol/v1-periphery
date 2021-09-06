@@ -2,9 +2,9 @@ import chalk from "chalk";
 import { join } from "path"
 import { LocalTerra, Wallet } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployContract, transferCW20Tokens } from "./helpers/helpers.js";
+import { deployContract, transferCW20Tokens, getCW20Balance } from "./helpers/helpers.js";
   import {updateAirdropConfig, claimAirdropForTerraUser, claimAirdropForEVMUser, transferMarsByAdminFromAirdropContract
-    ,getAirdropConfig, isAirdropClaimed, verify_EVM_SignatureForAirdrop, getCW20Balance, get_EVM_Signature }  from "./helpers/airdrop_helpers.js";
+    ,getAirdropConfig, isAirdropClaimed, verify_EVM_SignatureForAirdrop, get_EVM_Signature }  from "./helpers/airdrop_helpers.js";
 import Web3 from 'web3';
 import  {Terra_Merkle_Tree}  from "./helpers/terra_merkle_tree.js";
 import  {EVM_Merkle_Tree}  from "./helpers/evm_merkle_tree.js";

@@ -98,11 +98,7 @@ export async function verify_EVM_SignatureForAirdrop(  terra: LocalTerra | LCDCl
     }        
 }
   
-// GET CW20 TOKEN BALANCE
-export async function getCW20Balance(terra: LocalTerra | LCDClient, token_addr: string, user_address: string) {
-    let curBalance = await terra.wasm.contractQuery<{ balance: string }>(token_addr, {"balance": {"address": user_address}} );
-    return curBalance.balance
-}
+
 
 // // GET NATIVE TOKEN BALANCE
 // export async function getUserNativeAssetBalance(terra, native_asset, wallet_addr) {

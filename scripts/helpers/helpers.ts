@@ -123,6 +123,11 @@ export async function transferCW20Tokens(terra:LCDClient, wallet: Wallet, tokenA
 }
 
 
+// GET CW20 TOKEN BALANCE
+export async function getCW20Balance(terra: LocalTerra | LCDClient, token_addr: string, user_address: string) {
+  let curBalance = await terra.wasm.contractQuery<{ balance: string }>(token_addr, {"balance": {"address": user_address}} );
+  return curBalance.balance
+}
 
 export function toEncodedBinary(object: any) {
   return Buffer.from(JSON.stringify(object)).toString('base64');

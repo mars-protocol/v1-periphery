@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigParams",
+  "type": "object",
+  "properties": {
+    "council_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "incentives_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "insurance_fund_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mars_token_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "oracle_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "owner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "protocol_admin_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "red_bank_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "staking_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "treasury_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "xmars_token_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
