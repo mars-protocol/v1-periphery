@@ -57,6 +57,9 @@ evm_claimees_data.json
 
 #### Get proof with user input
 ```
+    import  {Terra_Merkle_Tree}  from "./helpers/terra_merkle_tree.js";
+    import  {EVM_Merkle_Tree}  from "./helpers/evm_merkle_tree.js";
+
     const terra_merkle_tree = new Terra_Merkle_Tree(terra_claimees_data);
     const terra_tree_root = terra_merkle_tree.getMerkleRoot();
 
