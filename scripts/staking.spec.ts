@@ -6,6 +6,8 @@ import { deployContract, transferCW20Tokens, getCW20Balance } from "./helpers/he
 import {staking_UpdateConfig, staking_IncreasePosition, staking_DecreasePosition, staking_ClaimRewards,
     staking_getConfig, staking_getState, staking_getPositionInfo, staking_getTimestamp }  from "./helpers/staking_helpers.js";
 import {addressProvider_updateConfig, addressProvider_getAddress} from "./helpers/mock_helpers.js"; 
+import { strict } from "yargs";
+
 //----------------------------------------------------------------------------------------
 // Variables
 //----------------------------------------------------------------------------------------
@@ -34,8 +36,8 @@ const till_timestamp = init_timestamp + (86400 * 30)
 async function setupTest() {
 
     // Deploy LP Token
-    let lp_token_config = { "name": "LP",
-                            "symbol": "LP",
+    let lp_token_config = { "name": "Astro LP",
+                            "symbol": "LPAstro",
                             "decimals": 6,
                             "initial_balances": [ {"address":deployer.key.accAddress, "amount":"100000000000000"}], 
                             "mint": { "minter":deployer.key.accAddress, "cap":"100000000000000"}
@@ -56,16 +58,17 @@ async function setupTest() {
     // Deploy Address Provider (Mock)
     address_provider_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'address_provider.wasm'),  {"owner": deployer.key.accAddress } )    
     await addressProvider_updateConfig(terra, deployer, address_provider_contract_address, { "update_config" : { "config" : { "mars_token_address": mars_token_address }  } });
-    let address_response = await addressProvider_getAddress(terra, address_provider_contract_address, "mars_token");
+    let address_response = await addressProvider_getAddress(terra, address_provider_contract_address, "MarsToken");
     expect(address_response).to.equal(mars_token_address);
+    console.log(chalk.green(`Address provider Contract deployed successfully, address : ${chalk.cyan(address_provider_contract_address)}`));
 
     let staking_config = { "owner":  deployer.key.accAddress,
                           "address_provider": address_provider_contract_address,
-                          "staking_token": staking_contract_address,
+                          "staking_token": lp_token_address,
                           "init_timestamp": init_timestamp,
                           "till_timestamp": till_timestamp, 
-                          "cycle_rewards": "1000000000", 
-                          "cycle_duration": 86400, 
+                          "cycle_rewards": "100000000", 
+                          "cycle_duration": 10, 
                           "reward_increase": "0.02" 
                         } 
     
@@ -74,11 +77,11 @@ async function setupTest() {
       expect(stakingConfigResponse).to.deep.equal({
         owner : deployer.key.accAddress,
         address_provider: address_provider_contract_address,
-        staking_token: staking_contract_address,
+        mars_token: mars_token_address,
+        staking_token: lp_token_address,
         init_timestamp: init_timestamp,
         till_timestamp: till_timestamp,
-        cycle_rewards: "1000000000", 
-        cycle_duration: 86400, 
+        cycle_duration: 10, 
         reward_increase: "0.02" 
       });
 
@@ -94,6 +97,10 @@ async function setupTest() {
 
     expect(Number(contract_mars_balance_after_transfer) - Number(contract_mars_balance_before_transfer)).to.equal(2500000 * 10**6);
     expect(Number(deployer_mars_balance_before_transfer) - Number(deployer_mars_balance_after_transfer)).to.equal(2500000 * 10**6);
+
+    await transferCW20Tokens(terra, deployer, lp_token_address, terra_user_1.key.accAddress, 500000 * 10**6)
+    await transferCW20Tokens(terra, deployer, lp_token_address, terra_user_2.key.accAddress, 500000 * 10**6)
+    await transferCW20Tokens(terra, deployer, lp_token_address, terra_user_3.key.accAddress, 500000 * 10**6)
 }
 
 //----------------------------------------------------------------------------------------
@@ -108,42 +115,44 @@ async function testUpdateConfig() {
     // Update cycle_rewards, cycle_duration, reward_increase parameters
     await staking_UpdateConfig(terra, deployer, staking_contract_address,{ "update_config" : {  "new_config" : {
                                                                                                   "cycle_rewards": "100000000",
-                                                                                                  "cycle_duration": 8640,
                                                                                                   "reward_increase": "0.03"
                                                                                                   }
                                                                                              }                                                                                                                      
                                                                         });
     let stakingConfigResponse = await staking_getConfig(terra, staking_contract_address);
+    let global_state = await staking_getState(terra, staking_contract_address, 0);
     expect(stakingConfigResponse).to.deep.equal({ owner : deployer.key.accAddress,
                                                   address_provider: address_provider_contract_address,
-                                                  staking_token: staking_contract_address,
+                                                  mars_token: mars_token_address,
+                                                  staking_token: lp_token_address,
                                                   init_timestamp: init_timestamp,
                                                   till_timestamp: till_timestamp,
-                                                  cycle_rewards: "100000000", 
-                                                  cycle_duration: 8640, 
+                                                  cycle_duration: 10, 
                                                   reward_increase: "0.03"
                                                 });
-    console.log(chalk.green("\nCycle_rewards, Cycle_duration, Reward_increase  configuration parameters updated successfully"));   
+    expect(global_state["current_cycle_rewards"]).to.equal("100000000");
+    console.log(chalk.green("\nCycle_rewards and Reward_increase configuration parameters updated successfully"));   
     
     // Update till_timestamp, init_timestamp parameters
-    let new_init_timestamp = parseInt((Date.now()/1000).toFixed(0) + 15 );
+    let new_init_timestamp = Number(parseInt((Date.now()/1000).toFixed(0))) + 3;
     await staking_UpdateConfig(terra, deployer, staking_contract_address,{ "update_config" : {  "new_config" : {
                                                                                                     "init_timestamp": new_init_timestamp,
                                                                                                     "till_timestamp": init_timestamp + 86400
                                                                                                     }
                                                                                                 }                                                                                                                        
     });
+    console.log(" REWARDS INIT TIMESTAMP = " + new_init_timestamp.toString() )
     stakingConfigResponse = await staking_getConfig(terra, staking_contract_address);
     expect(stakingConfigResponse).to.deep.equal({ owner : deployer.key.accAddress,
                                                   address_provider: address_provider_contract_address,
-                                                  staking_token: staking_contract_address,
+                                                  mars_token: mars_token_address,
+                                                  staking_token: lp_token_address,
                                                   init_timestamp: new_init_timestamp,
                                                   till_timestamp: init_timestamp + 86400,
-                                                  cycle_rewards: "100000000", 
-                                                  cycle_duration: 8640, 
+                                                  cycle_duration: 10, 
                                                   reward_increase: "0.03"
                                                   });
-    console.log(chalk.green("\nStaking Rewards init and ending timestamps configuration parameters updated successfully"));            
+    console.log(chalk.green("Staking Rewards init and ending timestamps configuration parameters updated successfully"));            
 }
 
 //----------------------------------------------------------------------------------------
@@ -151,7 +160,7 @@ async function testUpdateConfig() {
 //----------------------------------------------------------------------------------------
 
 async function test_IncreasePosition(userWallet:Wallet, amount:number) {
-    process.stdout.write( `Should increase staked position of terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount/10**6).toString()}... `);
+    process.stdout.write( `Should increase staked position of terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()}... `);
 
     let global_state_before = await staking_getState(terra, staking_contract_address, 0);
     let global_bond_amount_before = global_state_before.total_bond_amount;
@@ -170,7 +179,8 @@ async function test_IncreasePosition(userWallet:Wallet, amount:number) {
 
     let global_state_after = await staking_getState(terra, staking_contract_address, 0);
     let global_bond_amount_after = global_state_after.total_bond_amount;
-    expect(global_state_after.last_distributed).to.equal( await staking_getTimestamp(terra, staking_contract_address) )
+    let timestampResponse = await staking_getTimestamp(terra, staking_contract_address)
+    expect(global_state_after.last_distributed).to.equal( timestampResponse["timestamp"] )
 
     let user_position_after = await staking_getPositionInfo(terra, staking_contract_address, userWallet.key.accAddress,0);
     let user_bond_amount_after = user_position_after.bond_amount;
@@ -181,7 +191,7 @@ async function test_IncreasePosition(userWallet:Wallet, amount:number) {
     expect(Number(user_bond_amount_after) - Number(user_bond_amount_before)).to.equal(amount);
     expect(Number(global_bond_amount_after) - Number(global_bond_amount_before)).to.equal(amount);
 
-    console.log(chalk.green( `\n Staked Position size increased successfully by ${(amount/10**6).toString()}... `));                        
+    console.log(chalk.green( `\n Staked Position size increased successfully by ${(amount).toString()}... `));                        
 }
 
 //----------------------------------------------------------------------------------------
@@ -189,7 +199,7 @@ async function test_IncreasePosition(userWallet:Wallet, amount:number) {
 //----------------------------------------------------------------------------------------
 
 async function test_DecreasePosition(userWallet:Wallet, amount:number) {
-  process.stdout.write( `Should decrease staked position (& claim accumulate rewards) of terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount/10**6).toString()}... `);
+  process.stdout.write( `Should decrease staked position (& claim accumulate rewards) of terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()}... `);
 
   let global_state_before = await staking_getState(terra, staking_contract_address, 0);
   let global_bond_amount_before = global_state_before.total_bond_amount;
@@ -202,7 +212,6 @@ async function test_DecreasePosition(userWallet:Wallet, amount:number) {
   let user_position_before = await staking_getPositionInfo(terra, staking_contract_address, userWallet.key.accAddress,0);
   let user_bond_amount_before = user_position_before.bond_amount;
   expect(user_position_before.staker).to.equal(userWallet.key.accAddress)
-  let pending_mars_rewards = user_position_before.pending_reward
 
   await staking_DecreasePosition(terra, userWallet, staking_contract_address, mars_token_address, amount);
 
@@ -211,22 +220,23 @@ async function test_DecreasePosition(userWallet:Wallet, amount:number) {
 
   let global_state_after = await staking_getState(terra, staking_contract_address, 0);
   let global_bond_amount_after = global_state_after.total_bond_amount;
-  expect(global_state_after.last_distributed).to.equal( await staking_getTimestamp(terra, staking_contract_address) )
+  let timestampResponse = await staking_getTimestamp(terra, staking_contract_address)
+  expect(global_state_after.last_distributed).to.equal( timestampResponse["timestamp"] )
 
   let user_position_after = await staking_getPositionInfo(terra, staking_contract_address, userWallet.key.accAddress,0);
   let user_bond_amount_after = user_position_after.bond_amount;
   expect(user_position_after.staker).to.equal(userWallet.key.accAddress)
-  expect(user_position_after.pending_reward).to.equal(0)
+  expect(Number(user_position_after.pending_reward)).to.equal(0)
   var user_mars_balance_after = await getCW20Balance(terra, mars_token_address, userWallet.key.accAddress);
 
   expect(Number(contract_lp_balance_before_decrease) - Number(contract_lp_balance_after_decrease)).to.equal(amount);
   expect(Number(user_lp_balance_after_decrease) - Number(user_lp_balance_before_decrease)).to.equal(amount);
   expect(Number(user_bond_amount_before) - Number(user_bond_amount_after)).to.equal(amount);
   expect(Number(global_bond_amount_before) - Number(global_bond_amount_after)).to.equal(amount);
-  expect(Number(user_mars_balance_after) - Number(user_mars_balance_before)).to.equal(pending_mars_rewards);
+  let mars_claimed = Number(user_mars_balance_after) - Number(user_mars_balance_before);
 
-  console.log(chalk.green( `\n Staked Position size decreased successfully by ${(amount/10**6).toString()}... `));                        
-  console.log(chalk.green( `${(pending_mars_rewards/10**6).toString()} MARS rewards were successfully claimed... `));                        
+  console.log(chalk.green( `\n Staked Position size decreased successfully by ${(amount).toString()}... `));                        
+  console.log(chalk.green( `${(mars_claimed).toString()} MARS rewards were successfully claimed... `));                        
 }
 
 
@@ -238,40 +248,43 @@ async function test_DecreasePosition(userWallet:Wallet, amount:number) {
 async function test_ClaimRewards(userWallet:Wallet) {
   process.stdout.write( `Should claim accrued MARS rewards for terra user  ${chalk.cyan(userWallet.key.accAddress)} ... `);
 
+  await sleep(1000);
+
   // let global_state_before = await staking_getState(terra, staking_contract_address, 0);
   // let global_bond_amount_before = global_state_before.total_bond_amount;
 
   var user_mars_balance_before = await getCW20Balance(terra, mars_token_address, userWallet.key.accAddress);
-
   let user_position_before = await staking_getPositionInfo(terra, staking_contract_address, userWallet.key.accAddress,0);
   expect(user_position_before.staker).to.equal(userWallet.key.accAddress)
-  let pending_mars_rewards = user_position_before.pending_reward
 
   await staking_ClaimRewards(terra, userWallet, staking_contract_address, mars_token_address);
 
   let global_state_after = await staking_getState(terra, staking_contract_address, 0);
-  // let global_bond_amount_after = global_state_after.total_bond_amount;
-  expect(global_state_after.last_distributed).to.equal( await staking_getTimestamp(terra, staking_contract_address) )
+  let timestampResponse = await staking_getTimestamp(terra, staking_contract_address)
+  expect(global_state_after.last_distributed).to.equal( timestampResponse["timestamp"] )
 
   let user_position_after = await staking_getPositionInfo(terra, staking_contract_address, userWallet.key.accAddress,0);
   expect(user_position_after.staker).to.equal(userWallet.key.accAddress)
-  expect(user_position_after.pending_reward).to.equal(0)
+  expect(Number(user_position_after.pending_reward)).to.equal(0)
   var user_mars_balance_after = await getCW20Balance(terra, mars_token_address, userWallet.key.accAddress);
 
-  expect(Number(user_mars_balance_after) - Number(user_mars_balance_before)).to.equal(pending_mars_rewards);
+  let mars_claimed = Number(user_mars_balance_after) - Number(user_mars_balance_before);
 
-  console.log(chalk.green( `${(pending_mars_rewards/10**6).toString()} MARS rewards were successfully claimed... `));                        
+  console.log(chalk.green( `${(mars_claimed).toString()} MARS rewards were successfully claimed... `));                        
 }
 
 
 
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 //----------------------------------------------------------------------------------------
 // Main
 //----------------------------------------------------------------------------------------
 
 (async () => {
-    console.log(chalk.yellow("\n Staking Test: Info"));
+    console.log(chalk.yellow("\nStaking Test: Info"));
   
     console.log(`Deployer ::  ${chalk.cyan(deployer.key.accAddress)}`);
 
@@ -284,41 +297,40 @@ async function test_ClaimRewards(userWallet:Wallet) {
     await setupTest();
 
     // UpdateConfig :: Test
-    console.log(chalk.yellow("\nTest: Update Configuration"));
+    console.log(chalk.yellow("\nStaking Test: Update Configuration"));
     await testUpdateConfig();
 
-    await transferCW20Tokens(terra, deployer, lp_token_address, terra_user_1.key.accAddress, 500000 * 10**6)
-    await transferCW20Tokens(terra, deployer, lp_token_address, terra_user_2.key.accAddress, 500000 * 10**6)
-    await transferCW20Tokens(terra, deployer, lp_token_address, terra_user_3.key.accAddress, 500000 * 10**6)
+    // Cw20ReceiveMsg::Bond :: Test
+    console.log(chalk.yellow("\nStaking Test #: Bond LP Tokens (increase position)"));
+    await test_IncreasePosition(terra_user_1, 34534 * 10**6 )
+
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position)"));
+    await test_DecreasePosition(terra_user_1, 34534 * 10**6 )
 
     // Cw20ReceiveMsg::Bond :: Test
-    test_IncreasePosition(terra_user_1, 34534 * 10**6 )
+    console.log(chalk.yellow("\nStaking Test #: Bond LP Tokens (increase position)"));
+    await test_IncreasePosition(terra_user_2, 1343 * 10**6 )
 
     // Cw20ReceiveMsg::Bond :: Test
-    test_IncreasePosition(terra_user_2, 1343 * 10**6 )
-
-    // Cw20ReceiveMsg::Bond :: Test
-    test_IncreasePosition(terra_user_3, 43534 * 10**6 )
-
+    console.log(chalk.yellow("\nStaking Test #: Bond LP Tokens (increase position)"));
+    await test_IncreasePosition(terra_user_3, 43534 * 10**6 )
 
     // Unbond :: Test
-    test_DecreasePosition(terra_user_1, 1 )
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position)"));
+    await test_DecreasePosition(terra_user_2, 442 * 10**6 )
 
     // Unbond :: Test
-    test_DecreasePosition(terra_user_2, 442 * 10**6 )
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position)"));
+    await test_DecreasePosition(terra_user_3, 565 * 10**6 )
 
-    // Unbond :: Test
-    test_DecreasePosition(terra_user_3, 565 * 10**6 )
-
-    
-    // Claim :: Test
-    test_ClaimRewards(terra_user_1)
 
     // Claim :: Test
-    test_ClaimRewards(terra_user_2)
+    console.log(chalk.yellow("\nStaking Test #: Claim Rewards"));
+    await test_ClaimRewards(terra_user_2)
 
     // Claim :: Test
-    test_ClaimRewards(terra_user_3)
+    console.log(chalk.yellow("\nStaking Test #: Claim Rewards"));
+    await test_ClaimRewards(terra_user_3)
 
     console.log("");
   })();
