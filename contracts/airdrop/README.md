@@ -29,7 +29,7 @@ Refer to the blog here to understand how the MARS airdrop for Terra, Ethereum an
 
 ## How to Guide :: Get merkle proofs
 
-#### Create distribution lists for terra and evm users
+### Create distribution lists for terra and evm users
 
 terra_claimees_data.json
 
@@ -55,7 +55,7 @@ evm_claimees_data.json
 ]}
 ```
 
-#### Get proof with user input
+### Get proof with user input
 ```
     import  {Terra_Merkle_Tree}  from "./helpers/terra_merkle_tree.js";
     import  {EVM_Merkle_Tree}  from "./helpers/evm_merkle_tree.js";
@@ -88,8 +88,6 @@ evm_claimees_data.json
 ```
 
 
-
-
 ## How to Guide :: verify evm signatures
 
 ```
@@ -116,6 +114,19 @@ var signature_response = terra.wasm.contractQuery(airdrop_contract_address, veri
 console.log(signature_response)
 ```
 
+
+## Build schema and run unit-tests
+```
+cargo schema
+cargo test
+```
+
+## Build airdrop contract
+
+```
+cargo build
+
+```
 
 
 
