@@ -18,16 +18,36 @@ pub struct InstantiateMsg {
     ///  MARS-UST LP token address - accepted by the contract via Cw20ReceiveMsg function 
     pub staking_token: Option<String>,                      
     /// Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens
+    pub init_timestamp: u64,                        
+    /// Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp
+    pub till_timestamp: u64,                       
+    /// $MARS Rewards distributed during the 1st cycle. 
+    pub cycle_rewards: Option<Uint256>,                    
+    /// Cycle duration in timestamps
+    pub cycle_duration: u64,         
+    /// Percent increase in Rewards per cycle
+    pub reward_increase: Option<Decimal256>,               
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateConfigMsg {
+    /// Account who can update config
+    pub owner: Option<String>,
+    /// Contract used to query addresses related to red-bank (MARS Token)
+    pub address_provider: Option<String>,
+    ///  MARS-UST LP token address - accepted by the contract via Cw20ReceiveMsg function 
+    pub staking_token: Option<String>,                      
+    /// Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens
     pub init_timestamp: Option<u64>,                        
     /// Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp
     pub till_timestamp: Option<u64>,                       
     /// $MARS Rewards distributed during the 1st cycle. 
     pub cycle_rewards: Option<Uint256>,                    
-    /// Cycle duration in timestamps
-    pub cycle_duration: Option<u64>,         
     /// Percent increase in Rewards per cycle
     pub reward_increase: Option<Decimal256>,               
 }
+
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -39,7 +59,7 @@ pub enum ExecuteMsg {
     /// Update data stored in config / state (cycle params)
     /// @param new_config The new config info to be stored    
     UpdateConfig {
-        new_config: InstantiateMsg,
+        new_config: UpdateConfigMsg,
     },
     /// Decrease the total LP shares Bonded by the user
     /// Accrued rewards are claimed along-with this function 

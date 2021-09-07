@@ -9,7 +9,7 @@ use cosmwasm_std::{
 
 use crate::msg::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    StakerInfoResponse, StateResponse,TimeResponse
+    StakerInfoResponse, StateResponse,TimeResponse, UpdateConfigMsg
 };
 
 use mars::address_provider::helpers::{query_address};
@@ -27,13 +27,21 @@ use crate::state::{Config, CONFIG, State, STATE, StakerInfo , STAKER_INFO};
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(deps: DepsMut, env: Env, _info: MessageInfo, msg: InstantiateMsg, ) -> StdResult<Response> {
 
+    if msg.init_timestamp < env.block.time.seconds() || msg.till_timestamp < msg.init_timestamp {
+        return Err(StdError::generic_err("Invalid timestamps"));
+    }
+
+    if msg.cycle_duration == 0u64 {
+        return Err(StdError::generic_err("Invalid cycle duration"));
+    }
+
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner.unwrap())?,
         address_provider: option_string_to_addr(deps.api, msg.address_provider, zero_address())?, 
         staking_token: option_string_to_addr(deps.api, msg.staking_token, zero_address())?, 
-        init_timestamp: msg.init_timestamp.unwrap_or(0 as u64) ,
-        till_timestamp: msg.till_timestamp.unwrap_or(0 as u64) ,
-        cycle_duration: msg.cycle_duration.unwrap_or(0 as u64) ,
+        init_timestamp: msg.init_timestamp ,
+        till_timestamp: msg.till_timestamp ,
+        cycle_duration: msg.cycle_duration ,
         reward_increase: msg.reward_increase.unwrap_or(Decimal256::zero()) ,
     };
 
@@ -133,7 +141,7 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint256) -> StdR
 /// @dev init_timestamp : can only be updated before it gets elapsed
 /// @dev till_timestamp : can only be updated before it gets elapsed
 /// @params new_config : New config object
-pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: InstantiateMsg ) -> StdResult<Response> { 
+pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: UpdateConfigMsg ) -> StdResult<Response> { 
 
     let mut config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
@@ -146,30 +154,55 @@ pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: In
     // ACCURE CURRENT REWARDS IN-CASE `reward_increase` / `current_cycle_rewards` ARE UPDATED
     compute_reward(&config, &mut state, env.block.time.seconds());      // Compute global reward & staker reward
 
-
     // UPDATE :: ADDRESSES IF PROVIDED
     config.address_provider = option_string_to_addr(deps.api, new_config.address_provider, config.address_provider)?;
     config.staking_token = option_string_to_addr(deps.api, new_config.staking_token, config.staking_token)?;
     config.owner = option_string_to_addr(deps.api, new_config.owner, config.owner)?;
 
     // UPDATE :: VALUES IF PROVIDED
-    config.reward_increase = new_config.reward_increase.unwrap_or(config.reward_increase);
+    match new_config.reward_increase {
+        Some(new_increase_ratio) => {
+            if new_increase_ratio < Decimal256::one() {
+                config.reward_increase = new_increase_ratio; 
+            } else {
+                return Err(StdError::generic_err("Invalid reward increase ratio"));
+            }
+        }
+        None => {}
+    }
     state.current_cycle_rewards = new_config.cycle_rewards.unwrap_or(state.current_cycle_rewards);
 
     // UPDATE INIT TIMESTAMP AND STATE :: DOABLE ONLY IF IT HASN'T ALREADY PASSED YET
-    if config.init_timestamp > env.block.time.seconds() {
-        config.init_timestamp = new_config.init_timestamp.unwrap_or(config.init_timestamp);
+    match new_config.init_timestamp  {
+        Some(new_init_timestamp) => {
+            // Update if rewards distribution has not started yet and new init_timestamp hasn't passed
+            if config.init_timestamp > env.block.time.seconds() && new_init_timestamp > env.block.time.seconds() && new_init_timestamp < config.till_timestamp {
+                config.init_timestamp = new_init_timestamp;
+            }  else {
+                return Err(StdError::generic_err("Invalid init timestamp"));
+            }
+        }
+        None => {}
     }
 
     // UPDATE TILL TIMESTAMP :: DOABLE ONLY IF IT HASN'T ALREADY PASSED YET
-    if config.till_timestamp > env.block.time.seconds() {
-        config.till_timestamp = new_config.till_timestamp.unwrap_or(config.till_timestamp);
-    }
+    match new_config.till_timestamp  {
+        Some(new_till_timestamp) => {
+            // Update if the current till_timestamp and new till_timestamp haven't passed
+            if config.till_timestamp > env.block.time.seconds() && new_till_timestamp > env.block.time.seconds() && new_till_timestamp > config.init_timestamp {
+                config.till_timestamp = new_till_timestamp;
+            } else {
+                return Err(StdError::generic_err("Invalid till timestamp"));
+            }
+        }
+        None => {}
+    }    
+
 
     CONFIG.save(deps.storage, &config)?;
     STATE.save(deps.storage, &state)?;
 
-    Ok(Response::new().add_attribute("action", "lockdrop::ExecuteMsg::UpdateConfig"))
+    Ok(Response::new().add_attribute("action", "staking::ExecuteMsg::UpdateConfig"))
 }
 
 
@@ -442,64 +475,245 @@ fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amou
 #[cfg(test)]
 mod tests { 
     use super::*;
-    use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::testing::{MockApi, MockStorage, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{Timestamp,BlockInfo, ContractInfo, attr, Coin, from_binary, OwnedDeps, SubMsg};
-    use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
+    use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
     use crate::msg::{ConfigResponse, StateResponse, StakerInfoResponse, TimeResponse, InstantiateMsg, QueryMsg  } ;
     use crate::msg::ExecuteMsg::{Receive, UpdateConfig , Unbond, Claim};
-
+    use mars::testing::{
+        assert_generic_error_message, mock_dependencies, mock_env, mock_env_at_block_time,
+        mock_info, MarsMockQuerier, MockEnvParams,
+    };
 
 
     #[test]
     fn test_proper_initialization() {
         let mut deps = mock_dependencies(&[]);
 
-        let terra_merkle_roots = vec!["terra_merkle_roots".to_string()];
-        let evm_merkle_roots = vec![ "evm_merkle_roots".to_string() ];
+        let init_timestamp = 1_000_000_001;
         let till_timestamp = 1_000_000_00000;
-        let from_timestamp = 1_000_000_000;
+        let reward_increase = Decimal256::from_ratio( 2u64, 100u64 );
+        
+        // *** Test : "Invalid cycle duration" because cycle duration = 0
+
+        // Config with valid base params 
+        let mut base_config = InstantiateMsg {
+            owner: Some("owner".to_string()),
+            address_provider : Some("address_provider".to_string()),
+            staking_token : Some("staking_token".to_string()),
+            init_timestamp: init_timestamp,
+            till_timestamp: till_timestamp,
+            cycle_rewards: Some( Uint256::from(100000000u64) ),
+            cycle_duration: 0u64,
+            reward_increase: Some(reward_increase)
+        };
+
+        let info = mock_info("owner");
+        let env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(init_timestamp),
+            ..Default::default()
+        });
+
+        let mut res_f = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone());
+        assert_generic_error_message(res_f,"Invalid cycle duration");
+
+        // *** Test : "Invalid timestamps" because (msg.init_timestamp < env.block.time.seconds())
+
+        base_config.init_timestamp = 1_000_000_000;
+        base_config.cycle_duration = 10u64;
+        res_f = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone());
+        assert_generic_error_message(res_f,"Invalid timestamps");
+
+        // *** Test : "Invalid timestamps" because (msg.till_timestamp < msg.init_timestamp)
+
+        base_config.init_timestamp = 1_000_000_001;
+        base_config.till_timestamp = 1_000_000_000;
+        res_f = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone());
+        assert_generic_error_message(res_f,"Invalid timestamps");
+
+        // *** Test : Should instantiate successfully
+
+        base_config.init_timestamp = 1_000_000_001;
+        base_config.till_timestamp = till_timestamp;
+        // we can just call .unwrap() to assert this was a success
+        let res_s = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone()).unwrap();
+        assert_eq!(0, res_s.messages.len());
+        
+        // let's verify the config
+        let config_ = CONFIG.load(&deps.storage).unwrap();
+        assert_eq!("owner".to_string(), config_.owner);
+        assert_eq!("address_provider".to_string(), config_.address_provider);
+        assert_eq!("staking_token".to_string(), config_.staking_token);
+        assert_eq!(init_timestamp.clone(), config_.init_timestamp);
+        assert_eq!(till_timestamp.clone(), config_.till_timestamp);
+        assert_eq!(10u64, config_.cycle_duration);
+        assert_eq!(reward_increase.clone(), config_.reward_increase);
+
+        // let's verify the state
+        let state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!(0u64, state_.current_cycle);
+        assert_eq!(Uint256::from(100000000u64), state_.current_cycle_rewards);
+        assert_eq!(init_timestamp, state_.last_distributed);
+        assert_eq!(Uint256::zero(), state_.total_bond_amount);
+        assert_eq!(Decimal256::zero(), state_.global_reward_index);
+    }
+
+
+    #[test]
+    fn test_update_config() { 
+        let mut deps = mock_dependencies(&[]);
+        let mut info = mock_info("owner");
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_00),
+            ..Default::default()
+        });
+        let reward_increase = Decimal256::from_ratio( 2u64, 100u64 );
 
         // Config with valid base params 
         let base_config = InstantiateMsg {
             owner: Some("owner".to_string()),
             address_provider : Some("address_provider".to_string()),
             staking_token : Some("staking_token".to_string()),
-            init_timestamp: from_timestamp,
-            till_timestamp: till_timestamp,
+            init_timestamp: 1_000_000_10,
+            till_timestamp: 1_001_000_00,
             cycle_rewards: Some( Uint256::from(100000000u64) ),
-            cycle_duration: Some(10 as u64),
-            reward_increase: Some(Decimal256::from_ratio( 2u64, 100u64 ) )
+            cycle_duration: 1000u64,
+            reward_increase: Some(reward_increase)
+        };
+        
+        // Instantiate staking contract
+        let mut res_s = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone()).unwrap();
+        assert_eq!(0, res_s.messages.len());
+
+        // *** Test : Error "Only owner can update configuration" ****
+        info = mock_info("not_owner");
+
+        let mut new_config_msg = UpdateConfigMsg {
+            owner : None,
+            address_provider : Some("new_address_provider".to_string()),
+            staking_token : Some("new_staking_token".to_string()),
+            init_timestamp : None,
+            till_timestamp : None,
+            cycle_rewards : None,
+            reward_increase : None,
         };
 
-        let info = mock_info("owner");
-        let env = mock_env(MockEnvParams {
-            block_time: Timestamp::from_seconds(from_timestamp),
+        let mut update_config_msg = UpdateConfig {
+            new_config : new_config_msg.clone()
+        };
+        
+        let mut res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Only owner can update configuration");
+
+        // *** Test : Should update addresses correctly ****
+        info = mock_info("owner");
+        res_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
+        assert_eq!( res_s.attributes, vec![attr("action", "staking::ExecuteMsg::UpdateConfig")] );
+        let mut config_ = CONFIG.load(&deps.storage).unwrap();
+        assert_eq!("new_address_provider".to_string(), config_.address_provider);
+        assert_eq!("new_staking_token".to_string(), config_.staking_token);
+
+        // *** Test : "Invalid reward increase ratio" :: Reason : new reward increase ratio = 100% (should be less than 100%) ****
+        new_config_msg.reward_increase = Some(Decimal256::one());
+        new_config_msg.cycle_rewards = Some(Uint256::from(1000u64));
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Invalid reward increase ratio");
+
+        // *** Test : Should update reward_increase, current_cycle_rewards params  correctly ****
+        new_config_msg.reward_increase = Some( Decimal256::from_ratio( 7u64, 100u64 ) );
+        new_config_msg.cycle_rewards = Some(Uint256::from(654u64));
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
+        assert_eq!( res_s.attributes, vec![attr("action", "staking::ExecuteMsg::UpdateConfig")] );
+        config_ = CONFIG.load(&deps.storage).unwrap();
+        let mut state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!("new_address_provider".to_string(), config_.address_provider);
+        assert_eq!("new_staking_token".to_string(), config_.staking_token);
+        assert_eq!(Decimal256::from_ratio( 7u64, 100u64 ), config_.reward_increase);
+        assert_eq!(Uint256::from(654u64), state_.current_cycle_rewards);
+
+        // *** Test : Error (Updating init_timestamp) :: Reason : Rewards already being distributed ****
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_11),
             ..Default::default()
         });
+        new_config_msg.init_timestamp = Some(1_000_000_50) ;
+        new_config_msg.reward_increase = None;
+        new_config_msg.cycle_rewards = None;
+        new_config_msg.staking_token = None;
+        new_config_msg.address_provider = None;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Invalid init timestamp");
 
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), env.clone(), info, base_config).unwrap();
-        assert_eq!(0, res.messages.len());
+        // *** Test : Error (Updating init_timestamp) :: Reason : New init_timestamp has already passed ****
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_05),
+            ..Default::default()
+        });
+        new_config_msg.init_timestamp = Some(1_000_000_04) ;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Invalid init timestamp");
 
-        // it worked, let's query the state
-        let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
-        let value: ConfigResponse = from_binary(&res).unwrap();
+        // *** Test : Error (Updating init_timestamp) :: Reason : New init_timestamp > config.till_timestamp ****
+        new_config_msg.init_timestamp = Some(1_001_000_01) ;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Invalid init timestamp");
 
-        assert_eq!("owner".to_string(), value.owner);
-        assert_eq!("address_provider".to_string(), value.address_provider);
-        assert_eq!("staking_token".to_string(), value.staking_token);
-        assert_eq!("mars_token".to_string(), value.mars_token);
-        assert_eq!(init_timestamp.clone(), value.init_timestamp);
-        assert_eq!(till_timestamp.clone(), value.till_timestamp);
-        assert_eq!(cycle_duration.clone(), value.cycle_duration);
-        assert_eq!(reward_increase.clone(), value.reward_increase);
+        // *** Test : Should update init_timestamp  correctly ****
+        new_config_msg.init_timestamp = Some(1_000_000_15) ;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
+        assert_eq!( res_s.attributes, vec![attr("action", "staking::ExecuteMsg::UpdateConfig")] );
+        config_ = CONFIG.load(&deps.storage).unwrap();
+        assert_eq!(1_000_000_15, config_.init_timestamp);
 
-        let res_state = query(deps.as_ref(), env.clone(), QueryMsg::State { timestamp : None }).unwrap();
-        let res_state_unwrap : StateResponse = from_binary(&res_state).unwrap();        
-        assert_eq!( 0u64 , res_state_unwrap.current_cycle);
-        assert_eq!(Uint256::from(100000000u64), res_state_unwrap.current_cycle_rewards);
-        assert_eq!(Uint256::from(0u64), res_state_unwrap.total_bond_amount);
-        assert_eq!(Decimal256::from(0u64), res_state_unwrap.global_reward_index);
+        // *** Test : Error (Updating till_timestamp) :: Reason : Rewards distribution over ****
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_001_000_01),
+            ..Default::default()
+        });
+        new_config_msg.till_timestamp = Some(1_001_000_11) ;
+        new_config_msg.init_timestamp = None;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Invalid till timestamp");
+
+        // *** Test : Error (Updating till_timestamp) :: Reason : New till_timestamp < config.init_timestamp ****
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_11),
+            ..Default::default()
+        });
+        new_config_msg.till_timestamp = Some(1_000_000_14) ;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Invalid till timestamp"); 
+        
+        // *** Test : Error (Updating till_timestamp) :: Reason : New till_timestamp has already passed ****
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_19),
+            ..Default::default()
+        });
+        new_config_msg.till_timestamp = Some(1_000_000_17) ;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Invalid till timestamp"); 
+        
+        // *** Test : Should update till_timestamp  correctly ****
+        new_config_msg.till_timestamp = Some(1_000_001_00) ;
+        update_config_msg = UpdateConfig {  new_config : new_config_msg.clone() };
+        res_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
+        assert_eq!( res_s.attributes, vec![attr("action", "staking::ExecuteMsg::UpdateConfig")] );
+        config_ = CONFIG.load(&deps.storage).unwrap();
+        assert_eq!(1_000_001_00, config_.till_timestamp);
+    }
+
+
+    #[test]
+    fn test_bond_tokens() { 
 
     }
 
@@ -508,6 +722,88 @@ mod tests {
 
 
 
+
+    // pub struct MockEnvParams {
+    //     pub block_time: Timestamp,
+    //     pub block_height: u64,
+    // }
+    
+    // impl Default for MockEnvParams {
+    //     fn default() -> Self {
+    //         MockEnvParams {
+    //             block_time: Timestamp::from_nanos(1_571_797_419_879_305_533),
+    //             block_height: 1,
+    //         }
+    //     }
+    // }
+
+
+    // fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
+    //     let mut deps = mock_dependencies(contract_balances);
+    //     let env = mock_env(MockEnvParams::default());
+    //     let info = mock_info("owner");
+    //     let config = CreateOrUpdateConfig {
+    //         owner: Some("owner".to_string()),
+    //         address_provider_address: Some("address_provider".to_string()),
+    //         insurance_fund_fee_share: Some(Decimal::from_ratio(5u128, 10u128)),
+    //         treasury_fee_share: Some(Decimal::from_ratio(3u128, 10u128)),
+    //         ma_token_code_id: Some(1u64),
+    //         close_factor: Some(Decimal::from_ratio(1u128, 2u128)),
+    //     };
+    //     let msg = InstantiateMsg { config };
+    //     instantiate(deps.as_mut(), env, info, msg).unwrap();
+    //     deps
+    // }
+
+    
+    // mock_env replacement for cosmwasm_std::testing::mock_env
+    // pub fn mock_env(mock_env_params: MockEnvParams) -> Env {
+    //     Env {
+    //         block: BlockInfo {
+    //             height: mock_env_params.block_height,
+    //             time: mock_env_params.block_time,
+    //             chain_id: "cosmos-testnet-14002".to_string(),
+    //         },
+    //         contract: ContractInfo {
+    //             address: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //         },
+    //     }
+    // }
+
+    // quick mock info with just the sender
+    // TODO: Maybe this one does not make sense given there's a very smilar helper in cosmwasm_std
+    // pub fn mock_info(sender: &str) -> MessageInfo {
+    //     MessageInfo {
+    //         sender: Addr::unchecked(sender),
+    //         funds: vec![],
+    //     }
+    // }
+
+    // mock_dependencies replacement for cosmwasm_std::testing::mock_dependencies
+    // pub fn mock_dependencies(
+    //     contract_balance: &[Coin],
+    // ) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+    //     let contract_addr = Addr::unchecked(MOCK_CONTRACT_ADDR);
+    //     let custom_querier: MockQuerier = MockQuerier::new(&[(
+    //         &contract_addr.to_string(),
+    //         contract_balance,
+    //     )]);
+
+    //     OwnedDeps {
+    //         storage: MockStorage::default(),
+    //         api: MockApi::default(),
+    //         querier: custom_querier,
+    //     }
+    // }
+
+    // Assert StdError::GenericErr message with expected_msg
+    // pub fn assert_generic_error_message<T>(response: StdResult<T>, expected_msg: &str) {
+    //     match response {
+    //         Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, expected_msg),
+    //         Err(other_err) => panic!("Unexpected error: {:?}", other_err),
+    //         Ok(_) => panic!("SHOULD NOT ENTER HERE!"),
+    //     }
+    // }
 
 
 
