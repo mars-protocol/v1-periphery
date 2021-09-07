@@ -61,7 +61,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     match msg {
         ExecuteMsg::UpdateConfig {new_config} => update_config(deps, env,info, new_config),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Unbond { amount } => unbond(deps, env, info, amount),
+        ExecuteMsg::Unbond { amount, withdraw_pending_reward } => unbond(deps, env, info, amount, withdraw_pending_reward ),
         ExecuteMsg::Claim {} => try_claim(deps, env, info),
     }
 }
@@ -114,7 +114,7 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint256) -> StdR
     let mut state: State = STATE.load(deps.storage)?;
     let mut staker_info = STAKER_INFO.may_load(deps.storage, &sender_addr)?.unwrap_or_default();
 
-    compute_reward( &config, &mut state, env.block.time.seconds() );        // Compute global reward
+    compute_reward( &config, &mut state, env.block.time.seconds() );                    // Compute global reward
     compute_staker_reward(&state, &mut staker_info)?;                                   // Compute staker reward
     increase_bond_amount(&mut state, &mut staker_info, amount);                         // Increase bond_amount
 
@@ -124,7 +124,7 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint256) -> StdR
 
     Ok(Response::new().add_attributes(vec![
         ("action", "ExecuteMsg::Bond"),
-        ("owner", sender_addr.as_str()),
+        ("user", sender_addr.as_str()),
         ("amount", amount.to_string().as_str()),
     ]))
 }
@@ -175,7 +175,7 @@ pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: In
 
 /// @dev Reduces user's staked position. MARS Rewards are transferred along-with unstaked LP Tokens
 /// @params amount :  Number of LP Tokens transferred to be unstaked
-pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256) -> StdResult<Response> {
+pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256, withdraw_pending_reward: Option<bool>) -> StdResult<Response> {
 
     let sender_addr = info.sender.clone();
     let config: Config = CONFIG.load(deps.storage)?;
@@ -190,29 +190,38 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256) -> St
     compute_staker_reward(&state, &mut staker_info)?;                               // Compute staker reward
     decrease_bond_amount(&mut state, &mut staker_info, amount);                    // Decrease bond_amount
     
-    let accrued_rewards = staker_info.pending_reward;
-    staker_info.pending_reward = Uint256::zero();
+    let mut messages = vec![];
+    let mut claimed_rewards = Uint256::zero();
+
+    match withdraw_pending_reward { 
+        Some(withdraw_pending_reward) => {
+            if withdraw_pending_reward {
+                claimed_rewards = staker_info.pending_reward;
+                if claimed_rewards > Uint256::zero() {
+                    staker_info.pending_reward = Uint256::zero();
+                    let mars_token = query_address( &deps.querier,config.address_provider.clone(), MarsContract::MarsToken )?;
+                    messages.push( build_send_cw20_token_msg(sender_addr.clone(), mars_token, claimed_rewards.into())? );        
+                }
+            }
+        }
+        None => {}
+    }
+
 
     // Store Staker info, depends on the left bond amount
     STAKER_INFO.save( deps.storage, &sender_addr, &staker_info)?;
     STATE.save( deps.storage, &state )?;                    
 
-    let mut messages = vec![];
     messages.push( build_send_cw20_token_msg(sender_addr.clone(), config.staking_token, amount.into())? ) ;
-
-    if accrued_rewards > Uint256::zero() {
-        let mars_token = query_address( &deps.querier,config.address_provider.clone(), MarsContract::MarsToken )?;
-        messages.push( build_send_cw20_token_msg(sender_addr.clone(), mars_token, accrued_rewards.into())? );
-    }
 
     // UNBOND STAKED TOKEN , TRANSFER $MARS
     Ok(Response::new()    
         .add_messages( messages)
         .add_attributes(vec![
-            ("action", "unbond"),
-            ("owner", sender_addr.as_str()),
-            ("unbonded_amount", amount.to_string().as_str()),
-            ("accrued_rewards", accrued_rewards.to_string().as_str()),
+            ("action", "ExecuteMsg::Unbond"),
+            ("user", sender_addr.as_str()),
+            ("amount", amount.to_string().as_str()),
+            ("claimed_rewards", claimed_rewards.to_string().as_str())
         ])
     )
 }
@@ -249,9 +258,9 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respon
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(vec![
-            ("action", "claim_rewards"),
-            ("owner", sender_addr.as_str()),
-            ("accrued_rewards", accrued_rewards.to_string().as_str()),
+            ("action", "ExecuteMsg::Claim"),
+            ("user", sender_addr.as_str()),
+            ("claimed_rewards", accrued_rewards.to_string().as_str()),
         ])
     )
 }
@@ -422,3 +431,85 @@ fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amou
         funds: vec![],
     }))
 }
+
+
+//----------------------------------------------------------------------------------------
+// TESTS 
+//----------------------------------------------------------------------------------------
+
+
+
+#[cfg(test)]
+mod tests { 
+    use super::*;
+    use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::{Timestamp,BlockInfo, ContractInfo, attr, Coin, from_binary, OwnedDeps, SubMsg};
+    use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
+    use crate::msg::{ConfigResponse, StateResponse, StakerInfoResponse, TimeResponse, InstantiateMsg, QueryMsg  } ;
+    use crate::msg::ExecuteMsg::{Receive, UpdateConfig , Unbond, Claim};
+
+
+
+    #[test]
+    fn test_proper_initialization() {
+        let mut deps = mock_dependencies(&[]);
+
+        let terra_merkle_roots = vec!["terra_merkle_roots".to_string()];
+        let evm_merkle_roots = vec![ "evm_merkle_roots".to_string() ];
+        let till_timestamp = 1_000_000_00000;
+        let from_timestamp = 1_000_000_000;
+
+        // Config with valid base params 
+        let base_config = InstantiateMsg {
+            owner: Some("owner".to_string()),
+            address_provider : Some("address_provider".to_string()),
+            staking_token : Some("staking_token".to_string()),
+            init_timestamp: from_timestamp,
+            till_timestamp: till_timestamp,
+            cycle_rewards: Some( Uint256::from(100000000u64) ),
+            cycle_duration: Some(10 as u64),
+            reward_increase: Some(Decimal256::from_ratio( 2u64, 100u64 ) )
+        };
+
+        let info = mock_info("owner");
+        let env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(from_timestamp),
+            ..Default::default()
+        });
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), env.clone(), info, base_config).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        // it worked, let's query the state
+        let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
+        let value: ConfigResponse = from_binary(&res).unwrap();
+
+        assert_eq!("owner".to_string(), value.owner);
+        assert_eq!("address_provider".to_string(), value.address_provider);
+        assert_eq!("staking_token".to_string(), value.staking_token);
+        assert_eq!("mars_token".to_string(), value.mars_token);
+        assert_eq!(init_timestamp.clone(), value.init_timestamp);
+        assert_eq!(till_timestamp.clone(), value.till_timestamp);
+        assert_eq!(cycle_duration.clone(), value.cycle_duration);
+        assert_eq!(reward_increase.clone(), value.reward_increase);
+
+        let res_state = query(deps.as_ref(), env.clone(), QueryMsg::State { timestamp : None }).unwrap();
+        let res_state_unwrap : StateResponse = from_binary(&res_state).unwrap();        
+        assert_eq!( 0u64 , res_state_unwrap.current_cycle);
+        assert_eq!(Uint256::from(100000000u64), res_state_unwrap.current_cycle_rewards);
+        assert_eq!(Uint256::from(0u64), res_state_unwrap.total_bond_amount);
+        assert_eq!(Decimal256::from(0u64), res_state_unwrap.global_reward_index);
+
+    }
+
+
+
+
+
+
+
+
+
+}
+

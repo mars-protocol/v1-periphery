@@ -46,6 +46,7 @@ pub enum ExecuteMsg {
     /// @param amount The no. of LP shares to be subtracted from the total Bonded and sent back to the user 
     Unbond {
         amount: Uint256,
+        withdraw_pending_reward: Option<bool>
     },
     /// Claim pending rewards
     Claim {}

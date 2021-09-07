@@ -31,13 +31,13 @@ export async function staking_IncreasePosition( terra: LocalTerra | LCDClient, w
 }  
 
 // LP STAKING :: UN-STAKE LP TOKENS
-export async function staking_DecreasePosition( terra: LocalTerra | LCDClient, wallet:Wallet, stakingContractAddress:string, marsTokenAddress:string, amount:number) {
-    // let mars_balance = await queryContract(terra, marsTokenAddress, {"balance": {"address": wallet.key.accAddress}} );
-    let unstake_msg = { "unbond":{"amount":amount.toString()} };
+export async function staking_DecreasePosition( terra: LocalTerra | LCDClient, wallet:Wallet, stakingContractAddress:string, marsTokenAddress:string, amount:number, withdraw_rewards: boolean ) {
+    let mars_balance = await queryContract(terra, marsTokenAddress, {"balance": {"address": wallet.key.accAddress}} );
+    let unstake_msg = { "unbond":{"amount":amount.toString(), "withdraw_pending_reward":withdraw_rewards  } };  // , 
     let resp = await executeContract(terra, wallet, stakingContractAddress, unstake_msg );
-    // let new_mars_balance = await queryContract(terra, marsTokenAddress, {"balance": {"address": wallet.key.accAddress}} );
-    // let rewards_claimed = (new_mars_balance["balance"] - mars_balance["balance"])/10**6 ;
-    // console.log(" LP Tokens unstaked. " + rewards_claimed.toString() + " $MARS (scale = 1e6) claimed as rewards" );
+    let new_mars_balance = await queryContract(terra, marsTokenAddress, {"balance": {"address": wallet.key.accAddress}} );
+    let rewards_claimed = (new_mars_balance["balance"] - mars_balance["balance"])/10**6 ;
+    console.log(" LP Tokens unstaked. " + rewards_claimed.toString() + " $MARS (scale = 1e6) claimed as rewards" );
 }  
 
 

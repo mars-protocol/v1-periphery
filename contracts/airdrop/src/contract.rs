@@ -428,6 +428,9 @@ pub fn option_string_to_addr( api: &dyn Api, option_string: Option<String>, defa
     }
 }
 
+//----------------------------------------------------------------------------------------
+// TESTS 
+//----------------------------------------------------------------------------------------
 
 
 #[cfg(test)]
@@ -435,7 +438,6 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{Timestamp,BlockInfo, ContractInfo, attr, Coin, from_binary, OwnedDeps, SubMsg};
-    // use cosmwasm_std::testing::{mock_env, mock_info, mock_dependencies, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
     use crate::state::{CONFIG};
     use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg };
     use crate::msg::{ConfigResponse, InstantiateMsg, QueryMsg  } ;

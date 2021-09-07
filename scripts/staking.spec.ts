@@ -72,7 +72,7 @@ async function setupTest() {
                           "reward_increase": "0.02" 
                         } 
     
-    staking_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'mars_lp_staking.wasm'),  staking_config )    
+    staking_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'staking.wasm'),  staking_config )    
     const stakingConfigResponse = await staking_getConfig(terra, staking_contract_address);
       expect(stakingConfigResponse).to.deep.equal({
         owner : deployer.key.accAddress,
@@ -195,10 +195,10 @@ async function test_IncreasePosition(userWallet:Wallet, amount:number) {
 }
 
 //----------------------------------------------------------------------------------------
-// Staking : Decrease staked LP Position : Test
+// Staking : Decrease staked LP Position (ClaimRewards = True) : Test
 //----------------------------------------------------------------------------------------
 
-async function test_DecreasePosition(userWallet:Wallet, amount:number) {
+async function test_DecreasePositionAndClaimRewards(userWallet:Wallet, amount:number) {
   process.stdout.write( `Should decrease staked position (& claim accumulate rewards) of terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()}... `);
 
   let global_state_before = await staking_getState(terra, staking_contract_address, 0);
@@ -213,7 +213,7 @@ async function test_DecreasePosition(userWallet:Wallet, amount:number) {
   let user_bond_amount_before = user_position_before.bond_amount;
   expect(user_position_before.staker).to.equal(userWallet.key.accAddress)
 
-  await staking_DecreasePosition(terra, userWallet, staking_contract_address, mars_token_address, amount);
+  await staking_DecreasePosition(terra, userWallet, staking_contract_address, mars_token_address, amount, true);
 
   var contract_lp_balance_after_decrease = await getCW20Balance(terra, lp_token_address, staking_contract_address);
   var user_lp_balance_after_decrease = await getCW20Balance(terra, lp_token_address, userWallet.key.accAddress);
@@ -234,11 +234,56 @@ async function test_DecreasePosition(userWallet:Wallet, amount:number) {
   expect(Number(user_bond_amount_before) - Number(user_bond_amount_after)).to.equal(amount);
   expect(Number(global_bond_amount_before) - Number(global_bond_amount_after)).to.equal(amount);
   let mars_claimed = Number(user_mars_balance_after) - Number(user_mars_balance_before);
+  expect(mars_claimed).to.greaterThan(0) 
 
   console.log(chalk.green( `\n Staked Position size decreased successfully by ${(amount).toString()}... `));                        
   console.log(chalk.green( `${(mars_claimed).toString()} MARS rewards were successfully claimed... `));                        
 }
 
+//----------------------------------------------------------------------------------------
+// Staking : Decrease staked LP Position (ClaimRewards = True) : Test
+//----------------------------------------------------------------------------------------
+
+async function test_DecreasePositionAndDontClaimRewards(userWallet:Wallet, amount:number) {
+  process.stdout.write( `Should decrease staked position (& claim accumulate rewards) of terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()}... `);
+
+  let global_state_before = await staking_getState(terra, staking_contract_address, 0);
+  let global_bond_amount_before = global_state_before.total_bond_amount;
+
+  var contract_lp_balance_before_decrease = await getCW20Balance(terra, lp_token_address, staking_contract_address);
+  var user_lp_balance_before_decrease = await getCW20Balance(terra, lp_token_address, userWallet.key.accAddress);
+
+  var user_mars_balance_before = await getCW20Balance(terra, mars_token_address, userWallet.key.accAddress);
+
+  let user_position_before = await staking_getPositionInfo(terra, staking_contract_address, userWallet.key.accAddress,0);
+  let user_bond_amount_before = user_position_before.bond_amount;
+  expect(user_position_before.staker).to.equal(userWallet.key.accAddress)
+
+  await staking_DecreasePosition(terra, userWallet, staking_contract_address, mars_token_address, amount, false);
+
+  var contract_lp_balance_after_decrease = await getCW20Balance(terra, lp_token_address, staking_contract_address);
+  var user_lp_balance_after_decrease = await getCW20Balance(terra, lp_token_address, userWallet.key.accAddress);
+
+  let global_state_after = await staking_getState(terra, staking_contract_address, 0);
+  let global_bond_amount_after = global_state_after.total_bond_amount;
+  let timestampResponse = await staking_getTimestamp(terra, staking_contract_address)
+  expect(global_state_after.last_distributed).to.equal( timestampResponse["timestamp"] )
+
+  let user_position_after = await staking_getPositionInfo(terra, staking_contract_address, userWallet.key.accAddress,0);
+  let user_bond_amount_after = user_position_after.bond_amount;
+  expect(user_position_after.staker).to.equal(userWallet.key.accAddress)
+  var user_mars_balance_after = await getCW20Balance(terra, mars_token_address, userWallet.key.accAddress);
+
+  expect(Number(contract_lp_balance_before_decrease) - Number(contract_lp_balance_after_decrease)).to.equal(amount);
+  expect(Number(user_lp_balance_after_decrease) - Number(user_lp_balance_before_decrease)).to.equal(amount);
+  expect(Number(user_bond_amount_before) - Number(user_bond_amount_after)).to.equal(amount);
+  expect(Number(global_bond_amount_before) - Number(global_bond_amount_after)).to.equal(amount);
+  let mars_claimed = Number(user_mars_balance_after) - Number(user_mars_balance_before);
+  expect(mars_claimed).to.equal(0) 
+
+  console.log(chalk.green( `\n Staked Position size decreased successfully by ${(amount).toString()}... `));                        
+  console.log(chalk.green( `MARS rewards were not claimed... `));                        
+}
 
 
 //----------------------------------------------------------------------------------------
@@ -304,9 +349,6 @@ function sleep(ms: number) {
     console.log(chalk.yellow("\nStaking Test #: Bond LP Tokens (increase position)"));
     await test_IncreasePosition(terra_user_1, 34534 * 10**6 )
 
-    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position)"));
-    await test_DecreasePosition(terra_user_1, 34534 * 10**6 )
-
     // Cw20ReceiveMsg::Bond :: Test
     console.log(chalk.yellow("\nStaking Test #: Bond LP Tokens (increase position)"));
     await test_IncreasePosition(terra_user_2, 1343 * 10**6 )
@@ -315,14 +357,33 @@ function sleep(ms: number) {
     console.log(chalk.yellow("\nStaking Test #: Bond LP Tokens (increase position)"));
     await test_IncreasePosition(terra_user_3, 43534 * 10**6 )
 
-    // Unbond :: Test
-    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position)"));
-    await test_DecreasePosition(terra_user_2, 442 * 10**6 )
+    // Unbond (without rewards claim) :: Test
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position :: without rewards claim)"));
+    await test_DecreasePositionAndDontClaimRewards(terra_user_1, 334 * 10**6 )
 
-    // Unbond :: Test
-    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position)"));
-    await test_DecreasePosition(terra_user_3, 565 * 10**6 )
+    // Unbond (with rewards claim) :: Test
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position :: with rewards claim)"));
+    await test_DecreasePositionAndClaimRewards(terra_user_1, 4 * 10**6 )
 
+    // Unbond (without rewards claim) :: Test
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position :: without rewards claim)"));
+    await test_DecreasePositionAndDontClaimRewards(terra_user_2, 454 * 10**6 )
+
+    // Unbond (with rewards claim) :: Test
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position :: with rewards claim)"));
+    await test_DecreasePositionAndClaimRewards(terra_user_2, 456 * 10**6 )
+
+    // Unbond (without rewards claim) :: Test
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position :: without rewards claim)"));
+    await test_DecreasePositionAndDontClaimRewards(terra_user_3, 76 * 10**6 )
+
+    // Unbond (with rewards claim) :: Test
+    console.log(chalk.yellow("\nStaking Test #: UnBond LP Tokens (decrease position :: with rewards claim)"));
+    await test_DecreasePositionAndClaimRewards(terra_user_3, 36 * 10**6 )
+
+    // Claim :: Test
+    console.log(chalk.yellow("\nStaking Test #: Claim Rewards"));
+    await test_ClaimRewards(terra_user_1)
 
     // Claim :: Test
     console.log(chalk.yellow("\nStaking Test #: Claim Rewards"));
