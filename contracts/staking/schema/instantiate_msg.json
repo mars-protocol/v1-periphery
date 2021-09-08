@@ -2,6 +2,11 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
   "type": "object",
+  "required": [
+    "cycle_duration",
+    "init_timestamp",
+    "till_timestamp"
+  ],
   "properties": {
     "address_provider": {
       "description": "Contract used to query addresses related to red-bank (MARS Token)",
@@ -12,10 +17,7 @@
     },
     "cycle_duration": {
       "description": "Cycle duration in timestamps",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
@@ -32,10 +34,7 @@
     },
     "init_timestamp": {
       "description": "Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
@@ -66,10 +65,7 @@
     },
     "till_timestamp": {
       "description": "Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     }

@@ -131,9 +131,10 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint256) -> StdR
     STATE.save( deps.storage, &state )?;
 
     Ok(Response::new().add_attributes(vec![
-        ("action", "ExecuteMsg::Bond"),
+        ("action", "Staking::ExecuteMsg::Bond"),
         ("user", sender_addr.as_str()),
         ("amount", amount.to_string().as_str()),
+        ("total_bonded", staker_info.bond_amount.to_string().as_str()),
     ]))
 }
 
@@ -219,7 +220,7 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256, withd
         return Err(StdError::generic_err("Cannot unbond more than bond amount"));
     }
     
-    compute_reward(&config, &mut state, env.block.time.seconds());      // Compute global reward & staker reward
+    compute_reward(&config, &mut state, env.block.time.seconds());                  // Compute global reward & staker reward
     compute_staker_reward(&state, &mut staker_info)?;                               // Compute staker reward
     decrease_bond_amount(&mut state, &mut staker_info, amount);                    // Decrease bond_amount
     
@@ -251,9 +252,10 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint256, withd
     Ok(Response::new()    
         .add_messages( messages)
         .add_attributes(vec![
-            ("action", "ExecuteMsg::Unbond"),
+            ("action", "Staking::ExecuteMsg::Unbond"),
             ("user", sender_addr.as_str()),
             ("amount", amount.to_string().as_str()),
+            ("total_bonded", staker_info.bond_amount.to_string().as_str()),
             ("claimed_rewards", claimed_rewards.to_string().as_str())
         ])
     )
@@ -291,7 +293,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respon
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(vec![
-            ("action", "ExecuteMsg::Claim"),
+            ("action", "Staking::ExecuteMsg::Claim"),
             ("user", sender_addr.as_str()),
             ("claimed_rewards", accrued_rewards.to_string().as_str()),
         ])
@@ -398,17 +400,26 @@ fn decrease_bond_amount(state: &mut State,staker_info: &mut StakerInfo,amount: U
 /// @dev Computes total accrued rewards 
 fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
 
+    // If the reward distribution period is over
+    if state.last_distributed == config.till_timestamp {
+        return;
+    }
+
     let mut last_distribution_cycle = state.current_cycle.clone();
-    state.current_cycle = calculate_cycles_elapsed(cur_timestamp, config.init_timestamp, config.cycle_duration );
+    state.current_cycle = calculate_cycles_elapsed(cur_timestamp, config.init_timestamp, config.cycle_duration, config.till_timestamp );
     let mut rewards_to_distribute = Decimal256::zero();
     let mut last_distribution_next_timestamp : u64; // 0 as u64;
 
     while state.current_cycle >= last_distribution_cycle {
-        last_distribution_next_timestamp = calculate_init_timestamp_for_cycle(config.init_timestamp,last_distribution_cycle + 1, config.cycle_duration );
-        rewards_to_distribute += rewards_distributed_for_cycle( Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration), state.last_distributed, std::cmp::min(cur_timestamp, last_distribution_next_timestamp)  );
+        last_distribution_next_timestamp = std::cmp::min(config.till_timestamp,  calculate_init_timestamp_for_cycle(config.init_timestamp, last_distribution_cycle + 1, config.cycle_duration ) );
+        rewards_to_distribute += rewards_distributed_for_cycle( Decimal256::from_ratio(state.current_cycle_rewards, config.cycle_duration),std::cmp::max(state.last_distributed, config.init_timestamp ), std::cmp::min( cur_timestamp, last_distribution_next_timestamp) );
         state.current_cycle_rewards = calculate_cycle_rewards(state.current_cycle_rewards.clone(), config.reward_increase.clone(), state.current_cycle == last_distribution_cycle );  
         state.last_distributed = std::cmp::min(cur_timestamp, last_distribution_next_timestamp);
         last_distribution_cycle +=1;
+    }
+
+    if state.last_distributed == config.till_timestamp {
+        state.current_cycle_rewards = Uint256::zero();
     }
 
     if state.total_bond_amount == Uint256::zero() || config.init_timestamp > cur_timestamp {
@@ -419,12 +430,14 @@ fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
  }
 
 
-fn calculate_cycles_elapsed(current_timestamp:u64, config_init_timestamp:u64, cycle_duration:u64 ) -> u64 {
+fn calculate_cycles_elapsed(current_timestamp:u64, config_init_timestamp:u64, cycle_duration:u64, config_till_timestamp:u64 ) -> u64 {
     if config_init_timestamp >= current_timestamp {
         return 0 as u64
     }
+    let max_cycles = (config_till_timestamp - config_init_timestamp) / cycle_duration;
+
     let time_elapsed = current_timestamp - config_init_timestamp;
-    time_elapsed / cycle_duration
+    std::cmp::min(max_cycles, time_elapsed / cycle_duration)
 }
 
 fn calculate_init_timestamp_for_cycle(config_init_timestamp:u64, current_cycle:u64, cycle_duration:u64 ) -> u64 {
@@ -433,6 +446,9 @@ fn calculate_init_timestamp_for_cycle(config_init_timestamp:u64, current_cycle:u
 
 
 fn rewards_distributed_for_cycle(rewards_per_sec:Decimal256, from_timestamp: u64, till_timestamp: u64 ) -> Decimal256 {
+    if till_timestamp <= from_timestamp {
+        return Decimal256::zero();
+    }
     rewards_per_sec * Decimal256::from_uint256(till_timestamp - from_timestamp)
 }
 
@@ -475,13 +491,13 @@ fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amou
 #[cfg(test)]
 mod tests { 
     use super::*;
-    use cosmwasm_std::testing::{MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{Timestamp,BlockInfo, ContractInfo, attr, Coin, from_binary, OwnedDeps, SubMsg};
+    use cosmwasm_std::testing::{MockApi, MockStorage};
+    use cosmwasm_std::{Timestamp,Uint128, attr, Coin, OwnedDeps, SubMsg};
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-    use crate::msg::{ConfigResponse, StateResponse, StakerInfoResponse, TimeResponse, InstantiateMsg, QueryMsg  } ;
-    use crate::msg::ExecuteMsg::{Receive, UpdateConfig , Unbond, Claim};
+    use crate::msg::{Cw20HookMsg, InstantiateMsg} ;
+    use crate::msg::ExecuteMsg::{UpdateConfig};
     use mars::testing::{
-        assert_generic_error_message, mock_dependencies, mock_env, mock_env_at_block_time,
+        assert_generic_error_message, mock_dependencies, mock_env,
         mock_info, MarsMockQuerier, MockEnvParams,
     };
 
@@ -627,7 +643,7 @@ mod tests {
         res_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
         assert_eq!( res_s.attributes, vec![attr("action", "staking::ExecuteMsg::UpdateConfig")] );
         config_ = CONFIG.load(&deps.storage).unwrap();
-        let mut state_ = STATE.load(&deps.storage).unwrap();
+        let state_ = STATE.load(&deps.storage).unwrap();
         assert_eq!("new_address_provider".to_string(), config_.address_provider);
         assert_eq!("new_staking_token".to_string(), config_.staking_token);
         assert_eq!(Decimal256::from_ratio( 7u64, 100u64 ), config_.reward_increase);
@@ -714,7 +730,538 @@ mod tests {
 
     #[test]
     fn test_bond_tokens() { 
+        let info = mock_info("staking_token");
+        let mut deps = th_setup(&[]);
 
+        // ***
+        // *** Test :: Staking before reward distribution goes live *** 
+        // ***
+
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_03),
+            ..Default::default()
+        });
+
+        let amount_to_stake = 1000u128;
+        let mut msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+                    msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+                    sender: "depositor".to_string(),
+                    amount: Uint128::new(amount_to_stake.clone()),
+        });
+        let mut bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "1000"),
+                attr("total_bonded", "1000"),
+            ]
+        );
+        // Check Global State
+        let mut state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 0u64, state_.current_cycle);
+        assert_eq!( Uint256::from(100u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_03, state_.last_distributed);
+        assert_eq!( Uint256::from(1000u64), state_.total_bond_amount);
+        assert_eq!( Decimal256::zero(), state_.global_reward_index);
+        // Check User State
+        let mut user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(1000u64) , user_position_.bond_amount);
+        assert_eq!( Decimal256::zero() , user_position_.reward_index);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: Staking when reward distribution goes live *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_13),
+            ..Default::default()
+        });
+        bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "1000"),
+                attr("total_bonded", "2000"),
+            ]
+        );
+        // Check Global State
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 0u64, state_.current_cycle);
+        assert_eq!( Uint256::from(100u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_13, state_.last_distributed);
+        assert_eq!( Uint256::from(2000u64), state_.total_bond_amount);
+        assert_eq!( Decimal256::from_ratio(30u64, 1000u64), state_.global_reward_index);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(2000u64) , user_position_.bond_amount);
+        assert_eq!( Decimal256::from_ratio(30u64, 1000u64), user_position_.reward_index);
+        assert_eq!( Uint256::from(30u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: Staking when reward distribution is live (within a block) *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_19),
+            ..Default::default()
+        });
+        msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+            sender: "depositor".to_string(),
+            amount: Uint128::new(10u128),
+        });        
+        bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "10"),
+                attr("total_bonded", "2010"),
+            ]
+        );
+        // Check Global State
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 0u64, state_.current_cycle);
+        assert_eq!( Uint256::from(100u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_19, state_.last_distributed);
+        assert_eq!( Uint256::from(2010u64), state_.total_bond_amount);
+        assert_eq!( Decimal256::from_ratio(60u64, 1000u64), state_.global_reward_index);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(2010u64) , user_position_.bond_amount);
+        assert_eq!( Decimal256::from_ratio(60u64, 1000u64), user_position_.reward_index);
+        assert_eq!( Uint256::from(90u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: Staking when reward distribution is live (spans multiple blocks) *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_47),
+            ..Default::default()
+        });
+        msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+            sender: "depositor".to_string(),
+            amount: Uint128::new(70u128),
+        });        
+        bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "70"),
+                attr("total_bonded", "2080"),
+            ]
+        );
+        // Check Global State
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 3u64, state_.current_cycle);
+        assert_eq!( Uint256::from(109u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_47, state_.last_distributed);
+        assert_eq!( Uint256::from(2080u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(2080u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(385u64) , user_position_.pending_reward);
+
+        // Test :: Staking after reward distribution is over
+
+        // ***
+        // *** Test :: Staking when reward distribution is about to be over *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_001_15),
+            ..Default::default()
+        });
+        msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+            sender: "depositor".to_string(),
+            amount: Uint128::new(70u128),
+        });        
+        bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "70"),
+                attr("total_bonded", "2150"),
+            ]
+        );
+        // Check Global State
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 10u64, state_.current_cycle);
+        assert_eq!( Uint256::from(0u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_001_10, state_.last_distributed);
+        assert_eq!( Uint256::from(2150u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(2150u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(1135u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: Staking when reward distribution is over *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_001_31),
+            ..Default::default()
+        });
+        msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+            sender: "depositor".to_string(),
+            amount: Uint128::new(30u128),
+        });        
+        bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "30"),
+                attr("total_bonded", "2180"),
+            ]
+        );
+        // Check Global State
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 10u64, state_.current_cycle);
+        assert_eq!( Uint256::from(0u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_001_10, state_.last_distributed);
+        assert_eq!( Uint256::from(2180u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(2180u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(1135u64) , user_position_.pending_reward);
+    }
+
+
+
+    #[test]
+    fn test_unbond_tokens() { 
+        let mut info = mock_info("staking_token");
+        let mut deps = th_setup(&[]);
+
+        // ***
+        // *** Test :: Staking when reward distribution is live (within a block) *** 
+        // ***
+
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_15),
+            ..Default::default()
+        });
+        let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+            sender: "depositor".to_string(),
+            amount: Uint128::new(10000000u128),
+        });        
+        let bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "10000000"),
+                attr("total_bonded", "10000000"),
+            ]
+        );
+        // Check Global State
+        let mut state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 0u64, state_.current_cycle);
+        assert_eq!( Uint256::from(100u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_15, state_.last_distributed);
+        assert_eq!( Uint256::from(10000000u64), state_.total_bond_amount);
+        assert_eq!( Decimal256::from_ratio(0u64, 1000u64), state_.global_reward_index);
+        // Check User State
+        let mut user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(10000000u64) , user_position_.bond_amount);
+        assert_eq!( Decimal256::from_ratio(0u64, 1000u64), user_position_.reward_index);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: "Cannot unbond more than bond amount" Error *** 
+        // ***
+        info = mock_info("depositor");
+        let mut unbond_msg = ExecuteMsg::Unbond { amount : Uint256::from(10000001u64) , withdraw_pending_reward:Some(false)  };
+        let unbond_res_f = execute(deps.as_mut(), env.clone(), info.clone(), unbond_msg.clone());
+        assert_generic_error_message(unbond_res_f,"Cannot unbond more than bond amount"); 
+
+        // ***
+        // *** Test :: UN-Staking when reward distribution is live & don't claim rewards (same block) *** 
+        // ***
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_17),
+            ..Default::default()
+        });
+        unbond_msg = ExecuteMsg::Unbond { amount : Uint256::from(100u64) , withdraw_pending_reward:Some(false)  };
+        let unbond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), unbond_msg.clone()).unwrap();
+        assert_eq!( unbond_res_s.messages,
+                    vec![  SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                            contract_addr: "staking_token".to_string(),
+                            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                recipient: "depositor".to_string(),
+                                amount: Uint128::from(100u64),
+                            })
+                            .unwrap(),
+                            funds: vec![]
+                            }))
+                        ]
+                    );        
+        assert_eq!(  unbond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Unbond"),
+                attr("user", "depositor"),
+                attr("amount", "100"),
+                attr("total_bonded", "9999900"),
+                attr("claimed_rewards", "0"),
+            ]
+        );
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 0u64, state_.current_cycle);
+        assert_eq!( Uint256::from(100u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_17, state_.last_distributed);
+        assert_eq!( Uint256::from(9999900u64), state_.total_bond_amount);
+        assert_eq!( Decimal256::from_ratio(20u64, 10000000u64), state_.global_reward_index);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(9999900u64) , user_position_.bond_amount);
+        assert_eq!( Decimal256::from_ratio(20u64, 10000000u64), user_position_.reward_index);
+        assert_eq!( Uint256::from(20u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: UN-Staking when reward distribution is live & claim rewards (same block) *** 
+        // ***
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_19),
+            ..Default::default()
+        });
+        unbond_msg = ExecuteMsg::Unbond { amount : Uint256::from(100u64) , withdraw_pending_reward:Some(true)  };
+        let unbond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), unbond_msg.clone()).unwrap();
+        assert_eq!( unbond_res_s.messages,
+                    vec![  SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: "mars_token".to_string(),
+                                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                    recipient: "depositor".to_string(),
+                                    amount: Uint128::from(40u64),
+                                })
+                                .unwrap(),
+                                funds: vec![]
+                            })),
+                            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: "staking_token".to_string(),
+                                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                    recipient: "depositor".to_string(),
+                                    amount: Uint128::from(100u64),
+                                })
+                                .unwrap(),
+                                funds: vec![]
+                            })),            
+                        ]
+                    );        
+        assert_eq!(  unbond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Unbond"),
+                attr("user", "depositor"),
+                attr("amount", "100"),
+                attr("total_bonded", "9999800"),
+                attr("claimed_rewards", "40"),
+            ]
+        );
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 0u64, state_.current_cycle);
+        assert_eq!( Uint256::from(100u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_19, state_.last_distributed);
+        assert_eq!( Uint256::from(9999800u64), state_.total_bond_amount);
+        assert_eq!( Decimal256::from_ratio(40000200002u64, 10000000000000000u64), state_.global_reward_index);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(9999800u64) , user_position_.bond_amount);
+        assert_eq!( Decimal256::from_ratio(40000200002u64, 10000000000000000u64), user_position_.reward_index);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: UN-Staking when reward distribution is live & don't claim rewards (spans multiple blocks) *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_37),
+            ..Default::default()
+        });
+        unbond_msg = ExecuteMsg::Unbond { amount : Uint256::from(300u64) , withdraw_pending_reward:Some(false)  };
+        let unbond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), unbond_msg.clone()).unwrap();
+        assert_eq!( unbond_res_s.messages,
+                    vec![  SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                            contract_addr: "staking_token".to_string(),
+                            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                recipient: "depositor".to_string(),
+                                amount: Uint128::from(300u64),
+                            })
+                            .unwrap(),
+                            funds: vec![]
+                            }))
+                        ]
+                    );        
+        assert_eq!(  unbond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Unbond"),
+                attr("user", "depositor"),
+                attr("amount", "300"),
+                attr("total_bonded", "9999500"),
+                attr("claimed_rewards", "0"),
+            ]
+        );
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 2u64, state_.current_cycle);
+        assert_eq!( Uint256::from(106u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_37, state_.last_distributed);
+        assert_eq!( Uint256::from(9999500u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(9999500u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(188u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: UN-Staking when reward distribution is live & claim rewards (spans multiple blocks) *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_39),
+            ..Default::default()
+        });
+        unbond_msg = ExecuteMsg::Unbond { amount : Uint256::from(100u64) , withdraw_pending_reward:Some(true)  };
+        let unbond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), unbond_msg.clone()).unwrap();
+        assert_eq!( unbond_res_s.messages,
+                    vec![  SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: "mars_token".to_string(),
+                                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                    recipient: "depositor".to_string(),
+                                    amount: Uint128::from(209u64),
+                                })
+                                .unwrap(),
+                                funds: vec![]
+                            })),
+                            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: "staking_token".to_string(),
+                                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                    recipient: "depositor".to_string(),
+                                    amount: Uint128::from(100u64),
+                                })
+                                .unwrap(),
+                                funds: vec![]
+                            })),            
+                        ]
+                    );        
+        assert_eq!(  unbond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Unbond"),
+                attr("user", "depositor"),
+                attr("amount", "100"),
+                attr("total_bonded", "9999400"),
+                attr("claimed_rewards", "209"),
+            ]
+        );
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 2u64, state_.current_cycle);
+        assert_eq!( Uint256::from(106u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_39, state_.last_distributed);
+        assert_eq!( Uint256::from(9999400u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(9999400u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
+
+
+        // ***
+        // *** Test :: UN-Staking when reward distribution is just over & claim rewards *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_001_15),
+            ..Default::default()
+        });
+        unbond_msg = ExecuteMsg::Unbond { amount : Uint256::from(100u64) , withdraw_pending_reward:Some(true)  };
+        let unbond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), unbond_msg.clone()).unwrap();
+        assert_eq!( unbond_res_s.messages,
+                    vec![  SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: "mars_token".to_string(),
+                                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                    recipient: "depositor".to_string(),
+                                    amount: Uint128::from(836u64),
+                                })
+                                .unwrap(),
+                                funds: vec![]
+                            })),
+                            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: "staking_token".to_string(),
+                                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                    recipient: "depositor".to_string(),
+                                    amount: Uint128::from(100u64),
+                                })
+                                .unwrap(),
+                                funds: vec![]
+                            })),            
+                        ]
+                    );        
+        assert_eq!(  unbond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Unbond"),
+                attr("user", "depositor"),
+                attr("amount", "100"),
+                attr("total_bonded", "9999300"),
+                attr("claimed_rewards", "836"),
+            ]
+        );
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 10u64, state_.current_cycle);
+        assert_eq!( Uint256::from(0u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_001_10, state_.last_distributed);
+        assert_eq!( Uint256::from(9999300u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(9999300u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test :: UN-Staking when reward distribution is over & claim rewards *** 
+        // ***
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_001_45),
+            ..Default::default()
+        });
+        unbond_msg = ExecuteMsg::Unbond { amount : Uint256::from(100u64) , withdraw_pending_reward:Some(true)  };
+        let unbond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), unbond_msg.clone()).unwrap();
+        assert_eq!( unbond_res_s.messages,
+                    vec![   SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: "staking_token".to_string(),
+                                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                                    recipient: "depositor".to_string(),
+                                    amount: Uint128::from(100u64),
+                                })
+                                .unwrap(),
+                                funds: vec![]
+                            })),            
+                        ]
+                    );        
+        assert_eq!(  unbond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Unbond"),
+                attr("user", "depositor"),
+                attr("amount", "100"),
+                attr("total_bonded", "9999200"),
+                attr("claimed_rewards", "0"),
+            ]
+        );
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 10u64, state_.current_cycle);
+        assert_eq!( Uint256::from(0u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_001_10, state_.last_distributed);
+        assert_eq!( Uint256::from(9999200u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(9999200u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
     }
 
 
@@ -722,88 +1269,188 @@ mod tests {
 
 
 
+    fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
+        let mut deps = mock_dependencies(contract_balances);
+        let info = mock_info("owner");
+        let env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_00),
+            ..Default::default()
+        });
+        // Config with valid base params 
+        let instantiate_msg = InstantiateMsg {
+            owner: Some("owner".to_string()),
+            address_provider : Some("address_provider".to_string()),
+            staking_token : Some("staking_token".to_string()),
+            init_timestamp: 1_000_000_10,
+            till_timestamp: 1_000_001_10,
+            cycle_rewards: Some( Uint256::from(100u64) ),
+            cycle_duration: 10u64,
+            reward_increase: Some(Decimal256::from_ratio( 3u64, 100u64 ) )
+        };        
+        instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
+        deps
+    }
 
-    // pub struct MockEnvParams {
-    //     pub block_time: Timestamp,
-    //     pub block_height: u64,
-    // }
-    
-    // impl Default for MockEnvParams {
-    //     fn default() -> Self {
-    //         MockEnvParams {
-    //             block_time: Timestamp::from_nanos(1_571_797_419_879_305_533),
-    //             block_height: 1,
-    //         }
-    //     }
-    // }
 
 
-    // fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
-    //     let mut deps = mock_dependencies(contract_balances);
-    //     let env = mock_env(MockEnvParams::default());
-    //     let info = mock_info("owner");
-    //     let config = CreateOrUpdateConfig {
-    //         owner: Some("owner".to_string()),
-    //         address_provider_address: Some("address_provider".to_string()),
-    //         insurance_fund_fee_share: Some(Decimal::from_ratio(5u128, 10u128)),
-    //         treasury_fee_share: Some(Decimal::from_ratio(3u128, 10u128)),
-    //         ma_token_code_id: Some(1u64),
-    //         close_factor: Some(Decimal::from_ratio(1u128, 2u128)),
-    //     };
-    //     let msg = InstantiateMsg { config };
-    //     instantiate(deps.as_mut(), env, info, msg).unwrap();
-    //     deps
-    // }
+    #[test]
+    fn test_claim_rewards() { 
+        let mut info = mock_info("staking_token");
+        let mut deps = th_setup(&[]);
 
-    
-    // mock_env replacement for cosmwasm_std::testing::mock_env
-    // pub fn mock_env(mock_env_params: MockEnvParams) -> Env {
-    //     Env {
-    //         block: BlockInfo {
-    //             height: mock_env_params.block_height,
-    //             time: mock_env_params.block_time,
-    //             chain_id: "cosmos-testnet-14002".to_string(),
-    //         },
-    //         contract: ContractInfo {
-    //             address: Addr::unchecked(MOCK_CONTRACT_ADDR),
-    //         },
-    //     }
-    // }
+        // ***
+        // *** Test :: Staking before reward distribution goes live *** 
+        // ***
 
-    // quick mock info with just the sender
-    // TODO: Maybe this one does not make sense given there's a very smilar helper in cosmwasm_std
-    // pub fn mock_info(sender: &str) -> MessageInfo {
-    //     MessageInfo {
-    //         sender: Addr::unchecked(sender),
-    //         funds: vec![],
-    //     }
-    // }
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_03),
+            ..Default::default()
+        });
 
-    // mock_dependencies replacement for cosmwasm_std::testing::mock_dependencies
-    // pub fn mock_dependencies(
-    //     contract_balance: &[Coin],
-    // ) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    //     let contract_addr = Addr::unchecked(MOCK_CONTRACT_ADDR);
-    //     let custom_querier: MockQuerier = MockQuerier::new(&[(
-    //         &contract_addr.to_string(),
-    //         contract_balance,
-    //     )]);
+        let amount_to_stake = 1000u128;
+        let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+                    msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+                    sender: "depositor".to_string(),
+                    amount: Uint128::new(amount_to_stake.clone()),
+        });
+        let bond_res_s = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        assert_eq!(  bond_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Bond"),
+                attr("user", "depositor"),
+                attr("amount", "1000"),
+                attr("total_bonded", "1000"),
+            ]
+        );
 
-    //     OwnedDeps {
-    //         storage: MockStorage::default(),
-    //         api: MockApi::default(),
-    //         querier: custom_querier,
-    //     }
-    // }
+        // ***
+        // *** Test #1 :: Claim Rewards  *** 
+        // *** 
+        info = mock_info("depositor");
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_23),
+            ..Default::default()
+        });
+        let mut claim_msg = ExecuteMsg::Claim {};
+        let mut claim_res_s = execute(deps.as_mut(), env.clone(), info.clone(), claim_msg.clone()).unwrap();
+        assert_eq!(  claim_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Claim"),
+                attr("user", "depositor"),
+                attr("claimed_rewards", "130"),
+            ]
+        );
+        assert_eq!( claim_res_s.messages,
+            vec![   SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: "mars_token".to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                            recipient: "depositor".to_string(),
+                            amount: Uint128::from(130u64),
+                        })
+                        .unwrap(),
+                        funds: vec![]
+                    })),            
+                ]
+            );            
+        let mut state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 1u64, state_.current_cycle);
+        assert_eq!( Uint256::from(103u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_23, state_.last_distributed);
+        assert_eq!( Uint256::from(1000u64), state_.total_bond_amount);
+        // Check User State
+        let mut user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(1000u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
 
-    // Assert StdError::GenericErr message with expected_msg
-    // pub fn assert_generic_error_message<T>(response: StdResult<T>, expected_msg: &str) {
-    //     match response {
-    //         Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, expected_msg),
-    //         Err(other_err) => panic!("Unexpected error: {:?}", other_err),
-    //         Ok(_) => panic!("SHOULD NOT ENTER HERE!"),
-    //     }
-    // }
+        // ***
+        // *** Test #2 :: Claim Rewards  *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_73),
+            ..Default::default()
+        });
+        claim_msg = ExecuteMsg::Claim {};
+        claim_res_s = execute(deps.as_mut(), env.clone(), info.clone(), claim_msg.clone()).unwrap();
+        assert_eq!(  claim_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Claim"),
+                attr("user", "depositor"),
+                attr("claimed_rewards", "550"),
+            ]
+        );
+        assert_eq!( claim_res_s.messages,
+            vec![   SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: "mars_token".to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                            recipient: "depositor".to_string(),
+                            amount: Uint128::from(550u64),
+                        })
+                        .unwrap(),
+                        funds: vec![]
+                    })),            
+                ]
+            );            
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 6u64, state_.current_cycle);
+        assert_eq!( Uint256::from(118u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_000_73, state_.last_distributed);
+        assert_eq!( Uint256::from(1000u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(1000u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test #3:: Claim Rewards  *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_001_13),
+            ..Default::default()
+        });
+        claim_msg = ExecuteMsg::Claim {};
+        claim_res_s = execute(deps.as_mut(), env.clone(), info.clone(), claim_msg.clone()).unwrap();
+        assert_eq!(  claim_res_s.attributes,
+            vec![
+                attr("action", "Staking::ExecuteMsg::Claim"),
+                attr("user", "depositor"),
+                attr("claimed_rewards", "455"),
+            ]
+        );
+        assert_eq!( claim_res_s.messages,
+            vec![   SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: "mars_token".to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                            recipient: "depositor".to_string(),
+                            amount: Uint128::from(455u64),
+                        })
+                        .unwrap(),
+                        funds: vec![]
+                    })),            
+                ]
+            );            
+        state_ = STATE.load(&deps.storage).unwrap();
+        assert_eq!( 10u64, state_.current_cycle);
+        assert_eq!( Uint256::from(0u64), state_.current_cycle_rewards);
+        assert_eq!(1_000_001_10, state_.last_distributed);
+        assert_eq!( Uint256::from(1000u64), state_.total_bond_amount);
+        // Check User State
+        user_position_ = STAKER_INFO.load(&deps.storage, &Addr::unchecked("depositor") ).unwrap();
+        assert_eq!( Uint256::from(1000u64) , user_position_.bond_amount);
+        assert_eq!( Uint256::from(0u64) , user_position_.pending_reward);
+
+        // ***
+        // *** Test #4:: Claim Rewards  *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_001_53),
+            ..Default::default()
+        });
+        claim_msg = ExecuteMsg::Claim {};
+        let claim_res_f = execute(deps.as_mut(), env.clone(), info.clone(), claim_msg.clone());
+        assert_generic_error_message(claim_res_f,"No rewards to claim");
+
+
+    }
 
 
 
