@@ -4,7 +4,7 @@ This Contract contains the logic for LP Token staking and reward distribution. M
 
 
 ## Incentive Structure
- The number of MARS tokens to be distributed as incentives among the LP stakers increase by 2 % (`reward_increase` parameter in `Config` struct) every cycle, where each cycle lasts for 1209600 seconds (14 days). (`cycle_duration` parameter in `Config` struct)
+ The number of MARS tokens to be distributed as incentives among the LP stakers increase by certain % (`reward_increase` parameter in `Config` struct) every cycle, where each cycle lasts for a fixed duration in terms of time elapsed. (`cycle_duration` parameter in `Config` struct)
 
 The current cycle number and the number of MARS tokens to be distributed during the current cycle can be retrieved via the `State` query. 
 
@@ -15,9 +15,9 @@ The current cycle number and the number of MARS tokens to be distributed during 
 | Message                       | Description                                                                                         |
 | ----------------------------- | --------------------------------------------------------------------------------------------------- |
 | `ExecuteMsg::Receive::Cw20HookMsg::Bond` | Increases user's staked LP Token balance. Only MARS-UST LP Token can be sent to this contract via the ReceiveCw20 hook                                                  |
-| `ExecuteMsg::Unbond`   |  Reduces user's staked position. Pending rewards are claimed and the amount by which the position is reduced are sent back to the user                                                           |
+| `ExecuteMsg::Unbond`   |  Reduces user's staked position. Pending rewards are optionally claimable (by default not claimed) during this function call
 | `ExecuteMsg::Claim`    | Claim accrued MARS Rewards                                         |
-| `ExecuteMsg::UpdateConfig`          | Can only be called by the admin. Can be used to update configuration parameters like % increase per cycle, cycle duration, timestamp till which staking incentives are active etc.                                     |
+| `ExecuteMsg::UpdateConfig`          | Can only be called by the admin. Can be used to update configuration parameters like % increase per cycle, init_timestamp, till_timestamp etc
 
 
 ### Query Messages
