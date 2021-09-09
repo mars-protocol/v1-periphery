@@ -366,10 +366,8 @@ pub fn try_claim( deps: DepsMut, env: Env, info: MessageInfo ) -> StdResult<Resp
         .add_messages(messages_)
         .add_attributes(vec![
             ("action", "lockdrop::ExecuteMsg::ClaimRewards"),
-            ("xmars_address", &xmars_address.to_string() ),
-            ("incentives_address", &incentives_address.to_string() ),
-            ("xmars_balance", &xmars_balance.balance.to_string() ),
-            ("xmars_unclaimed", &xmars_unclaimed.to_string() ),            
+            ("xMars_balance", &xmars_balance.balance.to_string() ),
+            ("unclaimed_xMars", &xmars_unclaimed.to_string() ),            
         ]))    
 }
 
@@ -1550,6 +1548,7 @@ mod tests {
             Decimal::from_ratio(1u128, 100u128),
             &[(String::from("uusd"), Uint128::new(100u128))],
         );
+        deps.querier.set_incentives_address(Addr::unchecked( "incentives".to_string())  );
 
         // ***** Setup *****
 
@@ -1609,17 +1608,31 @@ mod tests {
         // *** 
         // *** Test :: Successfully Claim Rewards *** 
         // ***  
+        deps.querier.set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(100u64) );
+        deps.querier.set_cw20_balances(
+            Addr::unchecked("xmars_token".to_string()) ,
+            &[( Addr::unchecked(MOCK_CONTRACT_ADDR), Uint128::new(0u128) )],
+        );
         info = mock_info("depositor");
         let mut claim_rewards_response_s = execute(deps.as_mut(), env.clone(), info.clone(), claim_rewards_msg.clone() ).unwrap();
         assert_eq!( claim_rewards_response_s.attributes, 
             vec![attr("action", "lockdrop::ExecuteMsg::ClaimRewards"),
-                attr("xmars_address", "depositor"),
-                attr("incentives_address", "5" ),
-                attr("xmars_balance", "1000000"),
-                attr("xmars_unclaimed", "1000000")
+                attr("xMars_balance", "0"),
+                attr("unclaimed_xMars", "100")
                 ] 
           );
-        
+          assert_eq!( claim_rewards_response_s.messages,
+            vec![   SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: "incentives".to_string(),
+                        msg: to_binary(&mars::incentives::msg::ExecuteMsg::ClaimRewards {}).unwrap(),
+                        funds: vec![]
+                    })), 
+                    // SubMsg::new(CallbackMsg::UpdateStateOnClaim {   
+                    //                 user: "depositor".,to_string().clone(),
+                    //                 prev_xmars_balance:  Uint256::from(0u64)
+                    //             }.to_cosmos_msg(&env.clone().contract.address).unwrap()),            
+                ]
+            );          
     }
 
 

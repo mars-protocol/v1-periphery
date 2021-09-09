@@ -168,6 +168,7 @@ impl Cw20Querier {
         }
     }
 
+    
     fn handle_ma_token_query(
         &self,
         contract_addr: &Addr,
@@ -246,6 +247,8 @@ impl Default for Cw20Querier {
 pub struct XMarsQuerier {
     /// xmars token address to be used in queries
     pub xmars_address: Addr,
+    /// maps human address to a specific xmars balance
+    pub balances: HashMap<Addr, Uint128>,    
     /// maps human address and a block to a specific xmars balance
     pub balances_at: HashMap<(Addr, u64), Uint128>,
     /// maps block to a specific xmars balance
@@ -284,7 +287,21 @@ impl XMarsQuerier {
                     .into(),
                 }
             }
-
+            xmars_token::msg::QueryMsg::Balance { address } => {
+                match self
+                    .balances
+                    .get( &(Addr::unchecked(address.clone())) )
+                {
+                    Some(balance) => {
+                        Ok(to_binary(&BalanceResponse { balance: *balance }).into()).into()
+                    }
+                    None => Err(SystemError::InvalidRequest {
+                        error: format!( "[mock]: no balance for account address {}", &address ),
+                        request: Default::default(),
+                    })
+                    .into(),
+                }
+            }
             xmars_token::msg::QueryMsg::TotalSupplyAt { block } => {
                 match self.total_supplies_at.get(&block) {
                     Some(balance) => Ok(to_binary(&xmars_token::msg::TotalSupplyResponse {
@@ -313,11 +330,62 @@ impl Default for XMarsQuerier {
     fn default() -> Self {
         XMarsQuerier {
             xmars_address: Addr::unchecked(""),
+            balances: HashMap::new(),
             balances_at: HashMap::new(),
             total_supplies_at: HashMap::new(),
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct IncentivesQuerier {
+    /// incentives contract address to be used in queries
+    pub incentives_address: Addr,
+    /// maps human address and a block to a specific unclaimed xmars rewards balance
+    pub unclaimed_rewards_at: HashMap<Addr, Uint128>,
+}
+
+impl IncentivesQuerier {
+    fn handle_query(
+        &self,
+        contract_addr: &Addr,
+        query: incentives::msg::QueryMsg,
+    ) -> QuerierResult {
+        if contract_addr != &self.incentives_address {
+            panic!( "[mock]: made an incentives query but incentive contract address is incorrect, was: {}, should be {}",  contract_addr, self.incentives_address );
+        }
+
+        match query {
+            incentives::msg::QueryMsg::UserUnclaimedRewards { user_address } => {
+                match self.unclaimed_rewards_at.get( &(Addr::unchecked(user_address.clone())) ) {
+                    Some(balance) =>  Ok(to_binary(balance).into()).into(),
+                    None => Err(SystemError::InvalidRequest {
+                        error: format!("[mock]: no unclaimed rewards for account address {}", &user_address ),
+                        request: Default::default(),
+                    }).into(),
+                }
+            }
+            other_query => Err(SystemError::InvalidRequest {
+                error: format!("[mock]: query not supported {:?}", other_query),
+                request: Default::default(),
+            })
+            .into(),
+        }
+    }
+}
+
+impl Default for IncentivesQuerier {
+    fn default() -> Self {
+        IncentivesQuerier {
+            incentives_address: Addr::unchecked(""),
+            unclaimed_rewards_at: HashMap::new(),
+        }
+    }
+}
+
+
+
+
 
 pub fn mock_token_info_response() -> TokenInfoResponse {
     TokenInfoResponse {
@@ -432,6 +500,10 @@ impl MarsMockQuerier {
         self.xmars_querier.xmars_address = address;
     }
 
+    pub fn set_xmars_balance(&mut self, address: Addr, balance: Uint128) {
+        self.xmars_querier.balances.insert(address, balance);
+    }
+    
     pub fn set_xmars_balance_at(&mut self, address: Addr, block: u64, balance: Uint128) {
         self.xmars_querier
             .balances_at
@@ -448,6 +520,15 @@ impl MarsMockQuerier {
         self.terraswap_pair_querier.pairs.insert(key, pair_info);
     }
 
+    pub fn set_incentives_address(&mut self, address: Addr) {
+        self.incentives_querier.incentives_address = address;
+    }
+
+    pub fn set_unclaimed_rewards(&mut self, user_address: String, unclaimed_rewards: Uint128) {
+        self.incentives_querier.unclaimed_rewards_at.insert(Addr::unchecked(user_address), unclaimed_rewards);
+    }
+    
+    
     pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
@@ -505,7 +586,7 @@ impl MarsMockQuerier {
                 // Incentives contract Queries
                 let incentives_query: StdResult<incentives::msg::QueryMsg> = from_binary(msg);
                 if let Ok(incentives_query) = incentives_query {
-                    return self.incentives_querier.handle_query(&incentives_query);
+                    return self.incentives_querier.handle_query(&contract_addr, incentives_query);
                 }
 
                 panic!("[mock]: Unsupported wasm query: {:?}", msg);
