@@ -23,6 +23,7 @@ use crate::address_provider;
 use crate::ma_token;
 use crate::oracle;
 use crate::xmars_token;
+use crate::incentives;
 use terraswap::asset::PairInfo;
 use terraswap::factory::QueryMsg;
 
@@ -334,6 +335,7 @@ pub struct MarsMockQuerier {
     xmars_querier: XMarsQuerier,
     terraswap_pair_querier: TerraswapPairQuerier,
     oracle_querier: OracleQuerier,
+    incentives_querier: IncentivesQuerier
 }
 
 impl Querier for MarsMockQuerier {
@@ -362,6 +364,7 @@ impl MarsMockQuerier {
             oracle_querier: OracleQuerier::default(),
             xmars_querier: XMarsQuerier::default(),
             terraswap_pair_querier: TerraswapPairQuerier::default(),
+            incentives_querier: IncentivesQuerier::default()
         }
     }
 
@@ -494,10 +497,15 @@ impl MarsMockQuerier {
                 }
 
                 // Terraswap Queries
-                let terraswap_pair_query: StdResult<terraswap::factory::QueryMsg> =
-                    from_binary(msg);
+                let terraswap_pair_query: StdResult<terraswap::factory::QueryMsg> = from_binary(msg);
                 if let Ok(pair_query) = terraswap_pair_query {
                     return self.terraswap_pair_querier.handle_query(&pair_query);
+                }
+
+                // Incentives contract Queries
+                let incentives_query: StdResult<incentives::msg::QueryMsg> = from_binary(msg);
+                if let Ok(incentives_query) = incentives_query {
+                    return self.incentives_querier.handle_query(&incentives_query);
                 }
 
                 panic!("[mock]: Unsupported wasm query: {:?}", msg);

@@ -12,7 +12,7 @@ use mars::helpers::{cw20_get_balance, option_string_to_addr, zero_address};
 use mars::tax::{deduct_tax};
 use mars::incentives::msg::QueryMsg::{UserUnclaimedRewards};
 
-const SECONDS_PER_WEEK: u64 = 30 as u64;       // 7*86400 as u64;
+const SECONDS_PER_WEEK: u64 = 7*86400 as u64;
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -20,7 +20,7 @@ const SECONDS_PER_WEEK: u64 = 30 as u64;       // 7*86400 as u64;
 
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate( deps: DepsMut,_env: Env,info: MessageInfo,msg: InstantiateMsg ) -> StdResult<Response> {
+pub fn instantiate( deps: DepsMut,_env: Env, info: MessageInfo,msg: InstantiateMsg ) -> StdResult<Response> {
 
     // CHECK :: init_timestamp needs to be valid
     if msg.init_timestamp < _env.block.time.seconds() {
@@ -138,10 +138,8 @@ pub fn update_config( deps: DepsMut, env: Env, info: MessageInfo, new_config: Up
         config.weekly_multiplier = new_config.weekly_multiplier.unwrap_or(config.weekly_multiplier);
     }
 
-    // LOCKDROP INCENTIVES :: CAN ONLY BE INCREASED
-    if config.lockdrop_incentives < new_config.lockdrop_incentives.unwrap_or(Uint256::zero() ) {
-        config.lockdrop_incentives = new_config.lockdrop_incentives.unwrap_or(config.lockdrop_incentives );
-    }
+    // LOCKDROP INCENTIVES
+    config.lockdrop_incentives = new_config.lockdrop_incentives.unwrap_or(config.lockdrop_incentives );
 
     CONFIG.save( deps.storage, &config)?;
     Ok(Response::new().add_attribute("action", "lockdrop::ExecuteMsg::UpdateConfig"))
@@ -295,8 +293,8 @@ pub fn try_deposit_in_red_bank( deps: DepsMut, env: Env, info: MessageInfo) -> S
 
     // COSMOS_MSG :: UPDATE CONTRACT STATE
     let update_state_msg = CallbackMsg::UpdateStateOnRedBankDeposit {   
-        prev_ma_ust_balance: ma_ust_balance
-    }.to_cosmos_msg(&env.contract.address)?;
+                                            prev_ma_ust_balance: ma_ust_balance
+                                        }.to_cosmos_msg(&env.contract.address)?;
 
 
     Ok(Response::new()
@@ -329,8 +327,10 @@ pub fn try_claim( deps: DepsMut, env: Env, info: MessageInfo ) -> StdResult<Resp
     // QUERY:: Contract addresses
     let mars_contracts = vec![MarsContract::Incentives, MarsContract::XMarsToken];
     let mut addresses_query = query_addresses(&deps.querier,config.address_provider, mars_contracts)?;
-    let xmars_address = addresses_query.pop().unwrap();
-    let incentives_address = addresses_query.pop().unwrap();
+    // XMARS TOKEN ADDRESS
+    let xmars_address = addresses_query.pop().unwrap();  
+    // UST RED BANK INCENTIVIZATION CONTRACT
+    let incentives_address = addresses_query.pop().unwrap();    
 
     // QUERY :: ARE XMARS REWARDS TO BE CLAIMED > 0 ?
     let xmars_unclaimed : Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -695,7 +695,7 @@ fn is_deposit_open(current_timestamp: u64, config: &Config ) -> bool {
 
 /// true if withdrawals are allowed
 fn is_withdraw_open(current_timestamp: u64, config: &Config ) -> bool {
-    let withdrawals_opened_till = config.init_timestamp + config.deposit_window;
+    let withdrawals_opened_till = config.init_timestamp + config.withdrawal_window;
     (current_timestamp >= config.init_timestamp) && (withdrawals_opened_till >= current_timestamp)
 }
 
@@ -715,7 +715,8 @@ fn calculate_lockdrop_reward(deposited_ust:Uint256, duration: u64, config: &Conf
 
 // Returns effective weight for the amount to be used for calculating airdrop rewards
 fn calculate_weight(amount:Uint256, duration: u64, weekly_multiplier:Decimal256) -> Uint256 {
-    (amount * Uint256::from(duration)) * weekly_multiplier
+    let duration_weighted_amount =  amount *  Uint256::from(duration) ;
+    duration_weighted_amount * weekly_multiplier
 }
 
 
@@ -777,15 +778,10 @@ fn remove_lockup_pos_from_user_info(user_info: &mut UserInfo, lockup_id: String)
 fn build_send_native_asset_msg( deps: Deps, recipient: Addr, denom: &str, amount: Uint256) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Bank(BankMsg::Send {
         to_address: recipient.into(),
-        amount: vec![deduct_tax(
-                        deps,
-                        Coin {
-                            denom: denom.to_string(),
-                            amount: amount.into(),
-                        },
-                    )?],
-        }))
-    }
+        amount: vec![ deduct_tax(  deps,  Coin {  denom: denom.to_string(), amount: amount.into() } )? ],
+        })
+    )
+}
      
 fn build_send_cw20_token_msg(recipient: Addr, token_contract_address: Addr, amount: Uint256) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -808,16 +804,6 @@ fn build_deposit_into_redbank_msg( deps: Deps, redbank_address: Addr, denom_stab
     }))
 }
 
-// fn build_withdraw_from_redbank_msg(redbank_address: Addr, denom_stable: String, amount: Uint256) -> StdResult<CosmosMsg> {
-//     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-//         contract_addr: redbank_address.to_string(),
-//         funds: vec![],
-//         msg: to_binary(&mars::red_bank::msg::ExecuteMsg::Withdraw {
-//             asset: mars::asset::Asset::Native { denom: denom_stable },
-//             amount: Some(amount.into()),
-//         })?,
-//     }))
-// }
 
 fn build_claim_xmars_rewards(incentives_contract: Addr) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -831,6 +817,867 @@ fn build_claim_xmars_rewards(incentives_contract: Addr) -> StdResult<CosmosMsg> 
 
 
 
+
+
+
+
+
+
+
+
+//----------------------------------------------------------------------------------------
+// TESTS 
+//----------------------------------------------------------------------------------------
+
+
+#[cfg(test)]
+mod tests { 
+    use super::*;
+    use cosmwasm_std::testing::{MockApi, MockStorage, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::{Timestamp,Uint128, attr, Coin,coin,Decimal, OwnedDeps, SubMsg};
+    use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+    use crate::msg::{InstantiateMsg, UpdateConfigMsg, ExecuteMsg, CallbackMsg} ;
+    use mars::testing::{
+        assert_generic_error_message, mock_dependencies, mock_env,
+        mock_info, MarsMockQuerier, MockEnvParams,
+    };
+
+
+
+
+
+    #[test]
+    fn test_proper_initialization() { 
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("owner");
+        let env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(10_000_001),
+            ..Default::default()
+        });
+
+        let mut base_config = InstantiateMsg {
+            owner: "owner".to_string(),
+            address_provider : None,
+            ma_ust_token : None,
+            init_timestamp: 10_000_000,
+            deposit_window: 100000,
+            withdrawal_window: 72000,
+            min_duration: 1,
+            max_duration: 5,
+            denom: Some("uusd".to_string()),
+            weekly_multiplier: Some(Decimal256::from_ratio( 9u64, 100u64 )),
+            lockdrop_incentives: None,
+
+        };
+
+        // *** 
+        // *** Test :: "Invalid timestamp" *** 
+        // *** 
+        base_config.init_timestamp = 10_000_000;
+        let mut res_f = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone());
+        assert_generic_error_message(res_f,"Invalid timestamp");
+
+        // *** 
+        // *** Test :: "Invalid deposit / withdraw window" *** 
+        // *** 
+        base_config.init_timestamp = 10_000_007;
+        base_config.deposit_window = 15u64;
+        base_config.withdrawal_window = 15u64 ;
+        res_f = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone());
+        assert_generic_error_message(res_f,"Invalid deposit / withdraw window");
+
+
+        // *** 
+        // *** Test :: "Invalid Lockup durations" *** 
+        // *** 
+        base_config.init_timestamp = 10_000_007;
+        base_config.deposit_window = 15u64;
+        base_config.withdrawal_window = 9u64 ;
+        base_config.max_duration = 9u64 ;
+        base_config.min_duration = 9u64 ;
+        res_f = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone());
+        assert_generic_error_message(res_f,"Invalid Lockup durations");
+
+        // *** 
+        // *** Test :: Should instantiate successfully *** 
+        // *** 
+        base_config.min_duration = 1u64 ;
+        let res_s = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone()).unwrap();
+        assert_eq!(0, res_s.messages.len());
+        
+        // let's verify the config
+        let config_ = query_config(deps.as_ref()).unwrap();
+        assert_eq!("owner".to_string(), config_.owner);
+        assert_eq!("".to_string(), config_.address_provider);
+        assert_eq!("".to_string(), config_.ma_ust_token);
+        assert_eq!(10_000_007, config_.init_timestamp);
+        assert_eq!(15u64, config_.deposit_window);
+        assert_eq!(9u64, config_.withdrawal_window);
+        assert_eq!(1u64, config_.min_duration);
+        assert_eq!(9u64, config_.max_duration);
+        assert_eq!(Decimal256::from_ratio( 9u64, 100u64 ), config_.multiplier);
+        assert_eq!(Uint256::zero(), config_.lockdrop_incentives);
+
+  
+        // let's verify the state
+        let state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::zero(), state_.final_ust_locked);
+        assert_eq!(Uint256::zero(), state_.final_maust_locked);
+        assert_eq!(Uint256::zero(), state_.total_ust_locked);
+        assert_eq!(Uint256::zero(), state_.total_maust_locked);
+        assert_eq!(Decimal256::zero(), state_.global_reward_index);
+        assert_eq!(Uint256::zero(), state_.total_deposits_weight);
+    }
+
+
+    #[test]
+    fn test_update_config() {  
+        let mut deps = mock_dependencies(&[]);
+        let mut info = mock_info("owner");
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_00),
+            ..Default::default()
+        });
+
+        // *** Instantiate successfully *** 
+        let mut base_config = InstantiateMsg {
+            owner: "owner".to_string(),
+            address_provider : None,
+            ma_ust_token : None,
+            init_timestamp: 1_000_000_05,
+            deposit_window: 100000u64,
+            withdrawal_window: 72000u64,
+            min_duration: 1u64,
+            max_duration: 5u64,
+            denom: Some("uusd".to_string()),
+            weekly_multiplier: Some(Decimal256::from_ratio( 9u64, 100u64 )),
+            lockdrop_incentives: None,
+        };
+        let res_s = instantiate(deps.as_mut(), env.clone(), info.clone(), base_config.clone()).unwrap();
+        assert_eq!(0, res_s.messages.len());
+        
+        // *** 
+        // *** Test :: Error "Only owner can update configuration" *** 
+        // *** 
+        info = mock_info("not_owner");
+        let mut update_config = UpdateConfigMsg {
+            owner: Some("new_owner".to_string()),
+            address_provider : Some("new_address_provider".to_string()),
+            ma_ust_token : Some("new_ma_ust_token".to_string()),
+            init_timestamp: None,
+            deposit_window: None,
+            withdrawal_window: None,
+            min_duration: None,
+            max_duration: None,
+            weekly_multiplier: None,
+            lockdrop_incentives: None,
+        };
+        let mut update_config_msg = ExecuteMsg::UpdateConfig {
+            new_config : update_config.clone()
+        };
+
+        let mut res_f = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() );
+        assert_generic_error_message(res_f,"Only owner can update configuration");
+
+        // *** 
+        // *** Test :: Update addresses successfully *** 
+        // *** 
+        info = mock_info("owner");
+        let mut update_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
+        assert_eq!( update_s.attributes, vec![attr("action", "lockdrop::ExecuteMsg::UpdateConfig")] );
+        // let's verify the config
+        let mut config_ = query_config(deps.as_ref()).unwrap();
+        assert_eq!("new_owner".to_string(), config_.owner);
+        assert_eq!("new_address_provider".to_string(), config_.address_provider);
+        assert_eq!("new_ma_ust_token".to_string(), config_.ma_ust_token);
+        assert_eq!(1_000_000_05, config_.init_timestamp);
+        assert_eq!(100000u64, config_.deposit_window);
+        assert_eq!(72000u64, config_.withdrawal_window);
+        assert_eq!(1u64, config_.min_duration);
+        assert_eq!(5u64, config_.max_duration);
+        assert_eq!( Decimal256::from_ratio( 9u64, 100u64), config_.multiplier);
+        assert_eq!(Uint256::zero(), config_.lockdrop_incentives);
+
+
+        // *** 
+        // *** Test :: Don't Update init_timestamp,min_lock_duration, max_lock_duration, weekly_multiplier (Reason :: env.block.time.seconds() >= config.init_timestamp)  *** 
+        // *** 
+        info = mock_info("new_owner");
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_05),
+            ..Default::default()
+        });
+        update_config.init_timestamp = Some(1_000_000_39);
+        update_config.min_duration = Some(3u64);
+        update_config.max_duration = Some(9u64);
+        update_config.weekly_multiplier = Some(Decimal256::from_ratio( 17u64, 100u64));
+        update_config.lockdrop_incentives = Some(Uint256::from(100000u64));
+        update_config_msg = ExecuteMsg::UpdateConfig {  new_config : update_config.clone() };
+
+        let mut update_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
+        assert_eq!( update_s.attributes, vec![attr("action", "lockdrop::ExecuteMsg::UpdateConfig")] );
+
+        config_ = query_config(deps.as_ref()).unwrap();
+        assert_eq!(1_000_000_05, config_.init_timestamp);
+        assert_eq!(1u64, config_.min_duration);
+        assert_eq!(5u64, config_.max_duration);
+        assert_eq!( Decimal256::from_ratio( 9u64, 100u64), config_.multiplier);
+        assert_eq!(Uint256::from(100000u64), config_.lockdrop_incentives);
+
+        // *** 
+        // *** Test :: Update init_timestamp successfully *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_01),
+            ..Default::default()
+        });
+        let mut update_s = execute(deps.as_mut(), env.clone(), info.clone(), update_config_msg.clone() ).unwrap();
+        assert_eq!( update_s.attributes, vec![attr("action", "lockdrop::ExecuteMsg::UpdateConfig")] );
+
+        config_ = query_config(deps.as_ref()).unwrap();
+        assert_eq!(1_000_000_39, config_.init_timestamp);
+        assert_eq!(3u64, config_.min_duration);
+        assert_eq!(9u64, config_.max_duration);
+        assert_eq!( Decimal256::from_ratio( 17u64, 100u64), config_.multiplier);
+        assert_eq!(Uint256::from(100000u64), config_.lockdrop_incentives);
+    }
+
+
+
+    #[test]
+    fn test_deposit_ust() {  
+        let mut deps = th_setup(&[]);
+        let mut deposit_amount = 110000u128;
+        let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        // *** 
+        // *** Test :: Error "Deposit window closed" Reason :: Deposit attempt before deposit window is open *** 
+        // *** 
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_05),
+            ..Default::default()
+        }); 
+        let mut deposit_msg = ExecuteMsg::DepositUst { duration : 3u64 };
+        let mut deposit_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() );
+        assert_generic_error_message(deposit_f,"Deposit window closed");
+
+        // *** 
+        // *** Test :: Error "Deposit window closed" Reason :: Deposit attempt after deposit window is closed *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_010_000_01), 
+            ..Default::default()
+        }); 
+        deposit_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() );
+        assert_generic_error_message(deposit_f,"Deposit window closed");
+        
+        // *** 
+        // *** Test :: Error "Amount cannot be zero" *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_15), 
+            ..Default::default()
+        }); 
+        info = cosmwasm_std::testing::mock_info("depositor", &[coin(0u128, "uusd")]);
+        deposit_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() );
+        assert_generic_error_message(deposit_f,"Amount cannot be zero");
+      
+        // *** 
+        // *** Test :: Error "Lockup duration needs to be between {} and {}" Reason :: Selected lockup duration < min_duration *** 
+        // ***         
+        info = cosmwasm_std::testing::mock_info("depositor", &[coin(10000u128, "uusd")]);
+        deposit_msg = ExecuteMsg::DepositUst { duration : 1u64 };
+        deposit_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() );
+        assert_generic_error_message(deposit_f,"Lockup duration needs to be between 3 and 9");
+
+        // *** 
+        // *** Test :: Error "Lockup duration needs to be between {} and {}" Reason :: Selected lockup duration > max_duration *** 
+        // ***         
+        deposit_msg = ExecuteMsg::DepositUst { duration : 21u64 };
+        deposit_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() );
+        assert_generic_error_message(deposit_f,"Lockup duration needs to be between 3 and 9");
+        
+        // *** 
+        // *** Test #1 :: Successfully deposit UST  *** 
+        // ***         
+        deposit_msg = ExecuteMsg::DepositUst { duration : 3u64 };
+        let mut deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "3" ),
+                    attr("ust_deposited", "10000")
+                        ] 
+                  );
+        // let's verify the Lockdrop
+        let mut lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string() ).unwrap();
+        assert_eq!(3u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(10000u64), lockdrop_.ust_locked);
+        assert_eq!(Uint256::zero(), lockdrop_.maust_balance);
+        assert_eq!(Uint256::from(21432423343u64), lockdrop_.lockdrop_reward);
+        assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
+        // let's verify the User
+        let mut user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        assert_eq!(Uint256::from(10000u64), user_.total_ust_locked);
+        assert_eq!(Uint256::zero(), user_.total_maust_locked);
+        assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
+        assert_eq!(false, user_.is_lockdrop_claimed);
+        assert_eq!(Decimal256::zero(), user_.reward_index);
+        assert_eq!(Uint256::zero(), user_.pending_xmars);
+        // let's verify the state
+        let mut state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::zero(), state_.final_ust_locked);
+        assert_eq!(Uint256::zero(), state_.final_maust_locked);
+        assert_eq!(Uint256::from(10000u64), state_.total_ust_locked);
+        assert_eq!(Uint256::zero(), state_.total_maust_locked);
+        assert_eq!(Uint256::from(2700u64), state_.total_deposits_weight);
+
+        // *** 
+        // *** Test #2 :: Successfully deposit UST  *** 
+        // ***         
+        info = cosmwasm_std::testing::mock_info("depositor", &[coin(100u128, "uusd")]);
+        deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "3" ),
+                    attr("ust_deposited", "100")
+                        ] 
+                  );
+        // let's verify the Lockdrop
+        lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string() ).unwrap();
+        assert_eq!(3u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(10100u64), lockdrop_.ust_locked);
+        assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
+        // let's verify the User
+        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        assert_eq!(Uint256::from(10100u64), user_.total_ust_locked);
+        assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
+        // let's verify the state
+        state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::from(10100u64), state_.total_ust_locked);
+        assert_eq!(Uint256::from(2727u64), state_.total_deposits_weight);
+
+        // *** 
+        // *** Test #3 :: Successfully deposit UST (new lockup)  *** 
+        // ***         
+        deposit_msg = ExecuteMsg::DepositUst { duration : 5u64 };
+        info = cosmwasm_std::testing::mock_info("depositor", &[coin(5432u128, "uusd")]);
+        deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "5" ),
+                    attr("ust_deposited", "5432")
+                        ] 
+                  );
+        // let's verify the Lockdrop
+        lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string() ).unwrap();
+        assert_eq!(5u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(5432u64), lockdrop_.ust_locked);
+        assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
+        // let's verify the User
+        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        assert_eq!(Uint256::from(15532u64), user_.total_ust_locked);
+        assert_eq!(vec![ "depositor3".to_string(), "depositor5".to_string() ], user_.lockup_position_ids);
+        // let's verify the state
+        state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::from(15532u64), state_.total_ust_locked);
+        assert_eq!(Uint256::from(5171u64), state_.total_deposits_weight);
+    }
+
+
+    #[test]
+    fn test_Withdraw_ust() {  
+        let mut deps = th_setup(&[]);
+        let deposit_amount = 1000000u128;
+        let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        // Set tax data
+        deps.querier.set_native_tax(
+            Decimal::from_ratio(1u128, 100u128),
+            &[(String::from("uusd"), Uint128::new(100u128))],
+        );
+
+        // ***** Setup *****
+
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_15),
+            ..Default::default()
+        }); 
+        // Create a lockdrop position for testing
+        let mut deposit_msg = ExecuteMsg::DepositUst { duration : 3u64 };
+        let mut deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "3" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+        deposit_msg = ExecuteMsg::DepositUst { duration : 5u64 };
+        deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "5" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+
+        // *** 
+        // *** Test :: Error "Withdrawals not allowed" Reason :: Withdrawal attempt after the window is closed *** 
+        // ***
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(10_00_720_11),
+            ..Default::default()
+        }); 
+        let mut  withdrawal_msg = ExecuteMsg::WithdrawUst { amount:Uint256::from(100u64) ,duration : 5u64 };
+        let mut withdrawal_f = execute(deps.as_mut(), env.clone(), info.clone(), withdrawal_msg.clone() );
+        assert_generic_error_message(withdrawal_f,"Withdrawals not allowed");
+
+        // *** 
+        // *** Test :: Error "Lockup doesn't exist" Reason :: Invalid lockup *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(10_00_120_10),
+            ..Default::default()
+        }); 
+        withdrawal_msg = ExecuteMsg::WithdrawUst { amount:Uint256::from(100u64) ,duration : 4u64 };
+        withdrawal_f = execute(deps.as_mut(), env.clone(), info.clone(), withdrawal_msg.clone() );
+        assert_generic_error_message(withdrawal_f,"Lockup doesn't exist");
+
+        // *** 
+        // *** Test :: Error "Invalid withdrawal request" Reason :: Invalid amount *** 
+        // *** 
+        withdrawal_msg = ExecuteMsg::WithdrawUst { amount:Uint256::from(100000000u64) ,duration : 5u64 };
+        withdrawal_f = execute(deps.as_mut(), env.clone(), info.clone(), withdrawal_msg.clone() );
+        assert_generic_error_message(withdrawal_f,"Invalid withdrawal request");
+
+        withdrawal_msg = ExecuteMsg::WithdrawUst { amount:Uint256::from(0u64) ,duration : 5u64 };
+        withdrawal_f = execute(deps.as_mut(), env.clone(), info.clone(), withdrawal_msg.clone() );
+        assert_generic_error_message(withdrawal_f,"Invalid withdrawal request");
+
+        // *** 
+        // *** Test #1 :: Successfully withdraw UST  *** 
+        // ***    
+        withdrawal_msg = ExecuteMsg::WithdrawUst { amount:Uint256::from(42u64) ,duration : 5u64 };
+        let mut withdrawal_s  = execute(deps.as_mut(), env.clone(), info.clone(), withdrawal_msg.clone() ).unwrap();
+        assert_eq!( withdrawal_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::WithdrawUST"),
+                        attr("user", "depositor"),
+                        attr("duration", "5" ),
+                        attr("ust_withdrawn", "42")
+                        ] 
+                );
+        // let's verify the Lockdrop
+        let mut lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string() ).unwrap();
+        assert_eq!(5u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(999958u64), lockdrop_.ust_locked);
+        assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
+        // let's verify the User
+        let mut user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        assert_eq!(Uint256::from(1999958u64), user_.total_ust_locked);
+        assert_eq!(vec![ "depositor3".to_string(), "depositor5".to_string() ], user_.lockup_position_ids);
+        // let's verify the state
+        let mut state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::from(1999958u64), state_.total_ust_locked);
+        assert_eq!(Uint256::from(719982u64), state_.total_deposits_weight);
+    
+        // *** 
+        // *** Test #2 :: Successfully withdraw UST  *** 
+        // ***    
+        withdrawal_msg = ExecuteMsg::WithdrawUst { amount:Uint256::from(999958u64) ,duration : 5u64 };
+        withdrawal_s  = execute(deps.as_mut(), env.clone(), info.clone(), withdrawal_msg.clone() ).unwrap();
+        assert_eq!( withdrawal_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::WithdrawUST"),
+                        attr("user", "depositor"),
+                        attr("duration", "5" ),
+                        attr("ust_withdrawn", "999958")
+                        ] 
+                );
+        // let's verify the Lockdrop
+        lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string() ).unwrap();
+        assert_eq!(5u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(0u64), lockdrop_.ust_locked);
+        assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
+        // let's verify the User
+        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        assert_eq!(Uint256::from(1000000u64), user_.total_ust_locked);
+        assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
+        // let's verify the state
+        state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::from(1000000u64), state_.total_ust_locked);
+        assert_eq!(Uint256::from(270001u64), state_.total_deposits_weight);
+
+        // *** 
+        // *** Test #3 :: Successfully withdraw UST  *** 
+        // ***    
+        withdrawal_msg = ExecuteMsg::WithdrawUst { amount:Uint256::from(1000u64) ,duration : 3u64 };
+        withdrawal_s  = execute(deps.as_mut(), env.clone(), info.clone(), withdrawal_msg.clone() ).unwrap();
+        assert_eq!( withdrawal_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::WithdrawUST"),
+                        attr("user", "depositor"),
+                        attr("duration", "3" ),
+                        attr("ust_withdrawn", "1000")
+                        ] 
+                );
+        // let's verify the Lockdrop
+        lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string() ).unwrap();
+        assert_eq!(3u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(999000u64), lockdrop_.ust_locked);
+        assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
+        // let's verify the User
+        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        assert_eq!(Uint256::from(999000u64), user_.total_ust_locked);
+        assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
+        // let's verify the state
+        state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::from(999000u64), state_.total_ust_locked);
+        assert_eq!(Uint256::from(269731u64), state_.total_deposits_weight);
+    }
+
+
+
+    #[test]
+    fn test_Deposit_Ust_In_Red_Bank() {  
+        let mut deps = th_setup(&[]);
+        let deposit_amount = 1000000u128;
+        let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        // Set tax data
+        deps.querier.set_native_tax(
+            Decimal::from_ratio(1u128, 100u128),
+            &[(String::from("uusd"), Uint128::new(100u128))],
+        );
+
+        // ***** Setup *****
+
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_15),
+            ..Default::default()
+        }); 
+        // Create a lockdrop position for testing
+        let mut deposit_msg = ExecuteMsg::DepositUst { duration : 3u64 };
+        let mut deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "3" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+        deposit_msg = ExecuteMsg::DepositUst { duration : 5u64 };
+        deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "5" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+
+        // *** 
+        // *** Test :: Error "Unauthorized" *** 
+        // ***    
+        let deposit_in_redBank_msg = ExecuteMsg::DepositUstInRedBank { };
+        let mut deposit_in_redBank_response_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_in_redBank_msg.clone() );
+        assert_generic_error_message(deposit_in_redBank_response_f,"Unauthorized");
+
+        // *** 
+        // *** Test :: Error "Lockdrop deposits haven't concluded yet" *** 
+        // ***    
+        info = mock_info("owner");
+        let mut deposit_in_redBank_response_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_in_redBank_msg.clone() );
+        assert_generic_error_message(deposit_in_redBank_response_f,"Lockdrop deposits haven't concluded yet");
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_09),
+            ..Default::default()
+        }); 
+        deposit_in_redBank_response_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_in_redBank_msg.clone() );
+        assert_generic_error_message(deposit_in_redBank_response_f,"Lockdrop deposits haven't concluded yet");
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_001_000_09),
+            ..Default::default() 
+        }); 
+        deposit_in_redBank_response_f = execute(deps.as_mut(), env.clone(), info.clone(), deposit_in_redBank_msg.clone() );
+        assert_generic_error_message(deposit_in_redBank_response_f,"Lockdrop deposits haven't concluded yet");
+
+
+        // *** 
+        // *** Successfully deposited *** 
+        // *** 
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_001_000_11),
+            ..Default::default() 
+        }); 
+        deps.querier.set_cw20_balances(
+            Addr::unchecked("ma_ust_token".to_string()) ,
+            &[( Addr::unchecked(MOCK_CONTRACT_ADDR), Uint128::new(0u128) )],
+        );
+        let deposit_in_redBank_response_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_in_redBank_msg.clone() ).unwrap();
+        assert_eq!( deposit_in_redBank_response_s.attributes, 
+            vec![attr("action", "lockdrop::ExecuteMsg::DepositInRedBank"),
+                attr("ust_deposited_in_red_bank", "2000000" ),
+                attr("timestamp", "100100011")
+                ] 
+          );
+          assert_eq!( deposit_in_redBank_response_s.messages,
+            vec![   SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: "red_bank".to_string(),
+                        msg: to_binary(&mars::red_bank::msg::ExecuteMsg::DepositNative {
+                            denom: "uusd".to_string(),
+                        }).unwrap(),
+                        funds: vec![ Coin { denom: "uusd".to_string(), amount: Uint128::from(1999900u128), } ]
+                    })), 
+                    SubMsg::new(CallbackMsg::UpdateStateOnRedBankDeposit {   
+                                    prev_ma_ust_balance:  Uint256::from(0u64)
+                                }.to_cosmos_msg(&env.clone().contract.address).unwrap()),            
+                ]
+            );  
+        // let's verify the state
+        let state_ = query_state(deps.as_ref()).unwrap();
+        assert_eq!(Uint256::zero(), state_.final_ust_locked);
+        assert_eq!(Uint256::zero(), state_.final_maust_locked);
+        assert_eq!(Uint256::from(2000000u64), state_.total_ust_locked);
+        assert_eq!(Uint256::zero(), state_.total_maust_locked);
+        assert_eq!(Decimal256::zero(), state_.global_reward_index);
+        assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
+    }
+
+
+    #[test]
+    fn test_update_state_on_red_bank_deposit_Callback () {  
+        let mut deps = th_setup(&[]);
+        let deposit_amount = 1000000u128;
+        let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        // Set tax data
+        deps.querier.set_native_tax(
+            Decimal::from_ratio(1u128, 100u128),
+            &[(String::from("uusd"), Uint128::new(100u128))],
+        );
+        deps.querier.set_cw20_balances(
+            Addr::unchecked("ma_ust_token".to_string()) ,
+            &[( Addr::unchecked(MOCK_CONTRACT_ADDR), Uint128::new(197000u128) )],
+        );
+
+        // ***** Setup *****
+
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_15),
+            ..Default::default()
+        }); 
+        // Create a lockdrop position for testing
+        let mut deposit_msg = ExecuteMsg::DepositUst { duration : 3u64 };
+        let mut deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "3" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+        deposit_msg = ExecuteMsg::DepositUst { duration : 5u64 };
+        deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "5" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+
+        // *** 
+        // *** Successfully updates the state post deposit in Red Bank *** 
+        // *** 
+        info = mock_info(&env.clone().contract.address.to_string() );
+        let callback_msg = ExecuteMsg::Callback( CallbackMsg::UpdateStateOnRedBankDeposit { prev_ma_ust_balance : Uint256::from(100u64) } ) ;
+        let redbank_callback_s = execute(deps.as_mut(), env.clone(), info.clone(), callback_msg.clone() ).unwrap();     
+        assert_eq!( redbank_callback_s.attributes, 
+            vec![attr("action", "lockdrop::CallbackMsg::RedBankDeposit"),
+                attr("maUST_minted", "196900")
+                ] 
+          );
+
+        // let's verify the state
+        let state_ = query_state(deps.as_ref()).unwrap();
+        // final : tracks Total UST deposited / Total MA-UST Minted
+        assert_eq!(Uint256::from(2000000u64), state_.final_ust_locked);
+        assert_eq!(Uint256::from(196900u64), state_.final_maust_locked);
+        // Total : tracks UST / MA-UST Available with the lockdrop contract
+        assert_eq!(Uint256::zero(), state_.total_ust_locked);
+        assert_eq!(Uint256::from(196900u64), state_.total_maust_locked);
+        // global_reward_index, total_deposits_weight :: Used for lockdrop / X-Mars distribution
+        assert_eq!(Decimal256::zero(), state_.global_reward_index);
+        assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
+
+        // let's verify the User
+        let user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        assert_eq!(Uint256::from(2000000u64), user_.total_ust_locked);
+        assert_eq!(Uint256::from(196900u64), user_.total_maust_locked);
+        assert_eq!(false, user_.is_lockdrop_claimed);
+        assert_eq!(Decimal256::zero(), user_.reward_index);
+        assert_eq!(Uint256::zero(), user_.pending_xmars);
+        assert_eq!(vec![ "depositor3".to_string() , "depositor5".to_string() ], user_.lockup_position_ids);
+
+        // let's verify the lockup #1
+        let mut lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string() ).unwrap();
+        assert_eq!(3u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(1000000u64), lockdrop_.ust_locked);
+        assert_eq!(Uint256::from(98450u64), lockdrop_.maust_balance);
+        assert_eq!(Uint256::from(8037158753u64), lockdrop_.lockdrop_reward);
+        assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
+
+        // let's verify the lockup #2
+        lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string() ).unwrap();
+        assert_eq!(5u64, lockdrop_.duration);
+        assert_eq!(Uint256::from(1000000u64), lockdrop_.ust_locked);
+        assert_eq!(Uint256::from(98450u64), lockdrop_.maust_balance);
+        assert_eq!(Uint256::from(13395264589u64), lockdrop_.lockdrop_reward);        
+        assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
+    }
+
+
+
+
+
+    #[test]
+    fn test_try_claim() {  
+        let mut deps = th_setup(&[]);
+        let deposit_amount = 1000000u128;
+        let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        // Set tax data
+        deps.querier.set_native_tax(
+            Decimal::from_ratio(1u128, 100u128),
+            &[(String::from("uusd"), Uint128::new(100u128))],
+        );
+
+        // ***** Setup *****
+
+        let mut env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_15),
+            ..Default::default()
+        }); 
+        // Create a lockdrop position for testing
+        let mut deposit_msg = ExecuteMsg::DepositUst { duration : 3u64 };
+        let mut deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "3" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+        deposit_msg = ExecuteMsg::DepositUst { duration : 5u64 };
+        deposit_s = execute(deps.as_mut(), env.clone(), info.clone(), deposit_msg.clone() ).unwrap();
+        assert_eq!( deposit_s.attributes, 
+                    vec![attr("action", "lockdrop::ExecuteMsg::LockUST"),
+                    attr("user", "depositor"),
+                    attr("duration", "5" ),
+                    attr("ust_deposited", "1000000")
+                        ] 
+                  );
+    
+        // *** 
+        // *** Test :: Error "Claim not allowed" *** 
+        // ***  
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_001_000_09),
+            ..Default::default() 
+        }); 
+        let claim_rewards_msg = ExecuteMsg::ClaimRewards { };
+        let mut claim_rewards_response_f = execute(deps.as_mut(), env.clone(), info.clone(), claim_rewards_msg.clone() );
+        assert_generic_error_message(claim_rewards_response_f,"Claim not allowed");
+
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_001_000_09),
+            ..Default::default() 
+        }); 
+        claim_rewards_response_f = execute(deps.as_mut(), env.clone(), info.clone(), claim_rewards_msg.clone() );
+        assert_generic_error_message(claim_rewards_response_f,"Claim not allowed");
+
+        // *** 
+        // *** Test :: Error "No lockup to claim rewards for" *** 
+        // ***  
+        env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_001_001_09),
+            ..Default::default() 
+        });         
+        info = mock_info("not_depositor");
+        claim_rewards_response_f = execute(deps.as_mut(), env.clone(), info.clone(), claim_rewards_msg.clone() );
+        assert_generic_error_message(claim_rewards_response_f,"No lockup to claim rewards for");
+
+        // *** 
+        // *** Test :: Successfully Claim Rewards *** 
+        // ***  
+        info = mock_info("depositor");
+        let mut claim_rewards_response_s = execute(deps.as_mut(), env.clone(), info.clone(), claim_rewards_msg.clone() ).unwrap();
+        assert_eq!( claim_rewards_response_s.attributes, 
+            vec![attr("action", "lockdrop::ExecuteMsg::ClaimRewards"),
+                attr("xmars_address", "depositor"),
+                attr("incentives_address", "5" ),
+                attr("xmars_balance", "1000000"),
+                attr("xmars_unclaimed", "1000000")
+                ] 
+          );
+        
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
+        let mut deps = mock_dependencies(contract_balances);
+        let info = mock_info("owner");
+        let env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_00),
+            ..Default::default()
+        });
+        // Config with valid base params 
+        let mut base_config = InstantiateMsg {
+            owner: "owner".to_string(),
+            address_provider : Some("address_provider".to_string()),
+            ma_ust_token : Some("ma_ust_token".to_string()),
+            init_timestamp: 1_000_000_10,
+            deposit_window: 100000u64,
+            withdrawal_window: 72000u64,
+            min_duration: 3u64,
+            max_duration: 9u64,
+            denom: Some("uusd".to_string()),
+            weekly_multiplier: Some(Decimal256::from_ratio( 9u64, 100u64 )),
+            lockdrop_incentives: Some(Uint256::from(21432423343u64)),
+
+        };       
+        instantiate(deps.as_mut(), env, info, base_config).unwrap();
+        deps
+    }
+
+
+
+
+
+
+
+
+}
 
 
 

@@ -1265,34 +1265,6 @@ mod tests {
     }
 
 
-
-
-
-
-    fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
-        let mut deps = mock_dependencies(contract_balances);
-        let info = mock_info("owner");
-        let env = mock_env(MockEnvParams {
-            block_time: Timestamp::from_seconds(1_000_000_00),
-            ..Default::default()
-        });
-        // Config with valid base params 
-        let instantiate_msg = InstantiateMsg {
-            owner: Some("owner".to_string()),
-            address_provider : Some("address_provider".to_string()),
-            staking_token : Some("staking_token".to_string()),
-            init_timestamp: 1_000_000_10,
-            till_timestamp: 1_000_001_10,
-            cycle_rewards: Some( Uint256::from(100u64) ),
-            cycle_duration: 10u64,
-            reward_increase: Some(Decimal256::from_ratio( 3u64, 100u64 ) )
-        };        
-        instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
-        deps
-    }
-
-
-
     #[test]
     fn test_claim_rewards() { 
         let mut info = mock_info("staking_token");
@@ -1452,6 +1424,27 @@ mod tests {
 
     }
 
+    fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
+        let mut deps = mock_dependencies(contract_balances);
+        let info = mock_info("owner");
+        let env = mock_env(MockEnvParams {
+            block_time: Timestamp::from_seconds(1_000_000_00),
+            ..Default::default()
+        });
+        // Config with valid base params 
+        let instantiate_msg = InstantiateMsg {
+            owner: Some("owner".to_string()),
+            address_provider : Some("address_provider".to_string()),
+            staking_token : Some("staking_token".to_string()),
+            init_timestamp: 1_000_000_10,
+            till_timestamp: 1_000_001_10,
+            cycle_rewards: Some( Uint256::from(100u64) ),
+            cycle_duration: 10u64,
+            reward_increase: Some(Decimal256::from_ratio( 3u64, 100u64 ) )
+        };        
+        instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
+        deps
+    }
 
 
 }
