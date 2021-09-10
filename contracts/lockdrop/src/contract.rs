@@ -635,9 +635,25 @@ pub fn query_state(deps: Deps) -> StdResult<GlobalStateResponse> {
 /// @dev Returns summarized details regarding the user
 pub fn query_user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
     let user_address = deps.api.addr_validate(&user)?;
-    let state: State = STATE.load(deps.storage)?;
-    let user_info = USER_INFO.may_load(deps.storage, &user_address.clone() )?.unwrap_or_default();
+    let mut state: State = STATE.load(deps.storage)?;
+    let mut user_info = USER_INFO.may_load(deps.storage, &user_address.clone() )?.unwrap_or_default();
 
+    // QUERY:: Contract addresses
+    let mars_contracts = vec![MarsContract::Incentives];
+    let mut addresses_query = query_addresses(&deps.querier,config.address_provider, mars_contracts)?;
+    let incentives_address = addresses_query.pop().unwrap();
+
+    // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
+    let xmars_accured : Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                                        contract_addr: incentives_address.to_string(),
+                                        msg: to_binary(&UserUnclaimedRewards {
+                                            user_address: env.contract.address.to_string(),
+                                        }).unwrap(),
+                                    })).unwrap();
+
+    update_xmars_rewards_index(&mut state, xmars_accured);        
+    compute_user_accrued_reward(&state, &mut user_info);    
+    
     Ok(UserInfoResponse {
         total_ust_locked: user_info.total_ust_locked,
         total_maust_locked: calculate_user_ma_ust_share(user_info.total_ust_locked, state.final_ust_locked, state.final_maust_locked),
