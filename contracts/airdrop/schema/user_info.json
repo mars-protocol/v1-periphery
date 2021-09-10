@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UserInfo",
+  "type": "object",
+  "required": [
+    "lockdrop_claimed",
+    "lockup_positions",
+    "pending_xmars",
+    "reward_index",
+    "total_ust_locked"
+  ],
+  "properties": {
+    "lockdrop_claimed": {
+      "description": "Boolean value indicating if the lockdrop_rewards for the lockup positions have been claimed or not",
+      "type": "boolean"
+    },
+    "lockup_positions": {
+      "description": "Contains lockup Ids of the User's lockup positions with different durations / deposit amounts",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pending_xmars": {
+      "description": "Pending rewards to be claimed by the user",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint256"
+        }
+      ]
+    },
+    "reward_index": {
+      "description": "Value used to calculate deposit_rewards (XMARS) accured by the user",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal256"
+        }
+      ]
+    },
+    "total_ust_locked": {
+      "description": "Total UST amount deposited by the user across all his lockup positions",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint256"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "Decimal256": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal256(1_000_000_000_000_000_000) == 1.0 The greatest possible value that can be represented is 115792089237316195423570985008687907853269984665640564039457.584007913129639935 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
+    "Uint256": {
+      "type": "string"
+    }
+  }
+}

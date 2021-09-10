@@ -1,15 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "UpdateConfigMsg",
   "type": "object",
-  "required": [
-    "deposit_window",
-    "init_timestamp",
-    "max_duration",
-    "min_duration",
-    "owner",
-    "withdrawal_window"
-  ],
   "properties": {
     "address_provider": {
       "description": "Contract used to query addresses related to red-bank (MARS Token)",
@@ -18,22 +10,21 @@
         "null"
       ]
     },
-    "denom": {
-      "description": "\"uusd\" - Native token accepted by the contract for deposits",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "deposit_window": {
       "description": "Number of seconds for which lockup deposits will be accepted",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0.0
     },
     "init_timestamp": {
       "description": "Timestamp till when deposits can be made",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0.0
     },
@@ -57,19 +48,28 @@
     },
     "max_duration": {
       "description": "Max. no. of days allowed for lockup",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0.0
     },
     "min_duration": {
       "description": "Min. no. of days allowed for lockup",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0.0
     },
     "owner": {
       "description": "Account who can update config",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "weekly_multiplier": {
       "description": "Lockdrop Reward multiplier",
@@ -84,7 +84,10 @@
     },
     "withdrawal_window": {
       "description": "Number of seconds for which lockup withdrawals will be allowed",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0.0
     }

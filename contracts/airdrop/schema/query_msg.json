@@ -17,10 +17,22 @@
     {
       "type": "object",
       "required": [
-        "is_claimed"
+        "state"
       ],
       "properties": {
-        "is_claimed": {
+        "state": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "user_info"
+      ],
+      "properties": {
+        "user_info": {
           "type": "object",
           "required": [
             "address"
@@ -37,24 +49,42 @@
     {
       "type": "object",
       "required": [
-        "is_valid_signature"
+        "lock_up_info"
       ],
       "properties": {
-        "is_valid_signature": {
+        "lock_up_info": {
           "type": "object",
           "required": [
-            "evm_address",
-            "evm_signature",
-            "signed_msg_hash"
+            "address",
+            "duration"
           ],
           "properties": {
-            "evm_address": {
+            "address": {
               "type": "string"
             },
-            "evm_signature": {
-              "type": "string"
-            },
-            "signed_msg_hash": {
+            "duration": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "lock_up_info_with_id"
+      ],
+      "properties": {
+        "lock_up_info_with_id": {
+          "type": "object",
+          "required": [
+            "lockup_id"
+          ],
+          "properties": {
+            "lockup_id": {
               "type": "string"
             }
           }

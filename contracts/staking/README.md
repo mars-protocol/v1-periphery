@@ -30,6 +30,12 @@ The current cycle number and the number of MARS tokens to be distributed during 
 | `QueryMsg::Timestamp`   | Returns the current timestamp                       |
 
 
+## Build schema and run unit-tests
+```
+cargo schema
+cargo test
+```
+
 ## License
 
 TBD

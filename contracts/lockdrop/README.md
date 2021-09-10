@@ -35,7 +35,15 @@ Note - Users can open muliple lockup positions with different lockup periods wit
 
 ### Query Messages
 
-![Alt text](../../../Lockdrop_msg.png?raw=true "Lockdrop Callback Msgs")
+![Alt text](../../Lockdrop_msg.png?raw=true "Lockdrop Callback Msgs")
+
+
+## Build schema and run unit-tests
+```
+cargo schema
+cargo test
+```
+
 
 ## License
 
