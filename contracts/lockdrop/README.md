@@ -17,11 +17,21 @@ Note - Users can open muliple lockup positions with different lockup periods wit
 
 | Message                       | Description                                                                                         |
 | ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| `ExecuteMsg::DepositUst` | Increases user's staked LP Token balance. Only MARS-UST LP Token can be sent to this contract via the ReceiveCw20 hook                                                  |
-| `ExecuteMsg::WithdrawUst`   |  Reduces user's staked position. Pending rewards are claimed and the amount by which the position is reduced are sent back to the user                                                           |
-| `ExecuteMsg::ClaimRewards`    | Claim accrued MARS Rewards                                         |
-| `ExecuteMsg::UpdateConfig`          | Can only be called by the admin. Can be used to update configuration parameters like % increase per cycle, cycle duration, timestamp till which staking incentives are active etc.                                     |
+| `ExecuteMsg::UpdateConfig`          | Can only be called by the admin. Facilitates updating configuration parameters, for eq. red bank address, ma_ust address, lockup durations among others                                                                                                 |
+| `ExecuteMsg::DepositUst` | Increases user's deposited UST balance in the lockup position for the selected duration. Can only be called when deposit window is open                             |
+| `ExecuteMsg::WithdrawUst`   |  Decreases user's deposited UST balance in the lockup position for the selected duration. Can only be called when withdrawal window is open                                                           |
+| `ExecuteMsg::DepositUstInRedBank`    | Admin function to deposit net total locked UST into the Red Bank. Called after the deposit window is over.                                         |
+| `ExecuteMsg::ClaimRewards`    | Facilitates xMARS reward claim which accrue per block. Claim lockdrop reward (MARS) in-addition to xMars when called for the first time by the user   |
+| `ExecuteMsg::Unlock`    | Unlocks the selected lockup position and transfers maUST along with accrued rewards (xMars) back to the user    |
 
+
+### Handle Messages :: Callback
+
+| Message                       | Description                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| `CallbackMsg::UpdateStateOnRedBankDeposit`          | Callback function called by `DepositUstInRedBank` to update contract state after UST is deposited into the Red Bank                   |
+| `CallbackMsg::UpdateStateOnClaim` | Callback function called by `ClaimRewards` and `Unlock` to update state and transfer user's accrued rewards post Lockdrop contract's xMars claim call to the `incentives` contract |
+| `CallbackMsg::DissolvePosition`   |  Callback function called by `Unlock` to dissolve lockup position after user's accrued rewards have been claimed successfully               |
 
 ### Query Messages
 
@@ -33,7 +43,7 @@ Note - Users can open muliple lockup positions with different lockup periods wit
 | `QueryMsg::Timestamp`   | Returns the current timestamp                       |
 
 
-### Query Messages
+### Callback Function flow
 
 ![Alt text](../../Lockdrop_msg.png?raw=true "Lockdrop Callback Msgs")
 
