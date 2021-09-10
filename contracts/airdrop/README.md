@@ -1,6 +1,6 @@
 # Airdrop
 
-The Airdrop contract is for airdropping MARS tokens during the intital protocol launch. 
+The Airdrop contract is for MARS tokens airdrop claim during the intital protocol launch. 
 
 
 ### Selection Criteria 

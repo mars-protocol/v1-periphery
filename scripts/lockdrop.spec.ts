@@ -338,7 +338,6 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
 
     expect(Number(user_info_after.pending_xmars)).to.equal(0);
     expect(user_info_after.is_lockdrop_claimed).to.equal(true);
-    expect(Number(maToken_balance_after) - Number(maToken_balance_before)).to.equal(Number(lockdrop_info_before.maust_balance));
 
     process.stdout.write( `Lockup successfully unlocked. ${lockdrop_info_before.maust_balance} ma_UST and ${user_info_before.pending_xmars} xMars transferred to the user`);
 }
