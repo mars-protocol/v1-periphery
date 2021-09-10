@@ -3,24 +3,6 @@
 version = 3
 
 [[package]]
-name = "address-provider"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw20",
- "cw20-base",
- "mars",
- "schemars",
- "serde",
- "snafu",
- "terra-cosmwasm",
- "terraswap",
- "thiserror",
-]
-
-[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -497,6 +479,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock-address-provider"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw20",
+ "cw20-base",
+ "mars",
+ "schemars",
+ "serde",
+ "snafu",
+ "terra-cosmwasm",
+ "terraswap",
+ "thiserror",
+]
+
+[[package]]
 name = "mock-incentives"
 version = "0.1.0"
 dependencies = [
@@ -511,6 +511,23 @@ dependencies = [
  "snafu",
  "terra-cosmwasm",
  "terraswap",
+ "thiserror",
+]
+
+[[package]]
+name = "mock-ma-token"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "mars",
+ "schemars",
+ "serde",
  "thiserror",
 ]
 

@@ -30,6 +30,35 @@ export async function mockStaking_updateConfig(  terra: LocalTerra | LCDClient, 
 }  
 
 
-
+// RED BANK :: INITIALIZE UUSD POOL
+export async function setupUST_Market_RedBank(terra: LocalTerra | LCDClient, wallet: Wallet, contractAddress: string) {
+    // console.log("Setting up initial asset liquidity pools...");
+    
+    //   console.log(`Red Bank :: Initializing UST Market`);
+  
+      let assetType =  {  "native": {  "denom": "uusd"  }   };
+      let initAssetMsg = {  "init_asset": {     "asset": assetType,
+                                                "asset_params": { initial_borrow_rate: "0.2",
+                                                                    max_loan_to_value: "0.75",
+                                                                    reserve_factor: "0.2",
+                                                                    maintenance_margin: "0.85",
+                                                                    liquidation_bonus: "0.1",
+                                                                    interest_rate_strategy: {
+                                                                    "dynamic": {
+                                                                        min_borrow_rate: "0.0",
+                                                                        max_borrow_rate: "1.0",
+                                                                        kp_1: "0.04",
+                                                                        optimal_utilization_rate: "0.9",
+                                                                        kp_augmentation_threshold: "0.15",
+                                                                        kp_2: "0.07"
+                                                                    }
+                                                                    }
+                                                                },
+                                                },
+                            };
+  
+      await executeContract(terra, wallet, contractAddress, initAssetMsg);
+    //   console.log(`Red Bank :: Initialized UST Market`);
+  }
 
 

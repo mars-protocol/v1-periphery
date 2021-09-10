@@ -129,11 +129,11 @@ pub fn execute_balance_change(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    user_address_: String,
+    user_address: Addr,
     user_balance_before: Uint128,
     total_supply_before: Uint128,
 ) -> Result<Response, ContractError> {
-    let user_address = deps.api.addr_validate(&user_address_)?;
+    // let user_address = &user_address_.clone();
     let ma_token_address = info.sender;
     let mut asset_incentive = match ASSET_INCENTIVES.may_load(deps.storage, &ma_token_address)? {
         // If there are no incentives,

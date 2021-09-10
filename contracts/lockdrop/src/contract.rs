@@ -12,7 +12,7 @@ use mars::helpers::{cw20_get_balance, option_string_to_addr, zero_address};
 use mars::tax::{deduct_tax};
 use mars::incentives::msg::QueryMsg::{UserUnclaimedRewards};
 
-const SECONDS_PER_WEEK: u64 = 7*86400 as u64;
+const SECONDS_PER_WEEK: u64 = 5 as u64;  //7*86400 as u64;
 
 //----------------------------------------------------------------------------------------
 // Entry Points
