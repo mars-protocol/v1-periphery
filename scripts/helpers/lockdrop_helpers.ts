@@ -48,7 +48,7 @@ export async function Lockdrop_claim_rewards( terra: LocalTerra | LCDClient,  wa
 }  
 
 // UNLOCK `duration` days lockup position
-export async function Lockdrop_unlock_deposit( terra: LocalTerra | LCDClient,  wallet:Wallet, lockdropContractAddress:string, duration: number) {
+export async function Lockdrop_unlock_deposit( terra: LocalTerra | LCDClient,  wallet:Wallet, lockdropContractAddress:string, duration: Number) {
     let unlock_msg = {"unlock":{"duration":duration}};
     let resp = await executeContract(terra, wallet, lockdropContractAddress, unlock_msg );
     // console.log(" LOCKDROP CONTRACT : LOCKUP UNLOCKED");
