@@ -4,11 +4,11 @@
 
 This repo contains the following contracts - 
 
-- Airdrop Contract : Used for MARS tokens airdrop claim during the intital protocol launch.
+- **Airdrop Contract** : Used for MARS tokens airdrop claim during the intital protocol launch.
 
-- Lockdrop Contract : Allows users to lock their UST for selected duration against which they get MARS token rewards pro-rata to their wighted share along with xMars tokens which are accrued per block. Upon expiration of the lockup, users can withdraw their deposits as interest bearing maUST tokens, redeemable against UST via the Red Bank.
+- **Lockdrop Contract** : Allows users to lock their UST for selected duration against which they get MARS token rewards pro-rata to their wighted share along with xMars tokens which are accrued per block. Upon expiration of the lockup, users can withdraw their deposits as interest bearing maUST tokens, redeemable against UST via the Red Bank.
 
-- LP Staking Contract : Facilitates MARS-UST LP Token staking and reward distribution.
+- **LP Staking Contract** : Facilitates MARS-UST LP Token staking and reward distribution.
 
 
 ## Development
