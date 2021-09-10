@@ -12,7 +12,7 @@ use mars::helpers::{cw20_get_balance, option_string_to_addr, zero_address};
 use mars::tax::{deduct_tax};
 use mars::incentives::msg::QueryMsg::{UserUnclaimedRewards};
 
-const SECONDS_PER_WEEK: u64 = 5 as u64;  //7*86400 as u64;
+const SECONDS_PER_WEEK: u64 = 7*86400 as u64;
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -106,7 +106,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
-        QueryMsg::UserInfo {address} => to_binary(&query_user_info(deps, address)?),
+        QueryMsg::UserInfo {address} => to_binary(&query_user_info(deps, _env, address)?),
         QueryMsg::LockUpInfo {address , duration } => to_binary(&query_lockup_info(deps, address, duration)?),
         QueryMsg::LockUpInfoWithId { lockup_id } => to_binary(&query_lockup_info_with_id(deps, lockup_id)?),
     }
@@ -633,7 +633,8 @@ pub fn query_state(deps: Deps) -> StdResult<GlobalStateResponse> {
 
 
 /// @dev Returns summarized details regarding the user
-pub fn query_user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
+pub fn query_user_info(deps: Deps, env: Env, user: String) -> StdResult<UserInfoResponse> {
+    let config = CONFIG.load(deps.storage)?;
     let user_address = deps.api.addr_validate(&user)?;
     let mut state: State = STATE.load(deps.storage)?;
     let mut user_info = USER_INFO.may_load(deps.storage, &user_address.clone() )?.unwrap_or_default();
@@ -651,7 +652,7 @@ pub fn query_user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> 
                                         }).unwrap(),
                                     })).unwrap();
 
-    update_xmars_rewards_index(&mut state, xmars_accured);        
+    update_xmars_rewards_index(&mut state, Uint256::from(xmars_accured));        
     compute_user_accrued_reward(&state, &mut user_info);    
     
     Ok(UserInfoResponse {
@@ -748,12 +749,18 @@ fn get_denom_amount_from_coins(coins: &[Coin], denom: &str) -> Uint256 {
 
 // Accrue XMARS rewards by updating the reward index
 fn update_xmars_rewards_index(state: &mut State, xmars_accured: Uint256) {
+    if state.total_maust_locked == Uint256::zero() {
+        return 
+    }
     let xmars_rewards_index_increment = Decimal256::from_ratio(Uint256::from(xmars_accured) , Uint256::from(state.total_maust_locked) );
     state.global_reward_index = state.global_reward_index + xmars_rewards_index_increment;
 } 
 
 // Accrue MARS reward for the user by updating the user reward index and adding rewards to the pending rewards
 fn compute_user_accrued_reward(state: &State, user_info: &mut UserInfo) { 
+    if state.final_ust_locked == Uint256::zero() {
+        return 
+    }    
     let user_maust_share = calculate_user_ma_ust_share( user_info.total_ust_locked, state.final_ust_locked , state.final_maust_locked);
     let pending_xmars = (user_maust_share * state.global_reward_index) - (user_maust_share * user_info.reward_index);
     user_info.reward_index = state.global_reward_index;
@@ -1058,6 +1065,8 @@ mod tests {
         let mut deps = th_setup(&[]);
         let deposit_amount = 110000u128;
         let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        deps.querier.set_incentives_address(Addr::unchecked( "incentives".to_string())  );
+        deps.querier.set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64) );
         // *** 
         // *** Test :: Error "Deposit window closed" Reason :: Deposit attempt before deposit window is open *** 
         // *** 
@@ -1125,7 +1134,7 @@ mod tests {
         assert_eq!(Uint256::from(21432423343u64), lockdrop_.lockdrop_reward);
         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
         // let's verify the User
-        let mut user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        let mut user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(10000u64), user_.total_ust_locked);
         assert_eq!(Uint256::zero(), user_.total_maust_locked);
         assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
@@ -1158,7 +1167,7 @@ mod tests {
         assert_eq!(Uint256::from(10100u64), lockdrop_.ust_locked);
         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
         // let's verify the User
-        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(10100u64), user_.total_ust_locked);
         assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
         // let's verify the state
@@ -1185,7 +1194,7 @@ mod tests {
         assert_eq!(Uint256::from(5432u64), lockdrop_.ust_locked);
         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
         // let's verify the User
-        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(15532u64), user_.total_ust_locked);
         assert_eq!(vec![ "depositor3".to_string(), "depositor5".to_string() ], user_.lockup_position_ids);
         // let's verify the state
@@ -1200,6 +1209,8 @@ mod tests {
         let mut deps = th_setup(&[]);
         let deposit_amount = 1000000u128;
         let info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        deps.querier.set_incentives_address(Addr::unchecked( "incentives".to_string())  );
+        deps.querier.set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64) );
         // Set tax data
         deps.querier.set_native_tax(
             Decimal::from_ratio(1u128, 100u128),
@@ -1283,7 +1294,7 @@ mod tests {
         assert_eq!(Uint256::from(999958u64), lockdrop_.ust_locked);
         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
         // let's verify the User
-        let mut user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        let mut user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(1999958u64), user_.total_ust_locked);
         assert_eq!(vec![ "depositor3".to_string(), "depositor5".to_string() ], user_.lockup_position_ids);
         // let's verify the state
@@ -1309,7 +1320,7 @@ mod tests {
         assert_eq!(Uint256::from(0u64), lockdrop_.ust_locked);
         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
         // let's verify the User
-        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(1000000u64), user_.total_ust_locked);
         assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
         // let's verify the state
@@ -1335,7 +1346,7 @@ mod tests {
         assert_eq!(Uint256::from(999000u64), lockdrop_.ust_locked);
         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
         // let's verify the User
-        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(999000u64), user_.total_ust_locked);
         assert_eq!(vec![ "depositor3".to_string() ], user_.lockup_position_ids);
         // let's verify the state
@@ -1459,6 +1470,8 @@ mod tests {
         let mut deps = th_setup(&[]);
         let deposit_amount = 1000000u128;
         let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        deps.querier.set_incentives_address(Addr::unchecked( "incentives".to_string())  );
+        deps.querier.set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64) );
         // Set tax data
         deps.querier.set_native_tax(
             Decimal::from_ratio(1u128, 100u128),
@@ -1520,7 +1533,7 @@ mod tests {
         assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
 
         // let's verify the User
-        let user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        let user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(2000000u64), user_.total_ust_locked);
         assert_eq!(Uint256::from(196900u64), user_.total_maust_locked);
         assert_eq!(false, user_.is_lockdrop_claimed);
@@ -1675,6 +1688,8 @@ mod tests {
         let mut deps = th_setup(&[]);
         let deposit_amount = 1000000u128;
         let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        deps.querier.set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64) );
+        deps.querier.set_incentives_address(Addr::unchecked( "incentives".to_string())  );
         // Set tax data
         deps.querier.set_native_tax(
             Decimal::from_ratio(1u128, 100u128),
@@ -1802,7 +1817,7 @@ mod tests {
         assert_eq!(Uint256::zero(), state_.total_ust_locked);
         assert_eq!(Decimal256::from_ratio(58360u64, 197000u64), state_.global_reward_index);
         // let's verify the User
-        let mut user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        let mut user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(2000000u64), user_.total_ust_locked);
         assert_eq!(Uint256::from(26442u64), user_.total_maust_locked);
         assert_eq!(true, user_.is_lockdrop_claimed);
@@ -1851,7 +1866,7 @@ mod tests {
                 ]
             );             
         // let's verify the User
-        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        user_ = query_user_info(deps.as_ref(),env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(true, user_.is_lockdrop_claimed);
         assert_eq!(Uint256::zero(), user_.pending_xmars);
 
@@ -1888,7 +1903,7 @@ mod tests {
                 ]
             );             
         // let's verify the User
-        user_ = query_user_info(deps.as_ref(), "depositor2".to_string() ).unwrap();
+        user_ = query_user_info(deps.as_ref(), env.clone(), "depositor2".to_string() ).unwrap();
         assert_eq!(Uint256::from(12900000u64), user_.total_ust_locked);
         assert_eq!(Uint256::from(170557u64), user_.total_maust_locked);
         assert_eq!(true, user_.is_lockdrop_claimed);
@@ -2034,6 +2049,7 @@ mod tests {
         let mut deps = th_setup(&[]);
         let deposit_amount = 1000000u128;
         let mut info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
+        deps.querier.set_incentives_address(Addr::unchecked( "incentives".to_string())  );
         // Set tax data
         deps.querier.set_native_tax(
             Decimal::from_ratio(1u128, 100u128),
@@ -2095,7 +2111,8 @@ mod tests {
         assert_eq!(Uint256::from(9850000u64), state_.total_maust_locked);
         assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
         // let's verify the User
-        let mut user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        deps.querier.set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64) );
+        let mut user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(1000000u64), user_.total_ust_locked);
         assert_eq!(Uint256::from(9850000u64), user_.total_maust_locked);
         assert_eq!(vec![ "depositor5".to_string() ], user_.lockup_position_ids);
@@ -2122,7 +2139,7 @@ mod tests {
         assert_eq!(Uint256::from(0u64), state_.total_maust_locked);
         assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
         // let's verify the User
-        user_ = query_user_info(deps.as_ref(), "depositor".to_string() ).unwrap();
+        user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string() ).unwrap();
         assert_eq!(Uint256::from(0u64), user_.total_ust_locked);
         assert_eq!(Uint256::from(0u64), user_.total_maust_locked);
         // let's verify user's lockup #1 (which is dissolved)

@@ -129,8 +129,9 @@ async function setupTest() {
     await testUpdateConfig( { "update_config": {"new_config": {"address_provider": address_provider_contract_address, "ma_ust_token": res["ma_token_address"]}} } )
     console.log(chalk.green(`Lockdrop Contract :: Configuration successfully updated`));
 
-    // Transfer MARS token to Lockdrop contract for distribution as rewards
+    // Transfer MARS token to Lockdrop & Incentives contract for distribution as rewards
     await transferCW20Tokens(terra, deployer, mars_token_address, lockdrop_contract_address, 7000000 * 10**6 );
+    await transferCW20Tokens(terra, deployer, mars_token_address, incentives_address, 7000000 * 10**6 );
 }
 
 
@@ -145,12 +146,12 @@ async function testUpdateConfig( newConfig: any ) {
     await Lockdrop_update_config(terra, deployer, lockdrop_contract_address,newConfig);
 
     let config_Response = await query_lockdrop_config(terra, lockdrop_contract_address);
-    console.log(newConfig["update_config"]["new_config"]["address_provider"]);
-    console.log(newConfig["update_config"]["new_config"]["ma_ust_token"]);
-    console.log(config_Response);
+    // console.log(newConfig["update_config"]["new_config"]["address_provider"]);
+    // console.log(newConfig["update_config"]["new_config"]["ma_ust_token"]);
+    // console.log(config_Response);
 
     let global_state_ = await query_lockdrop_state(terra, lockdrop_contract_address);
-    console.log(global_state_);
+    // console.log(global_state_);
 
 
     expect(config_Response).to.deep.equal({       owner : deployer.key.accAddress,
@@ -189,7 +190,7 @@ async function test_deposit_UST(userWallet:Wallet, amount:number, duration: numb
 
     let global_state_after = await query_lockdrop_state(terra, lockdrop_contract_address);
     let global_deposit_amount_after = global_state_after.total_ust_locked;
-    console.log(global_state_after);
+    // console.log(global_state_after);
 
     let user_info_after = await query_lockdrop_userInfo(terra, lockdrop_contract_address, userWallet.key.accAddress);
     let user_deposit_amount_after = user_info_after.total_ust_locked;
@@ -252,7 +253,7 @@ async function test_deposit_UST_in_RedBank(terra:LocalTerra, userWallet:Wallet) 
     var ma_ust_balance_before_deposit = await getCW20Balance(terra, ma_ust_token, lockdrop_contract_address);
 
     let global_state_before = await query_lockdrop_state(terra, lockdrop_contract_address);
-    console.log(global_state_before);
+    // console.log(global_state_before);
     let global_final_ust_locked_before = global_state_before.final_ust_locked;
     let global_final_maust_locked_before = global_state_before.final_maust_locked;
     let global_total_ust_locked_before = global_state_before.total_ust_locked;
@@ -273,7 +274,7 @@ async function test_deposit_UST_in_RedBank(terra:LocalTerra, userWallet:Wallet) 
     let global_total_ust_locked_after = global_state_after.total_ust_locked;
     let global_total_maust_locked_after = global_state_after.total_maust_locked;
     let global_total_deposits_weight_after = global_state_after.total_deposits_weight;
-    console.log(global_state_after);
+    // console.log(global_state_after);
     expect(Number(global_total_ust_locked_before)).to.equal(Number(global_final_ust_locked_after));
     expect(Number(global_final_maust_locked_after)).to.equal(Number(ma_ust_balance_after_deposit) - Number(ma_ust_balance_before_deposit) );
     expect(Number(global_total_ust_locked_after)).to.equal(0);
@@ -284,37 +285,42 @@ async function test_deposit_UST_in_RedBank(terra:LocalTerra, userWallet:Wallet) 
 }
 
 
+//----------------------------------------------------------------------------------------
+// Claim xMARS Rewards : Test
+//----------------------------------------------------------------------------------------
 
 
 async function test_claim_rewards(terra:LocalTerra, userWallet:Wallet) { 
     process.stdout.write( ` ${chalk.cyan(userWallet.key.accAddress)} should successfully claim rewards`);
 
     let user_info_before = await query_lockdrop_userInfo(terra, lockdrop_contract_address, userWallet.key.accAddress );
-    console.log(user_info_before);
+    // console.log(user_info_before);
 
     let unclaimed_xmars = await queryContract(terra, incentives_address, { "user_unclaimed_rewards": {"user_address": lockdrop_contract_address}} )
-    console.log(unclaimed_xmars)
+    // console.log(unclaimed_xmars)
 
-    var mars_balance_before = await getCW20Balance(terra, mars_token_address, lockdrop_contract_address);
-    var xmars_balance_before = await getCW20Balance(terra, xmars_token_address, lockdrop_contract_address);
+    var mars_balance_before = await getCW20Balance(terra, mars_token_address, userWallet.key.accAddress );
+    var xmars_balance_before = await getCW20Balance(terra, xmars_token_address, userWallet.key.accAddress);
     await Lockdrop_claim_rewards(terra, userWallet, lockdrop_contract_address);
-    var mars_balance_after = await getCW20Balance(terra, mars_token_address, lockdrop_contract_address);
-    var xmars_balance_after = await getCW20Balance(terra, xmars_token_address, lockdrop_contract_address);
+    var mars_balance_after = await getCW20Balance(terra, mars_token_address, userWallet.key.accAddress);
+    var xmars_balance_after = await getCW20Balance(terra, xmars_token_address, userWallet.key.accAddress);
 
     let user_info_after = await query_lockdrop_userInfo(terra, lockdrop_contract_address, userWallet.key.accAddress );
     
-    expect(Number(user_info_before.total_ust_locked)).to.equal(user_info_after.total_ust_locked);
-    expect(Number(user_info_before.total_maust_locked)).to.equal(user_info_after.total_maust_locked);
-    expect(Number(user_info_before.lockup_position_ids)).to.equal(user_info_after.lockup_position_ids);
+    expect(Number(user_info_before.total_ust_locked)).to.equal(Number(user_info_after.total_ust_locked));
+    expect(Number(user_info_before.total_maust_locked)).to.equal(Number(user_info_after.total_maust_locked));
     expect(Number(user_info_after.pending_xmars)).to.equal(0);
-    if (!user_info_before.is_lockdrop_claimed) {
-        expect(Number(user_info_after.is_lockdrop_claimed)).to.equal(true);
+    if (user_info_before.is_lockdrop_claimed == 'false' ) {
+        expect(Number(user_info_after.is_lockdrop_claimed)).to.equal('true');
     }
 
     process.stdout.write( ` ${chalk.cyan( (Number(xmars_balance_after) - Number(xmars_balance_before)).toString() )} XMARS Tokens claimed successfully`);
     process.stdout.write( ` ${chalk.cyan( (Number(mars_balance_after) - Number(mars_balance_before)).toString() )} MARS Tokens claimed successfully`);
 }
 
+//----------------------------------------------------------------------------------------
+// Unlock Lockup : Test
+//----------------------------------------------------------------------------------------
 
 
 async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, duration:Number) { 
