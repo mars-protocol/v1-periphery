@@ -124,7 +124,7 @@ async function setupTest() {
     ma_ust_token_address = res["ma_token_address"];
     
     await incentives_set_asset_incentive(terra, deployer, incentives_address, res["ma_token_address"], 1  );
-    console.log(chalk.green(`Incentives successfully set for UST money market`));
+    console.log(chalk.green(`Incentives successfully set for UST money market\n`));
 
     await testUpdateConfig( { "update_config": {"new_config": {"address_provider": address_provider_contract_address, "ma_ust_token": res["ma_token_address"]}} } )
     console.log(chalk.green(`Lockdrop Contract :: Configuration successfully updated`));
@@ -141,7 +141,7 @@ async function setupTest() {
 //----------------------------------------------------------------------------------------
 
 async function testUpdateConfig( newConfig: any ) {
-    process.stdout.write("Should update config info correctly... ");
+    process.stdout.write("\nShould update config info correctly... ");
     
     await Lockdrop_update_config(terra, deployer, lockdrop_contract_address,newConfig);
 
@@ -158,14 +158,14 @@ async function testUpdateConfig( newConfig: any ) {
                                                   address_provider: newConfig["update_config"]["new_config"]["address_provider"],
                                                   ma_ust_token: newConfig["update_config"]["new_config"]["ma_ust_token"],
                                                   init_timestamp:  lockdrop_init_timestamp,
-                                                  deposit_window: 59,
-                                                  withdrawal_window: 45,
+                                                  deposit_window: 69,
+                                                  withdrawal_window: 59,
                                                   min_duration: 1, 
                                                   max_duration: 5,
                                                   multiplier: "0.0769",
                                                   lockdrop_incentives: "5000000000000"
                                                 });
-    console.log(chalk.green("\Lockdrop :: address_provider and ma_ust_token addresses parameters updated successfully"));   
+    console.log(chalk.green("\nLockdrop :: address_provider and ma_ust_token addresses parameters updated successfully"));   
 }
 
 
@@ -175,7 +175,7 @@ async function testUpdateConfig( newConfig: any ) {
 
 
 async function test_deposit_UST(userWallet:Wallet, amount:number, duration: number) {
-    process.stdout.write( `Should increase deposited UST for terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()} for duration = ${(duration).toString()} weeks... `);
+    process.stdout.write( `\nShould increase deposited UST for terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()} for duration = ${(duration).toString()} weeks... `);
 
     let global_state_before = await query_lockdrop_state(terra, lockdrop_contract_address);
     let global_deposit_amount_before = global_state_before.total_ust_locked;
@@ -202,7 +202,7 @@ async function test_deposit_UST(userWallet:Wallet, amount:number, duration: numb
     expect(Number(global_deposit_amount_after) - Number(global_deposit_amount_before)).to.equal(amount);
     expect(Number(user_deposit_amount_after) - Number(user_deposit_amount_before)).to.equal(amount);
 
-    console.log(chalk.green( `\n UST deposited successfully to the lockdrop contract ... \n`));                        
+    console.log(chalk.green( `\n UST deposited successfully to the lockdrop contract ...`));                        
 }
 
 //----------------------------------------------------------------------------------------
@@ -211,7 +211,7 @@ async function test_deposit_UST(userWallet:Wallet, amount:number, duration: numb
 
 
 async function test_withdraw_UST(userWallet:Wallet, amount:number, duration: number) {
-    process.stdout.write( `Should decrease deposited UST for terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()} for duration = ${(duration).toString()} weeks... `);
+    process.stdout.write( `\nShould decrease deposited UST for terra user  ${chalk.cyan(userWallet.key.accAddress)} by ${(amount).toString()} for duration = ${(duration).toString()} weeks... `);
 
     let global_state_before = await query_lockdrop_state(terra, lockdrop_contract_address);
     let global_deposit_amount_before = global_state_before.total_ust_locked;
@@ -237,7 +237,7 @@ async function test_withdraw_UST(userWallet:Wallet, amount:number, duration: num
     expect(Number(global_deposit_amount_before) - Number(global_deposit_amount_after)).to.equal(amount);
     expect(Number(user_deposit_amount_before) - Number(user_deposit_amount_after)).to.equal(amount);
 
-    console.log(chalk.green( `\n UST withdrawn successfully from the lockdrop contract ... \n`));                        
+    console.log(chalk.green( `\n UST withdrawn successfully from the lockdrop contract ... `));                        
 }
 
 //----------------------------------------------------------------------------------------
@@ -246,7 +246,7 @@ async function test_withdraw_UST(userWallet:Wallet, amount:number, duration: num
 
 
 async function test_deposit_UST_in_RedBank(terra:LocalTerra, userWallet:Wallet) {
-    process.stdout.write( `:: Depositing UST in the Red Bank ::`);
+    process.stdout.write( `\n:: Depositing UST in the Red Bank ::`);
 
     let res = await queryContract( terra, red_bank_address, { "market" : {"asset" : { "native": {"denom":"uusd"} }} }  );
     let ma_ust_token = res["ma_token_address"];    
@@ -281,7 +281,7 @@ async function test_deposit_UST_in_RedBank(terra:LocalTerra, userWallet:Wallet) 
     expect(Number(global_total_maust_locked_after)).to.equal(Number(global_final_maust_locked_after));
     expect(Number(global_total_deposits_weight_after)).to.equal(Number(global_total_deposits_weight_before));
 
-    console.log(chalk.green( `\n UST successfully deposited in the Red Bank... \n`));                        
+    console.log(chalk.green( `\n UST successfully deposited in the Red Bank... `));                        
 }
 
 
@@ -291,7 +291,7 @@ async function test_deposit_UST_in_RedBank(terra:LocalTerra, userWallet:Wallet) 
 
 
 async function test_claim_rewards(terra:LocalTerra, userWallet:Wallet) { 
-    process.stdout.write( ` ${chalk.cyan(userWallet.key.accAddress)} should successfully claim rewards`);
+    process.stdout.write( `\n ${chalk.cyan(userWallet.key.accAddress)} should successfully claim rewards`);
 
     let user_info_before = await query_lockdrop_userInfo(terra, lockdrop_contract_address, userWallet.key.accAddress );
     // console.log(user_info_before);
@@ -310,12 +310,12 @@ async function test_claim_rewards(terra:LocalTerra, userWallet:Wallet) {
     expect(Number(user_info_before.total_ust_locked)).to.equal(Number(user_info_after.total_ust_locked));
     expect(Number(user_info_before.total_maust_locked)).to.equal(Number(user_info_after.total_maust_locked));
     expect(Number(user_info_after.pending_xmars)).to.equal(0);
-    if (user_info_before.is_lockdrop_claimed == 'false' ) {
-        expect(Number(user_info_after.is_lockdrop_claimed)).to.equal('true');
+    if (!user_info_before.is_lockdrop_claimed) {
+        expect(user_info_after.is_lockdrop_claimed).to.equal(true);
     }
 
-    process.stdout.write( ` ${chalk.cyan( (Number(xmars_balance_after) - Number(xmars_balance_before)).toString() )} XMARS Tokens claimed successfully`);
-    process.stdout.write( ` ${chalk.cyan( (Number(mars_balance_after) - Number(mars_balance_before)).toString() )} MARS Tokens claimed successfully`);
+    process.stdout.write( `\n ${chalk.cyan( (Number(xmars_balance_after) - Number(xmars_balance_before)).toString() )} XMARS Tokens claimed successfully`);
+    process.stdout.write( `\n ${chalk.cyan( (Number(mars_balance_after) - Number(mars_balance_before)).toString() )} MARS Tokens claimed successfully`);
 }
 
 //----------------------------------------------------------------------------------------
@@ -324,9 +324,10 @@ async function test_claim_rewards(terra:LocalTerra, userWallet:Wallet) {
 
 
 async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, duration:Number) { 
-    process.stdout.write( ` ${chalk.cyan(userWallet.key.accAddress)} should successfully unlock Lockup with duration = ${chalk.cyan(duration)}  weeks...`);
+    process.stdout.write( `\n ${chalk.cyan(userWallet.key.accAddress)} should successfully unlock Lockup with duration = ${chalk.cyan(duration)}  weeks...`);
 
     let lockdrop_info_before = await query_lockdrop_lockupInfoWithId(terra, lockdrop_contract_address, userWallet.key.accAddress + duration );
+    let user_info_before = await query_lockdrop_userInfo(terra, lockdrop_contract_address, userWallet.key.accAddress );
 
     var maToken_balance_before = await getCW20Balance(terra, ma_ust_token_address, userWallet.key.accAddress);
     await Lockdrop_unlock_deposit(terra, userWallet, lockdrop_contract_address, duration);
@@ -336,11 +337,10 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
     let user_info_after = await query_lockdrop_userInfo(terra, lockdrop_contract_address, userWallet.key.accAddress );
 
     expect(Number(user_info_after.pending_xmars)).to.equal(0);
-    expect(user_info_after.is_lockdrop_claimed).to.equal('true');
+    expect(user_info_after.is_lockdrop_claimed).to.equal(true);
     expect(Number(maToken_balance_after) - Number(maToken_balance_before)).to.equal(Number(lockdrop_info_before.maust_balance));
 
-
-
+    process.stdout.write( `Lockup successfully unlocked. ${lockdrop_info_before.maust_balance} ma_UST and ${user_info_before.pending_xmars} xMars transferred to the user`);
 }
 
 
@@ -369,19 +369,9 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
 //----------------------------------------------------------------------------------------
 
 (async () => {
+
     console.log(chalk.yellow("\Lockdrop Test: Info"));
-  
-    // let unclaimed_xmars = await queryContract(terra, "terra1vppj986etcpq32uhx7sdslhan5x9929xdxgzth", { "user_unclaimed_rewards": {"user_address": "terra1p58v8rsahdzd66uydt8k74dsdw0mx2kmg0rm4v"}} )
-    // console.log(unclaimed_xmars)
-
-    // await Lockdrop_claim_rewards(terra, terra_user_1, "terra1p58v8rsahdzd66uydt8k74dsdw0mx2kmg0rm4v");
-
-    // unclaimed_xmars = await queryContract(terra, "terra1vppj986etcpq32uhx7sdslhan5x9929xdxgzth", { "user_unclaimed_rewards": {"user_address": "terra1p58v8rsahdzd66uydt8k74dsdw0mx2kmg0rm4v"}} )
-    // console.log(unclaimed_xmars)
-
-    // return
-
-    console.log(`Deployer ::  ${chalk.cyan(deployer.key.accAddress)}`);
+    console.log(`Deployer ::  ${chalk.cyan(deployer.key.accAddress)}\n`);
 
     console.log(`${chalk.cyan(terra_user_1.key.accAddress)} as user #1`);
     console.log(`${chalk.cyan(terra_user_2.key.accAddress)} as user #2`);
@@ -394,8 +384,8 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
                                             "address_provider": undefined,
                                             "ma_ust_token": undefined,
                                             "init_timestamp": lockdrop_init_timestamp,
-                                            "deposit_window": 59,
-                                            "withdrawal_window": 45,
+                                            "deposit_window": 69,
+                                            "withdrawal_window": 59,
                                             "min_duration": 1,
                                             "max_duration": 5,
                                             "weekly_multiplier": "0.0769",
@@ -404,16 +394,22 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
                                           } ;
                             //   };
     lockdrop_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'lockdrop.wasm'), lockdrop_config);
-    console.log(chalk.green(`Lockdrop Contract deployed successfully, address : ${chalk.cyan(lockdrop_contract_address)}`));
+    console.log(chalk.green(`\nLockdrop Contract deployed successfully, address : ${chalk.cyan(lockdrop_contract_address)}`));
     
     await sleep(7000);
-    await test_deposit_UST(terra_user_1, 47956924, 1); 
-    await test_deposit_UST(terra_user_2, 47956924, 2); 
-    await test_deposit_UST(terra_user_3, 47956924, 3); 
+    await test_deposit_UST(terra_user_1, 3455834435639, 1); 
+    await test_deposit_UST(terra_user_1, 45435435, 3); 
+    await test_deposit_UST(terra_user_1, 435345345, 5); 
 
-    // await test_withdraw_UST(terra_user_1, 47956924, 1); 
-    // await test_withdraw_UST(terra_user_2, 47956924, 2); 
-    // await test_withdraw_UST(terra_user_3, 47956924, 3);     
+    await test_deposit_UST(terra_user_2, 578235687234, 2); 
+    await test_deposit_UST(terra_user_2, 345435343543, 3); 
+    await test_deposit_UST(terra_user_2, 345345345345, 4); 
+    
+    await test_deposit_UST(terra_user_3, 45679465438, 3); 
+
+    await test_withdraw_UST(terra_user_1, 53443, 1); 
+    await test_withdraw_UST(terra_user_2, 643453, 2); 
+    await test_withdraw_UST(terra_user_3, 64354345, 3);     
 
     // Deploy the contracts
     console.log(chalk.yellow("\n Deploying Red Bank... "));
@@ -425,7 +421,21 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
 
     await sleep(7000);
     await test_claim_rewards(terra, terra_user_1);
+    await test_claim_rewards(terra, terra_user_2);
+    await test_claim_rewards(terra, terra_user_3);
     
+    await sleep(7000);
+    await test_claim_rewards(terra, terra_user_1);
+    await test_claim_rewards(terra, terra_user_2);
+    await test_claim_rewards(terra, terra_user_3);
+
+    await test_unlock_lockup_position(terra, terra_user_1, 3);
+    await test_unlock_lockup_position(terra, terra_user_1, 5);
+
+    await test_unlock_lockup_position(terra, terra_user_2, 2);
+    await test_unlock_lockup_position(terra, terra_user_2, 4);
+
+    await test_unlock_lockup_position(terra, terra_user_3, 3);
 
 })();
 

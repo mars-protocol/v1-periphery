@@ -33,6 +33,10 @@ Note - Users can open muliple lockup positions with different lockup periods wit
 | `QueryMsg::Timestamp`   | Returns the current timestamp                       |
 
 
+### Query Messages
+
+![Alt text](../../../Lockdrop_msg.png?raw=true "Lockdrop Callback Msgs")
+
 ## License
 
 TBD
