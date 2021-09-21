@@ -6,7 +6,7 @@ export const bombay_testnet: Config = {
             "staking_token": undefined,
             "init_timestamp": undefined,
             "till_timestamp": undefined, 
-            "cycle_rewards": "1000000000",
+            "cycle_rewards": "100000000",
             "cycle_duration": 86400,
             "reward_increase": "0.02"
         }

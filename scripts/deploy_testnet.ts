@@ -10,8 +10,8 @@ import { LCDClient } from "@terra-money/terra.js"
 import { join } from "path"
 import {staking_UpdateConfig, staking_IncreasePosition, staking_DecreasePosition, staking_ClaimRewards,
   staking_getConfig, staking_getState, staking_getPositionInfo, staking_getTimestamp }  from "./helpers/staking_helpers.js";
-import { update_Lockdrop_config, deposit_UST_Lockdrop, withdraw_UST_Lockdrop, claim_rewards_lockdrop
-          , unlock_deposit, deposit_UST_in_RedBank, query_lockdrop_config, query_lockdrop_state,query_lockdrop_userInfo, query_lockdrop_lockupInfo, query_lockdrop_lockupInfoWithId } from "./helpers/lockdrop_helpers.js"
+// import { update_Lockdrop_config, deposit_UST_Lockdrop, withdraw_UST_Lockdrop, claim_rewards_lockdrop
+//           , unlock_deposit, deposit_UST_in_RedBank, query_lockdrop_config, query_lockdrop_state,query_lockdrop_userInfo, query_lockdrop_lockupInfo, query_lockdrop_lockupInfoWithId } from "./helpers/lockdrop_helpers.js"
 import { parse } from 'dotenv/types'
 import { bombay_testnet } from "./configs.js"
 import {addressProvider_updateConfig, addressProvider_getAddress} from "./helpers/mock_helpers.js"; 
@@ -39,13 +39,13 @@ async function main() {
   console.log(`Wallet address from seed: ${deployer.key.accAddress}`)
 
 
-  let address_provider_contract_address = "terra1g0p6sx2vrh35x50cu7d9f3qhhcyehy7wljn7yj" // : string;
-  let mars_token_address = "terra1zylwjlvqxv8s259cu2vl9y0a04rcgyndaarf5p" // : string;
-  let lp_token_address = "terra1hnxucdscvpl7qv8ljfrlpqkdut6te4pc03lzmp" // : string;
-  let staking_contract_address = "terra1anxuszqryymc9e3ydkt0gfdhn2t9tf2n707cn8" // : string;
+  // let address_provider_contract_address = "terra1g0p6sx2vrh35x50cu7d9f3qhhcyehy7wljn7yj" // : string;
+  // let mars_token_address = "terra1zylwjlvqxv8s259cu2vl9y0a04rcgyndaarf5p" // : string;
+  // let lp_token_address = "terra1hnxucdscvpl7qv8ljfrlpqkdut6te4pc03lzmp" // : string;
+  // let staking_contract_address = "terra1anxuszqryymc9e3ydkt0gfdhn2t9tf2n707cn8" // : string;
 
-  const init_timestamp = Number(parseInt((Date.now()/1000).toFixed(0))) + 13;
-  const till_timestamp = init_timestamp + (86400 * 30)
+  // const init_timestamp = Number(parseInt((Date.now()/1000).toFixed(0))) + 13;
+  // const till_timestamp = init_timestamp + (86400 * 30)
 
 
     // Deploy LP Token
@@ -56,7 +56,7 @@ async function main() {
     //                         "mint": { "minter":deployer.key.accAddress, "cap":"100000000000000"}
     //                        }
     // lp_token_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'cw20_token.wasm'),  lp_token_config )
-    console.log(chalk.green(`LP Token deployed successfully, address : ${chalk.cyan(lp_token_address)}`));
+    // console.log(chalk.green(`LP Token deployed successfully, address : ${chalk.cyan(lp_token_address)}`));
     
     // Deploy MARS Token
     // let mars_token_config = { "name": "MARS",
@@ -66,42 +66,42 @@ async function main() {
     //                         "mint": { "minter":deployer.key.accAddress, "cap":"100000000000000"}
     //                        }
     // mars_token_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'cw20_token.wasm'),  mars_token_config )
-    console.log(chalk.green(`$MARS Token deployed successfully, address : ${chalk.cyan(mars_token_address)}`));
+    // console.log(chalk.green(`$MARS Token deployed successfully, address : ${chalk.cyan(mars_token_address)}`));
     
     // Deploy Address Provider (Mock)
     // address_provider_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'address_provider.wasm'),  {"owner": deployer.key.accAddress } )    
     // await addressProvider_updateConfig(terra, deployer, address_provider_contract_address, { "update_config" : { "config" : { "mars_token_address": mars_token_address }  } });
     // let address_response = await addressProvider_getAddress(terra, address_provider_contract_address, "MarsToken");
-    console.log(chalk.green(`Address provider Contract deployed successfully, address : ${chalk.cyan(address_provider_contract_address)}`));
+    // console.log(chalk.green(`Address provider Contract deployed successfully, address : ${chalk.cyan(address_provider_contract_address)}`));
 
-    let staking_config = { "owner":  deployer.key.accAddress,
-                          "address_provider": address_provider_contract_address,
-                          "staking_token": lp_token_address,
-                          "init_timestamp": init_timestamp,
-                          "till_timestamp": till_timestamp, 
-                          "cycle_rewards": "10", 
-                          "cycle_duration": 10, 
-                          "reward_increase": "0.02" 
-                        } 
+    // let staking_config = { "owner":  deployer.key.accAddress,
+    //                       "address_provider": address_provider_contract_address,
+    //                       "staking_token": lp_token_address,
+    //                       "init_timestamp": init_timestamp,
+    //                       "till_timestamp": till_timestamp, 
+    //                       "cycle_rewards": "10", 
+    //                       "cycle_duration": 10, 
+    //                       "reward_increase": "0.02" 
+    //                     } 
 
     // Deploy Staking contract
     // staking_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'staking.wasm'),  staking_config )    
 
-    console.log(chalk.green(`Staking Contract deployed successfully, address : ${chalk.cyan(staking_contract_address)}`));
+    // console.log(chalk.green(`Staking Contract deployed successfully, address : ${chalk.cyan(staking_contract_address)}`));
 
-    // await transferCW20Tokens(terra, deployer, mars_token_address, staking_contract_address, 250000 );
+    // // await transferCW20Tokens(terra, deployer, mars_token_address, staking_contract_address, 250000 );
 
-    // let stakingConfigResponse = await staking_getConfig(terra, staking_contract_address);
-    // console.log(stakingConfigResponse)
-    let global_state = await staking_getState(terra, staking_contract_address, 0);
-    console.log(global_state)
+    // // let stakingConfigResponse = await staking_getConfig(terra, staking_contract_address);
+    // // console.log(stakingConfigResponse)
+    // let global_state = await staking_getState(terra, staking_contract_address, 0);
+    // console.log(global_state)
 
-    await staking_IncreasePosition(terra, deployer, staking_contract_address, lp_token_address, 432);
-    console.log("LP Tokens staked")
+    // await staking_IncreasePosition(terra, deployer, staking_contract_address, lp_token_address, 432);
+    // console.log("LP Tokens staked")
 
-    await sleep(1000);
+    // await sleep(1000);
 
-    await staking_DecreasePosition(terra, deployer, staking_contract_address, mars_token_address, 32, true);
+    // await staking_DecreasePosition(terra, deployer, staking_contract_address, mars_token_address, 32, true);
 
 
 
@@ -152,22 +152,33 @@ async function main() {
   // /*************************************** Deploy LP Staking Contract *****************************************/
   // console.log("Deploying LP Staking Contract...")
 
-  // let init_timestamp = parseInt((Date.now()/1000).toFixed(0));
-  // let till_timestamp = init_timestamp + 1000000;
-  // let ADDRESS_PROVIDER = "terra15vn23xxuhzr430crgavlk2ghd5vugc8pvtyzxs";
+  let init_timestamp = parseInt((Date.now()/1000).toFixed(0)) + 15;
+  let till_timestamp = init_timestamp + 31536000;  
+  let ADDRESS_PROVIDER = "terra15vn23xxuhzr430crgavlk2ghd5vugc8pvtyzxs";
 
   // // SETTING CONFIG
-  // bombay_testnet.lpStaking_InitMsg.config.owner = wallet.key.accAddress;
-  // bombay_testnet.lpStaking_InitMsg.config.address_provider = ADDRESS_PROVIDER;
-  // bombay_testnet.lpStaking_InitMsg.config.staking_token = lpTokenContractAddress;
-  // bombay_testnet.lpStaking_InitMsg.config.init_timestamp = init_timestamp;
-  // bombay_testnet.lpStaking_InitMsg.config.till_timestamp = till_timestamp;
+  bombay_testnet.lpStaking_InitMsg.config.owner = deployer.key.accAddress;
+  bombay_testnet.lpStaking_InitMsg.config.address_provider = ADDRESS_PROVIDER;
+  bombay_testnet.lpStaking_InitMsg.config.staking_token = lpTokenContractAddress;
+  bombay_testnet.lpStaking_InitMsg.config.init_timestamp = init_timestamp;
+  bombay_testnet.lpStaking_InitMsg.config.till_timestamp = till_timestamp;
 
 
-  // console.log(bombay_testnet.lpStaking_InitMsg.config);
-  // const stakingContractAddress = await deployContract(terra, wallet, join(MARS_ARTIFACTS_PATH, 'mars_lp_staking.wasm'),  bombay_testnet.lpStaking_InitMsg.config)
+//   let staking_config = { "owner":  deployer.key.accAddress,
+//   "address_provider": address_provider_contract_address,
+//   "staking_token": lp_token_address,
+//   "init_timestamp": init_timestamp,
+//   "till_timestamp": till_timestamp, 
+//   "cycle_rewards": "100000000", 
+//   "cycle_duration": 10, 
+//   "reward_increase": "0.02" 
+// } 
+
+
+  console.log(bombay_testnet.lpStaking_InitMsg.config);
+  const stakingContractAddress = await deployContract(terra, deployer, join(MARS_ARTIFACTS_PATH, 'staking.wasm'),  bombay_testnet.lpStaking_InitMsg.config)
   // // const stakingContractAddress = "terra199gy2vjpm52se5jkc24yw0lf98dx0749gf2jve"
-  // console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
+  console.log("LP STAKING Contract Address: " + stakingContractAddress + "\n")
 
 
   // /*************************************** LP Staking Contract :: Function Calls *****************************************/
