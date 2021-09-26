@@ -1,0 +1,30 @@
+[package]
+name = "mars-periphery"
+version = "0.1.0"
+authors = [
+  "Alien hunter no. 42 <84127070+alienHunterOnMars@users.noreply.github.com>",
+  "larry_0x <larry@delphidigital.io>"
+]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { version = "0.16.2", features = ["iterator"] }
+cosmwasm-storage = { version = "0.16.2", features = ["iterator"] }
+
+cw2 = "0.8"
+cw20 = "0.8"
+
+cosmwasm-bignumber = "2.2.0"
+terra-cosmwasm = "2.1.0"
+terraswap = "2.3.0"
+
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = "1.0.20"

@@ -3,6 +3,22 @@
 version = 3
 
 [[package]]
+name = "airdrop"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus",
+ "cw20-base",
+ "hex",
+ "mars-periphery",
+ "schemars",
+ "serde",
+ "sha3",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,9 +82,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-crypto"
-version = "0.16.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa1715a9b71c7c31385a3f021dee2fd0a17b82043ab937467e103aa25043d2e"
+checksum = "4ec9bdd1f4da5fc0d085251b0322661c5aaf773ab299e3e205fb18130b7f6ba3"
 dependencies = [
  "digest",
  "ed25519-zebra",
@@ -79,9 +95,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-derive"
-version = "0.16.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f6e6dff07965015c4fcdf477c4becde738a2bfb40cf6239bdcea9335016c5a2"
+checksum = "5ac17a14b4ab09a5d89b5301218067acca33d9311376e5c34c9877f09e562395"
 dependencies = [
  "syn",
 ]
@@ -98,9 +114,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-std"
-version = "0.16.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92bdeee0ebba164ebbef9380522cc50f889db38acc1f1210f6b55ee2244b8c59"
+checksum = "e47306c113f4d964c35a74a87ceb8ccfb5811e9810a9dc427101148b5b9134ca"
 dependencies = [
  "base64",
  "cosmwasm-crypto",
@@ -114,9 +130,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-storage"
-version = "0.16.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e26053f14f971b05abca3be34f80c631d70c5b5b9df175e7a1d8b4aad83e40cc"
+checksum = "2e3472d8e0e7155c5f4d89674ad47adede4b1491ad14f4141610e1522028a6a7"
 dependencies = [
  "cosmwasm-std",
  "serde",
@@ -238,24 +254,6 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw20-token"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus",
- "cw0",
- "cw2",
- "cw20",
- "cw20-base",
- "schemars",
- "serde",
- "snafu",
  "thiserror",
 ]
 
@@ -437,10 +435,27 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus",
+ "cw20",
+ "mars",
+ "mars-periphery",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "lp-staking"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
  "cosmwasm-storage",
  "cw-storage-plus",
  "cw20",
  "mars",
+ "mars-periphery",
  "schemars",
  "serde",
  "thiserror",
@@ -464,18 +479,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "mars-airdrop"
+name = "mars-periphery"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-schema",
+ "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus",
- "cw20-base",
- "hex",
+ "cw2",
+ "cw20",
  "schemars",
  "serde",
- "sha3",
+ "terra-cosmwasm",
+ "terraswap",
+ "thiserror",
 ]
 
 [[package]]
@@ -780,22 +796,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "987637c5ae6b3121aba9d513f869bd2bff11c4cc086c22473befd6649c0bd521"
 dependencies = [
  "der",
-]
-
-[[package]]
-name = "staking"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-bignumber",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus",
- "cw20",
- "mars",
- "schemars",
- "serde",
- "thiserror",
 ]
 
 [[package]]

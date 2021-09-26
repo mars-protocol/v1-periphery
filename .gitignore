@@ -1,4 +1,8 @@
-target
-/scripts/node_modules
 artifacts
+
+**/target
+**/node_modules
+
 test
+
+.DS_Store

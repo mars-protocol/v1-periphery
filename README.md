@@ -1,15 +1,12 @@
-# Incentives Contracts 
+# Mars Periphery
 
-## Overview
-
-This repo contains the following contracts - 
+This repo contains the following contracts -
 
 - **Airdrop Contract** : Used for MARS tokens airdrop claim during the intital protocol launch.
 
 - **Lockdrop Contract** : Allows users to lock their UST for selected duration against which they get MARS token rewards pro-rata to their wighted share along with xMars tokens which are accrued per block. Upon expiration of the lockup, users can withdraw their deposits as interest bearing maUST tokens, redeemable against UST via the Red Bank.
 
 - **LP Staking Contract** : Facilitates MARS-UST LP Token staking and reward distribution.
-
 
 ## Development
 
@@ -32,14 +29,12 @@ rustup default stable
 rustup target add wasm32-unknown-unknown
 ```
 
-
 3. Install Node libraries required for testing:
 
 ```bash
 cd scripts
 npm install
 ```
-
 
 ### Compile
 
@@ -52,7 +47,6 @@ docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
   cosmwasm/rust-optimizer:0.11.3
 ```
-
 
 ### Test
 
@@ -70,21 +64,7 @@ Run test scripts: inside `scripts` folder,
 ```bash
 cd scripts
 
-node  --experimental-json-modules  --loader ts-node/esm airdrop.spec.ts
+node --experimental-json-modules --loader ts-node/esm airdrop.spec.ts
 node --loader ts-node/esm staking.spec.ts
 node --loader ts-node/esm lockdrop.spec.ts
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
