@@ -258,6 +258,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw20-token"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "snafu",
+ "thiserror",
+]
+
+[[package]]
 name = "der"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
