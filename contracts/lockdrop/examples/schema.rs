@@ -8,7 +8,7 @@ use mars_periphery::lockdrop::{
     UpdateConfigMsg, UserInfoResponse,
 };
 
-use lockdrop::state::{Config, LockupInfo, State, UserInfo};
+use terra_mars_lockdrop::state::{Config, LockupInfo, State, UserInfo};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

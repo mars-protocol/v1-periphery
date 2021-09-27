@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "description": "Open a new user position or add to an existing position @dev Increase the total LP shares Bonded by equal no. of shares as sent by the user",
       "type": "object",

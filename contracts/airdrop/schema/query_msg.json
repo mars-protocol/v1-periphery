@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
@@ -17,22 +17,10 @@
     {
       "type": "object",
       "required": [
-        "state"
+        "is_claimed"
       ],
       "properties": {
-        "state": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "user_info"
-      ],
-      "properties": {
-        "user_info": {
+        "is_claimed": {
           "type": "object",
           "required": [
             "address"
@@ -49,42 +37,24 @@
     {
       "type": "object",
       "required": [
-        "lock_up_info"
+        "is_valid_signature"
       ],
       "properties": {
-        "lock_up_info": {
+        "is_valid_signature": {
           "type": "object",
           "required": [
-            "address",
-            "duration"
+            "evm_address",
+            "evm_signature",
+            "signed_msg_hash"
           ],
           "properties": {
-            "address": {
+            "evm_address": {
               "type": "string"
             },
-            "duration": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "lock_up_info_with_id"
-      ],
-      "properties": {
-        "lock_up_info_with_id": {
-          "type": "object",
-          "required": [
-            "lockup_id"
-          ],
-          "properties": {
-            "lockup_id": {
+            "evm_signature": {
+              "type": "string"
+            },
+            "signed_msg_hash": {
               "type": "string"
             }
           }

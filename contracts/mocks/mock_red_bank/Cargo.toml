@@ -1,6 +1,6 @@
 [package]
 name = "mock-red-bank"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Spike Spiegel <spikeonmars@protonmail.com>"]
 edition = "2018"
 
@@ -13,7 +13,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-mars = { path = "../../../packages/mars", version = "0.1.0" }
+mars = { path = "../../../packages/mars", version = "1.0.0" }
 
 cosmwasm-std = { version = "0.16.0" }
 cw-storage-plus = { version = "0.8" }

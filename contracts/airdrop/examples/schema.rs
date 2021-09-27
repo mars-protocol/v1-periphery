@@ -7,7 +7,7 @@ use mars_periphery::airdrop::{
     ClaimResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, SignatureResponse,
 };
 
-use airdrop::state::{Config, IsClaimed};
+use terra_mars_airdrop::state::{Config, IsClaimed};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

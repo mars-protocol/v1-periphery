@@ -1,9 +1,9 @@
 [package]
-name = "lp-staking"
-version = "0.1.0"
-authors = ["Alien hunter no. 42 <84127070+alienHunterOnMars@users.noreply.github.com>"]
+name = "terra-mars-lp-staking"
+version = "1.0.0"
+authors = ["alien Hunter <alienHunterOnMars@protonmail.com>"]
 edition = "2018"
-license = "Apache-2.0"
+
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -21,7 +21,7 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-mars = { path = "../../packages/mars", version = "0.1.0" }
+mars = { path = "../../packages/mars", version = "1.0.0" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }

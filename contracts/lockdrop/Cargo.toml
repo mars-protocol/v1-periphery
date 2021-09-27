@@ -1,8 +1,9 @@
 [package]
-name = "lockdrop"
-version = "0.1.0"
-authors = ["Alien hunter no. 42 <84127070+alienHunterOnMars@users.noreply.github.com>"]
+name = "terra-mars-lockdrop"
+version = "1.0.0"
+authors = ["alien Hunter <alienHunterOnMars@protonmail.com>"]
 edition = "2018"
+
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -10,10 +11,11 @@ exclude = [
   "hash.txt",
 ]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 crate-type = ["cdylib", "rlib"]
+
 
 [features]
 # for more explicit tests, cargo test --features=backtraces
@@ -21,8 +23,9 @@ backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
+
 [dependencies]
-mars = { path = "../../packages/mars", version = "0.1.0" }
+mars = { path = "../../packages/mars", version = "1.0.0" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }

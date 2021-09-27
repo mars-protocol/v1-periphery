@@ -1,6 +1,6 @@
 [package]
 name = "cw20-token"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Alien Hunter on Mars"]
 edition = "2018"
 

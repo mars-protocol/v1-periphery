@@ -1,8 +1,8 @@
 [package]
 name = "mars-periphery"
-version = "0.1.0"
+version = "1.0.0"
 authors = [
-  "Alien hunter no. 42 <84127070+alienHunterOnMars@users.noreply.github.com>",
+  "alien Hunter <alienHunterOnMars@protonmail.com>",
   "larry_0x <larry@delphidigital.io>"
 ]
 edition = "2018"
