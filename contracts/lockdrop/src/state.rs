@@ -33,6 +33,8 @@ pub struct Config {
     pub min_lock_duration: u64,
     /// Max. no. of weeks allowed for lockup
     pub max_lock_duration: u64,
+    /// Number of seconds per week
+    pub seconds_per_week: u64,
     /// Lockdrop Reward multiplier
     pub weekly_multiplier: Decimal256,
     /// "uusd" - Native token accepted by the contract for deposits

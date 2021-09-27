@@ -17,7 +17,6 @@ use mars_periphery::lockdrop::{
 
 use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 
-const SECONDS_PER_WEEK: u64 = 7 * 86400 as u64;
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -56,6 +55,7 @@ pub fn instantiate(
         withdrawal_window: msg.withdrawal_window,
         min_lock_duration: msg.min_duration,
         max_lock_duration: msg.max_duration,
+        seconds_per_week: msg.seconds_per_week,
         weekly_multiplier: msg.weekly_multiplier.unwrap_or(Decimal256::zero()),
         denom: msg.denom.unwrap_or("uusd".to_string()),
         lockdrop_incentives: msg.lockdrop_incentives.unwrap_or(Uint256::zero()),
@@ -770,6 +770,18 @@ pub fn query_user_info(deps: Deps, env: Env, user: String) -> StdResult<UserInfo
         .may_load(deps.storage, &user_address.clone())?
         .unwrap_or_default();
 
+    // If address_provider is not set yet
+    if config.address_provider == zero_address() {
+        return Ok(UserInfoResponse {
+            total_ust_locked: user_info.total_ust_locked,
+            total_maust_locked: Uint256::zero(),
+            lockup_position_ids: user_info.lockup_positions,
+            is_lockdrop_claimed: user_info.lockdrop_claimed,
+            reward_index: user_info.reward_index,
+            pending_xmars: user_info.pending_xmars,
+        })
+    }
+
     // QUERY:: Contract addresses
     let mars_contracts = vec![MarsContract::Incentives];
     let mut addresses_query =
@@ -860,7 +872,7 @@ fn is_withdraw_open(current_timestamp: u64, config: &Config) -> bool {
 
 /// Returns the timestamp when the lockup will get unlocked
 fn calculate_unlock_timestamp(config: &Config, duration: u64) -> u64 {
-    config.init_timestamp + config.deposit_window + (duration * SECONDS_PER_WEEK)
+    config.init_timestamp + config.deposit_window + (duration * config.seconds_per_week)
 }
 
 // Calculate Lockdrop Reward
@@ -1056,6 +1068,7 @@ mod tests {
             withdrawal_window: 72000,
             min_duration: 1,
             max_duration: 5,
+            seconds_per_week: 7 * 86400 as u64, 
             denom: Some("uusd".to_string()),
             weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
             lockdrop_incentives: None,
@@ -1157,6 +1170,7 @@ mod tests {
             withdrawal_window: 72000u64,
             min_duration: 1u64,
             max_duration: 5u64,
+            seconds_per_week: 7 * 86400 as u64, 
             denom: Some("uusd".to_string()),
             weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
             lockdrop_incentives: None,
@@ -2895,6 +2909,7 @@ mod tests {
             withdrawal_window: 72000u64,
             min_duration: 3u64,
             max_duration: 9u64,
+            seconds_per_week: 7 * 86400 as u64, 
             denom: Some("uusd".to_string()),
             weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
             lockdrop_incentives: Some(Uint256::from(21432423343u64)),

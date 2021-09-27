@@ -56,7 +56,7 @@ async function setupTest() {
     console.log(chalk.green(`$MARS Token deployed successfully, address : ${chalk.cyan(mars_token_address)}`));
     
     // Deploy Address Provider (Mock)
-    address_provider_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'address_provider.wasm'),  {"owner": deployer.key.accAddress } )    
+    address_provider_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'mock_address_provider.wasm'),  {"owner": deployer.key.accAddress } )    
     await addressProvider_updateConfig(terra, deployer, address_provider_contract_address, { "update_config" : { "config" : { "mars_token_address": mars_token_address }  } });
     let address_response = await addressProvider_getAddress(terra, address_provider_contract_address, "MarsToken");
     expect(address_response).to.equal(mars_token_address);
@@ -72,7 +72,7 @@ async function setupTest() {
                           "reward_increase": "0.02" 
                         } 
     
-    staking_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'staking.wasm'),  staking_config )    
+    staking_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'terra_mars_lp_staking.wasm'),  staking_config )    
     const stakingConfigResponse = await staking_getConfig(terra, staking_contract_address);
       expect(stakingConfigResponse).to.deep.equal({
         owner : deployer.key.accAddress,

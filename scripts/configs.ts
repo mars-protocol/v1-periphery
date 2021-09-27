@@ -21,6 +21,7 @@ export const bombay_testnet: Config = {
             "withdrawal_window": 45,       // 15 min
             "min_duration": 1,         
             "max_duration": 5,
+            "seconds_per_week": 14,
             "denom": "uusd",
             "weekly_multiplier": "0.02",    // 2% 
             "lockdrop_incentives": "50000000000"
@@ -67,6 +68,7 @@ interface LockdropInitMsg {
         withdrawal_window: number 
         min_duration: number 
         max_duration: number
+        seconds_per_week: number
         denom: string
         weekly_multiplier: string
         lockdrop_incentives: string

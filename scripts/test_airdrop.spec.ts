@@ -56,7 +56,7 @@ async function setupTest() {
                          "till_timestamp": till_timestamp, 
                         } 
     
-    airdrop_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'mars_airdrop.wasm'),  airdrop_config )    
+    airdrop_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'terra_mars_airdrop.wasm'),  airdrop_config )    
     const airdropConfigResponse = await getAirdropConfig(terra, airdrop_contract_address);
       expect(airdropConfigResponse).to.deep.equal({
         mars_token_address: mars_token_address,

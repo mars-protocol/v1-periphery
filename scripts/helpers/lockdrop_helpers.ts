@@ -30,6 +30,7 @@ export async function Lockdrop_update_config( terra: LocalTerra | LCDClient,  wa
 export async function Lockdrop_deposit_UST( terra: LocalTerra | LCDClient,  wallet:Wallet, lockdropContractAddress:string, amount: number, duration: number) {
     let deposit_msg = { "deposit_ust": {"duration":duration} };
     let resp = await executeContract(terra, wallet, lockdropContractAddress, deposit_msg, new Coins([new Coin('uusd',amount.toString())]) );
+    // console.log(resp)
     // console.log(" LOCKDROP CONTRACT : " + (amount/1e6).toString() + " UST DEPOSITED");
 }  
 

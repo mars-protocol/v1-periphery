@@ -12,6 +12,7 @@
     "max_lock_duration",
     "min_lock_duration",
     "owner",
+    "seconds_per_week",
     "weekly_multiplier",
     "withdrawal_window"
   ],
@@ -75,6 +76,12 @@
           "$ref": "#/definitions/Addr"
         }
       ]
+    },
+    "seconds_per_week": {
+      "description": "Number of seconds per week",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "weekly_multiplier": {
       "description": "Lockdrop Reward multiplier",

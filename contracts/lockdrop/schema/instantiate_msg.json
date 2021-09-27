@@ -8,6 +8,7 @@
     "max_duration",
     "min_duration",
     "owner",
+    "seconds_per_week",
     "withdrawal_window"
   ],
   "properties": {
@@ -70,6 +71,12 @@
     "owner": {
       "description": "Account who can update config",
       "type": "string"
+    },
+    "seconds_per_week": {
+      "description": "Number of seconds per week",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "weekly_multiplier": {
       "description": "Lockdrop Reward multiplier",

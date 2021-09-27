@@ -54,7 +54,7 @@ async function setupTest() {
 
 
     // Deploy Address Provider (Mock)
-    address_provider_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'address_provider.wasm'),  {"owner": deployer.key.accAddress } )    
+    address_provider_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'mock_address_provider.wasm'),  {"owner": deployer.key.accAddress } )    
     await addressProvider_updateConfig(terra, deployer, address_provider_contract_address, { "update_config" :  { "config" : { "mars_token_address": mars_token_address   } }});                                                                                                                
     let address_response = await addressProvider_getAddress(terra, address_provider_contract_address, "MarsToken");
     expect(address_response).to.equal(mars_token_address);
@@ -188,9 +188,9 @@ async function test_deposit_UST(userWallet:Wallet, amount:number, duration: numb
 
     await Lockdrop_deposit_UST(terra, userWallet, lockdrop_contract_address, amount, duration);
 
+
     let global_state_after = await query_lockdrop_state(terra, lockdrop_contract_address);
     let global_deposit_amount_after = global_state_after.total_ust_locked;
-    // console.log(global_state_after);
 
     let user_info_after = await query_lockdrop_userInfo(terra, lockdrop_contract_address, userWallet.key.accAddress);
     let user_deposit_amount_after = user_info_after.total_ust_locked;
@@ -315,7 +315,7 @@ async function test_claim_rewards(terra:LocalTerra, userWallet:Wallet) {
     }
 
     process.stdout.write( `\n ${chalk.cyan( (Number(xmars_balance_after) - Number(xmars_balance_before)).toString() )} XMARS Tokens claimed successfully`);
-    process.stdout.write( `\n ${chalk.cyan( (Number(mars_balance_after) - Number(mars_balance_before)).toString() )} MARS Tokens claimed successfully`);
+    process.stdout.write( `\n ${chalk.cyan( (Number(mars_balance_after) - Number(mars_balance_before)).toString() )} MARS Tokens claimed successfully \n`);
 }
 
 //----------------------------------------------------------------------------------------
@@ -339,7 +339,7 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
     expect(Number(user_info_after.pending_xmars)).to.equal(0);
     expect(user_info_after.is_lockdrop_claimed).to.equal(true);
 
-    process.stdout.write( `Lockup successfully unlocked. ${lockdrop_info_before.maust_balance} ma_UST and ${user_info_before.pending_xmars} xMars transferred to the user`);
+    process.stdout.write( `Lockup successfully unlocked. ${lockdrop_info_before.maust_balance} ma_UST and ${user_info_before.pending_xmars} xMars transferred to the user\n`);
 }
 
 
@@ -387,12 +387,13 @@ async function test_unlock_lockup_position(terra:LocalTerra, userWallet:Wallet, 
                                             "withdrawal_window": 59,
                                             "min_duration": 1,
                                             "max_duration": 5,
+                                            "seconds_per_week":14,
                                             "weekly_multiplier": "0.0769",
                                             "denom": "uusd",
                                             "lockdrop_incentives": "5000000000000"
                                           } ;
                             //   };
-    lockdrop_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'lockdrop.wasm'), lockdrop_config);
+    lockdrop_contract_address = await deployContract(terra, deployer, join(ARTIFACTS_PATH, 'terra_mars_lockdrop.wasm'), lockdrop_config);
     console.log(chalk.green(`\nLockdrop Contract deployed successfully, address : ${chalk.cyan(lockdrop_contract_address)}`));
     
     await sleep(7000);

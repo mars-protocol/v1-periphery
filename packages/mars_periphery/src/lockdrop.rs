@@ -23,6 +23,8 @@ pub struct InstantiateMsg {
     pub min_duration: u64,
     /// Max. no. of days allowed for lockup
     pub max_duration: u64,
+    /// Number of seconds per week 
+    pub seconds_per_week: u64,
     /// "uusd" - Native token accepted by the contract for deposits
     pub denom: Option<String>,
     /// Lockdrop Reward multiplier

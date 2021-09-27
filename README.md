@@ -65,6 +65,6 @@ Run test scripts: inside `scripts` folder,
 cd scripts
 
 node --experimental-json-modules --loader ts-node/esm airdrop.spec.ts
-node --loader ts-node/esm staking.spec.ts
+node --loader ts-node/esm lp_staking.spec.ts
 node --loader ts-node/esm lockdrop.spec.ts
 ```
