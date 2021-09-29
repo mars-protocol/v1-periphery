@@ -27,7 +27,7 @@ const MARS_TOKEN_ADDRESS = "terra1rfuctcuyyxqz468wha5m805vt43g83tep4rm5x";
 async function main() {
 
   const ARTIFACTS_PATH = "../artifacts"
-  let terra = new LCDClient({ URL: 'https://bombay-lcd.terra.dev', chainID: 'bombay-11'})
+  let terra = new LCDClient({ URL: 'https://bombay-lcd.terra.dev', chainID: 'bombay-12'})
   let deployer = recover(terra, process.env.TEST_MAIN!)
 
   console.log(`Wallet address from seed: ${deployer.key.accAddress}`)
@@ -47,7 +47,7 @@ async function main() {
   console.log("LOCKDROP Contract Address: " + lockdropContractAddress + "\n")
 
   // TRANSFER TO LOCKDROP CONTRACT
-  await transferCW20Tokens(terra, deployer, MARS_TOKEN_ADDRESS, lockdropContractAddress, 50000000000 );
+  // await transferCW20Tokens(terra, deployer, MARS_TOKEN_ADDRESS, lockdropContractAddress, 50000000000 );
   
 
 

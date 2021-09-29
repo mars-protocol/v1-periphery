@@ -17,11 +17,11 @@ export const bombay_testnet: Config = {
             "address_provider": undefined,
             "ma_ust_token": undefined,
             "init_timestamp": 0,
-            "deposit_window": 90,         // 30 min
-            "withdrawal_window": 45,       // 15 min
+            "deposit_window": 86400*7,         // 30 min
+            "withdrawal_window": 86400*5,       // 15 min
             "min_duration": 1,         
-            "max_duration": 5,
-            "seconds_per_week": 14,
+            "max_duration": 52,
+            "seconds_per_week": 604800,
             "denom": "uusd",
             "weekly_multiplier": "0.02",    // 2% 
             "lockdrop_incentives": "50000000000"
