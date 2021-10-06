@@ -3,6 +3,19 @@
 version = 3
 
 [[package]]
+name = "astroport"
+version = "2.4.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -456,6 +469,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw2",
  "cw20",
+ "cw20-base",
  "schemars",
  "serde",
  "terra-cosmwasm",

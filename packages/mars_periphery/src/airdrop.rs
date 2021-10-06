@@ -23,6 +23,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         new_config: InstantiateMsg,
     },
+    EnableClaims {},
     /// Allows Terra users to claim their MARS Airdrop 
     ClaimByTerraUser {
         claim_amount: Uint128,
@@ -40,7 +41,7 @@ pub enum ExecuteMsg {
         
     },
     /// Allows users to delegate their MARS tokens to the LP Bootstrap auction contract 
-    DelegateMarsAstroToBootstrapAuction {
+    DelegateMarsToBootstrapAuction {
         amount_to_delegate: Uint128
     },
     /// Allows users to withdraw their MARS tokens 
