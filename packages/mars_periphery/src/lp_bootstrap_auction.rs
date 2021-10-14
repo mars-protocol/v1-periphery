@@ -1,65 +1,58 @@
 use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, StdResult, WasmMsg};
+use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cosmwasm_std::{ Addr, Decimal, CosmosMsg,WasmMsg , to_binary, StdResult};
-use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub owner: Option<String>,
+    pub owner: String,
     pub mars_token_address: String,
     pub airdrop_contract_address: String,
     pub lockdrop_contract_address: String,
-    pub mars_lp_pool: Option<String>,
-    pub lp_token_address : Option<String>,
-    pub lp_staking_contract: Option<String>,
+    pub astroport_lp_pool: Option<String>,
+    pub lp_token_address: Option<String>,
+    pub generator_contract: Option<String>,
     pub mars_rewards: Uint256,
+    pub mars_vesting_schedule: u64,
+    pub lp_tokens_vesting_schedule: u64,
     pub init_timestamp: u64,
     pub deposit_window: u64,
-    pub withdrawal_window: u64
+    pub withdrawal_window: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateConfigMsg {
     pub owner: Option<String>,
-    pub mars_lp_pool: Option<String>,
-    pub lp_token_address : Option<String>,
-    pub lp_staking_contract: Option<String>,
-    pub mars_rewards: Option<Uint256>
+    pub astroport_lp_pool: Option<String>,
+    pub lp_token_address: Option<String>,
+    pub generator_contract: Option<String>,
+    pub mars_rewards: Option<Uint256>,
 }
-
-
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
-    UpdateConfig {
-        new_config: UpdateConfigMsg,
-    },
+    UpdateConfig { new_config: UpdateConfigMsg },
 
-    DepositUst { },
+    DepositUst {},
     WithdrawUst { amount: Uint256 },
 
-    AddLiquidityToMarsPool { 
-        slippage: Option<Decimal>
-    },
-    StakeLpTokens {  } ,
+    AddLiquidityToAstroportPool { slippage: Option<Decimal> },
+    StakeLpTokens {},
 
-    ClaimRewards { },
-    WithdrawLpShares { },
+    ClaimRewards {},
+    WithdrawLpShares {},
     Callback(CallbackMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    DelegateMarsTokens { 
-        user_address: String,
-    }
+    DelegateMarsTokens { user_address: Addr },
 }
- 
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CallbackMsg {
@@ -68,10 +61,9 @@ pub enum CallbackMsg {
         prev_mars_balance: Uint256,
     },
     UpdateStateOnLiquidityAdditionToPool {
-        prev_lp_balance: Uint256
-    }
+        prev_lp_balance: Uint256,
+    },
 }
-
 
 // Modified from
 // https://github.com/CosmWasm/cosmwasm-plus/blob/v0.2.3/packages/cw20/src/receiver.rs#L15
@@ -85,17 +77,13 @@ impl CallbackMsg {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
     State {},
-    UserInfo {
-        address: String,
-     },
+    UserInfo { address: String },
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -104,24 +92,22 @@ pub struct ConfigResponse {
     pub airdrop_contract_address: String,
     pub lockdrop_contract_address: String,
     pub lp_token_address: String,
-    pub lp_staking_contract: String,
+    pub generator_contract: String,
     pub mars_rewards: Uint256,
     pub init_timestamp: u64,
     pub deposit_window: u64,
-    pub withdrawal_window: u64
+    pub withdrawal_window: u64,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
-    pub total_mars_deposited: Uint256,
+    pub total_mars_delegated: Uint256,
     pub total_ust_deposited: Uint256,
     pub lp_shares_minted: Uint256,
     pub lp_shares_claimed: Uint256,
     pub are_staked: bool,
-    pub global_reward_index: Decimal256
+    pub global_reward_index: Decimal256,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfoResponse {
@@ -134,18 +120,5 @@ pub struct UserInfoResponse {
     pub claimed_auction_incentives: Uint256,
     pub claimable_auction_incentives: Uint256,
     pub user_reward_index: Decimal256,
-    pub claimable_staking_incentives: Uint256
+    pub claimable_staking_incentives: Uint256,
 }
-
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WithdrawalStatus {
-    pub max_withdrawal_percent: Decimal256,
-    pub update_withdrawal_counter: bool,
-}
-
-
-
-
-
-

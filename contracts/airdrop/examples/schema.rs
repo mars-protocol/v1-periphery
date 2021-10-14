@@ -3,11 +3,11 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
+use mars_airdrop::state::{Config, State};
 use mars_periphery::airdrop::{
     ClaimResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, SignatureResponse,
+    StateResponse, UserInfoResponse,
 };
-
-use terra_mars_airdrop::state::{Config, IsClaimed};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -19,9 +19,12 @@ fn main() {
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
 
+    export_schema(&schema_for!(UserInfoResponse), &out_dir);
+    export_schema(&schema_for!(StateResponse), &out_dir);
     export_schema(&schema_for!(ConfigResponse), &out_dir);
     export_schema(&schema_for!(ClaimResponse), &out_dir);
     export_schema(&schema_for!(SignatureResponse), &out_dir);
+
     export_schema(&schema_for!(Config), &out_dir);
-    export_schema(&schema_for!(IsClaimed), &out_dir);
+    export_schema(&schema_for!(State), &out_dir);
 }
