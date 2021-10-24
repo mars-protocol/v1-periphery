@@ -23,11 +23,11 @@ async function main() {
 
   const ARTIFACTS_PATH = "../artifacts"
   let terra = new LCDClient({ URL: 'https://bombay-lcd.terra.dev', chainID: 'bombay-12'})
-  let deployer = recover(terra, process.env.TEST_MAIN!)
+  let deployer = recover(terra, process.env.PRIVATE_KEY!)
 
   console.log(`Wallet address from seed: ${deployer.key.accAddress}`)
 
-  const init_timestamp = Number(parseInt((Date.now()/1000).toFixed(0))) + 13;
+  const init_timestamp = Number(parseInt((Date.now()/1000).toFixed(0))) + 25;
   const till_timestamp = init_timestamp + (86400 * 30)
 
 
@@ -57,7 +57,7 @@ async function main() {
   // /*************************************** Deploy LP Staking Contract *****************************************/
 
     bombay_testnet.lpStaking_InitMsg.config.owner = deployer.key.accAddress;
-    bombay_testnet.lpStaking_InitMsg.config.address_provider = "terra1gezpfntjrkkvxsm22md2sr46hem53433rhtl8s" // address_provider_contract_address;
+    bombay_testnet.lpStaking_InitMsg.config.address_provider = "terra1h3za7sapv5c6k6c2tdapwpejmqgnaqmuudhmqw" // address_provider_contract_address;
     bombay_testnet.lpStaking_InitMsg.config.staking_token = "terra1vlrzw388xyg6fju5m3vxz3m8p5vrz33lzsv07z" // lp_token_address;
     bombay_testnet.lpStaking_InitMsg.config.init_timestamp = init_timestamp;
     bombay_testnet.lpStaking_InitMsg.config.till_timestamp = till_timestamp;
