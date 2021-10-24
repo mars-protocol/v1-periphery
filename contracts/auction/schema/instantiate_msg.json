@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "airdrop_contract_address",
+    "deposit_window",
+    "init_timestamp",
+    "lockdrop_contract_address",
+    "lp_tokens_vesting_duration",
+    "mars_rewards",
+    "mars_token_address",
+    "mars_vesting_duration",
+    "owner",
+    "withdrawal_window"
+  ],
+  "properties": {
+    "airdrop_contract_address": {
+      "type": "string"
+    },
+    "astroport_lp_pool": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deposit_window": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "generator_contract": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "init_timestamp": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "lockdrop_contract_address": {
+      "type": "string"
+    },
+    "lp_token_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lp_tokens_vesting_duration": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "mars_rewards": {
+      "$ref": "#/definitions/Uint256"
+    },
+    "mars_token_address": {
+      "type": "string"
+    },
+    "mars_vesting_duration": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "owner": {
+      "type": "string"
+    },
+    "withdrawal_window": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "Uint256": {
+      "type": "string"
+    }
+  }
+}

@@ -23,6 +23,8 @@ pub struct Config {
     pub address_provider: Addr,
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Addr,
+    /// Auction Contract address to which MARS tokens can be delegated to for bootstrapping MARS-UST Pool
+    pub auction_contract_address: Addr,
     /// Timestamp when Contract will start accepting deposits
     pub init_timestamp: u64,
     /// Deposit Window Length
@@ -53,6 +55,8 @@ pub struct State {
     pub total_ust_locked: Uint256,
     /// maUST held by the contract. This value is updated real-time upon each maUST withdrawal from red bank
     pub total_maust_locked: Uint256,
+    /// Boolean value indicating if the user can withdraw thier MARS rewards or not
+    pub are_claims_allowed: bool,
     /// Total weighted deposits
     pub total_deposits_weight: Uint256,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user

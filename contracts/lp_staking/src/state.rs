@@ -34,12 +34,11 @@ pub struct Config {
 
 impl Config {
     pub fn validate(&self) -> StdResult<()> {
-        if (&self.init_timestamp < &self.till_timestamp)
-            && (&self.reward_increase < &Decimal256::one())
+        if (self.init_timestamp < self.till_timestamp) && (self.reward_increase < Decimal256::one())
         {
             return Ok(());
         }
-        return Err(StdError::generic_err("Invalid configuration"));
+        Err(StdError::generic_err("Invalid configuration"))
     }
 }
 

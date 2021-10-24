@@ -13,6 +13,8 @@ pub struct InstantiateMsg {
     pub address_provider: Option<String>,
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Option<String>,
+    /// Bootstrap Auction contract address
+    pub auction_contract_address: Option<String>,    
     /// Timestamp till when deposits can be made
     pub init_timestamp: u64,
     /// Number of seconds for which lockup deposits will be accepted
@@ -41,6 +43,8 @@ pub struct UpdateConfigMsg {
     pub address_provider: Option<String>,
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Option<String>,
+    /// Bootstrap Auction contract address
+    pub auction_contract_address: Option<String>,    
     /// Timestamp till when deposits can be made
     pub init_timestamp: Option<u64>,
     /// Number of seconds for which lockup deposits will be accepted
@@ -128,6 +132,8 @@ pub struct ConfigResponse {
     pub address_provider: String,
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: String,
+    /// Auction Contract address to which MARS tokens can be delegated to for bootstrapping MARS-UST Pool
+    pub auction_contract_address: String,    
     /// Timestamp till when deposits can be made
     pub init_timestamp: u64,
     /// Number of seconds for which lockup deposits will be accepted
@@ -145,7 +151,7 @@ pub struct ConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GlobalStateResponse {
+pub struct StateResponse {
     /// Total UST deposited at the end of Lockdrop window. This value remains unchanged post the lockdrop window
     pub final_ust_locked: Uint256,
     /// maUST minted at the end of Lockdrop window upon UST deposit in red bank. This value remains unchanged post the lockdrop window
@@ -154,6 +160,8 @@ pub struct GlobalStateResponse {
     pub total_ust_locked: Uint256,
     /// maUST held by the contract. This value is updated real-time upon each maUST withdrawal from red bank
     pub total_maust_locked: Uint256,
+    /// Boolean value indicating if the user can withdraw thier MARS rewards or not
+    pub are_claims_allowed: bool,    
     /// Total weighted deposits
     pub total_deposits_weight: Uint256,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user

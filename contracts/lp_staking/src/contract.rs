@@ -6,9 +6,9 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use cosmwasm_bignumber::{Decimal256, Uint256};
 
-use mars::address_provider::helpers::query_address;
-use mars::address_provider::msg::MarsContract;
-use mars::helpers::{option_string_to_addr, zero_address};
+use mars_core::address_provider::helpers::query_address;
+use mars_core::address_provider::MarsContract;
+use mars_core::helpers::{option_string_to_addr, zero_address};
 
 use mars_periphery::lp_staking::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
@@ -43,7 +43,7 @@ pub fn instantiate(
         init_timestamp: msg.init_timestamp,
         till_timestamp: msg.till_timestamp,
         cycle_duration: msg.cycle_duration,
-        reward_increase: msg.reward_increase.unwrap_or(Decimal256::zero()),
+        reward_increase: msg.reward_increase.unwrap_or_else(Decimal256::zero),
     };
 
     config.validate()?;
@@ -52,8 +52,8 @@ pub fn instantiate(
     STATE.save(
         deps.storage,
         &State {
-            current_cycle: 0 as u64,
-            current_cycle_rewards: msg.cycle_rewards.unwrap_or(Uint256::zero()),
+            current_cycle: 0u64,
+            current_cycle_rewards: msg.cycle_rewards.unwrap_or_else(Uint256::zero),
             last_distributed: env.block.time.seconds(),
             total_bond_amount: Uint256::zero(),
             global_reward_index: Decimal256::zero(),
@@ -109,7 +109,7 @@ pub fn receive_cw20(
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::Bond {}) => {
             // only staking token contract can execute this message
-            if config.staking_token.to_string() != info.sender.as_str() {
+            if config.staking_token != info.sender.as_str() {
                 return Err(StdError::generic_err("unauthorized"));
             }
             let cw20_sender = deps.api.addr_validate(&cw20_msg.sender)?;
@@ -177,50 +177,41 @@ pub fn update_config(
     config.owner = option_string_to_addr(deps.api, new_config.owner, config.owner)?;
 
     // UPDATE :: VALUES IF PROVIDED
-    match new_config.reward_increase {
-        Some(new_increase_ratio) => {
-            if new_increase_ratio < Decimal256::one() {
-                config.reward_increase = new_increase_ratio;
-            } else {
-                return Err(StdError::generic_err("Invalid reward increase ratio"));
-            }
+    if let Some(new_increase_ratio) = new_config.reward_increase {
+        if new_increase_ratio < Decimal256::one() {
+            config.reward_increase = new_increase_ratio;
+        } else {
+            return Err(StdError::generic_err("Invalid reward increase ratio"));
         }
-        None => {}
     }
+
     state.current_cycle_rewards = new_config
         .cycle_rewards
         .unwrap_or(state.current_cycle_rewards);
 
     // UPDATE INIT TIMESTAMP AND STATE :: DOABLE ONLY IF IT HASN'T ALREADY PASSED YET
-    match new_config.init_timestamp {
-        Some(new_init_timestamp) => {
-            // Update if rewards distribution has not started yet and new init_timestamp hasn't passed
-            if config.init_timestamp > env.block.time.seconds()
-                && new_init_timestamp > env.block.time.seconds()
-                && new_init_timestamp < config.till_timestamp
-            {
-                config.init_timestamp = new_init_timestamp;
-            } else {
-                return Err(StdError::generic_err("Invalid init timestamp"));
-            }
+    if let Some(new_init_timestamp) = new_config.init_timestamp {
+        if config.init_timestamp > env.block.time.seconds()
+            && new_init_timestamp > env.block.time.seconds()
+            && new_init_timestamp < config.till_timestamp
+        {
+            config.init_timestamp = new_init_timestamp;
+        } else {
+            return Err(StdError::generic_err("Invalid init timestamp"));
         }
-        None => {}
     }
 
     // UPDATE TILL TIMESTAMP :: DOABLE ONLY IF IT HASN'T ALREADY PASSED YET
-    match new_config.till_timestamp {
-        Some(new_till_timestamp) => {
-            // Update if the current till_timestamp and new till_timestamp haven't passed
-            if config.till_timestamp > env.block.time.seconds()
-                && new_till_timestamp > env.block.time.seconds()
-                && new_till_timestamp > config.init_timestamp
-            {
-                config.till_timestamp = new_till_timestamp;
-            } else {
-                return Err(StdError::generic_err("Invalid till timestamp"));
-            }
+    if let Some(new_till_timestamp) = new_config.till_timestamp {
+        // Update if the current till_timestamp and new till_timestamp haven't passed
+        if config.till_timestamp > env.block.time.seconds()
+            && new_till_timestamp > env.block.time.seconds()
+            && new_till_timestamp > config.init_timestamp
+        {
+            config.till_timestamp = new_till_timestamp;
+        } else {
+            return Err(StdError::generic_err("Invalid till timestamp"));
         }
-        None => {}
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -238,7 +229,7 @@ pub fn unbond(
     amount: Uint256,
     withdraw_pending_reward: Option<bool>,
 ) -> StdResult<Response> {
-    let sender_addr = info.sender.clone();
+    let sender_addr = info.sender;
     let config: Config = CONFIG.load(deps.storage)?;
     let mut state: State = STATE.load(deps.storage)?;
     let mut staker_info: StakerInfo = STAKER_INFO
@@ -255,26 +246,23 @@ pub fn unbond(
     let mut messages = vec![];
     let mut claimed_rewards = Uint256::zero();
 
-    match withdraw_pending_reward {
-        Some(withdraw_pending_reward) => {
-            if withdraw_pending_reward {
-                claimed_rewards = staker_info.pending_reward;
-                if claimed_rewards > Uint256::zero() {
-                    staker_info.pending_reward = Uint256::zero();
-                    let mars_token = query_address(
-                        &deps.querier,
-                        config.address_provider.clone(),
-                        MarsContract::MarsToken,
-                    )?;
-                    messages.push(build_send_cw20_token_msg(
-                        sender_addr.clone(),
-                        mars_token,
-                        claimed_rewards.into(),
-                    )?);
-                }
+    if let Some(withdraw_pending_reward) = withdraw_pending_reward {
+        if withdraw_pending_reward {
+            claimed_rewards = staker_info.pending_reward;
+            if claimed_rewards > Uint256::zero() {
+                staker_info.pending_reward = Uint256::zero();
+                let mars_token = query_address(
+                    &deps.querier,
+                    config.address_provider.clone(),
+                    MarsContract::MarsToken,
+                )?;
+                messages.push(build_send_cw20_token_msg(
+                    sender_addr.clone(),
+                    mars_token,
+                    claimed_rewards,
+                )?);
             }
         }
-        None => {}
     }
 
     // Store Staker info, depends on the left bond amount
@@ -284,7 +272,7 @@ pub fn unbond(
     messages.push(build_send_cw20_token_msg(
         sender_addr.clone(),
         config.staking_token,
-        amount.into(),
+        amount,
     )?);
 
     // UNBOND STAKED TOKEN , TRANSFER $MARS
@@ -323,13 +311,13 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respon
     } else {
         let mars_token = query_address(
             &deps.querier,
-            config.address_provider.clone(),
+            config.address_provider,
             MarsContract::MarsToken,
         )?;
         messages.push(build_send_cw20_token_msg(
             sender_addr.clone(),
             mars_token,
-            accrued_rewards.into(),
+            accrued_rewards,
         )?);
     }
 
@@ -461,7 +449,7 @@ fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
         return;
     }
 
-    let mut last_distribution_cycle = state.current_cycle.clone();
+    let mut last_distribution_cycle = state.current_cycle;
     state.current_cycle = calculate_cycles_elapsed(
         cur_timestamp,
         config.init_timestamp,
@@ -486,8 +474,8 @@ fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
             std::cmp::min(cur_timestamp, last_distribution_next_timestamp),
         );
         state.current_cycle_rewards = calculate_cycle_rewards(
-            state.current_cycle_rewards.clone(),
-            config.reward_increase.clone(),
+            state.current_cycle_rewards,
+            config.reward_increase,
             state.current_cycle == last_distribution_cycle,
         );
         state.last_distributed = std::cmp::min(cur_timestamp, last_distribution_next_timestamp);
@@ -502,8 +490,8 @@ fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
         return;
     }
 
-    state.global_reward_index = state.global_reward_index
-        + (rewards_to_distribute / Decimal256::from_uint256(state.total_bond_amount));
+    state.global_reward_index +=
+        rewards_to_distribute / Decimal256::from_uint256(state.total_bond_amount);
 }
 
 fn calculate_cycles_elapsed(
@@ -513,7 +501,7 @@ fn calculate_cycles_elapsed(
     config_till_timestamp: u64,
 ) -> u64 {
     if config_init_timestamp >= current_timestamp {
-        return 0 as u64;
+        return 0u64;
     }
     let max_cycles = (config_till_timestamp - config_init_timestamp) / cycle_duration;
 
@@ -548,7 +536,7 @@ fn calculate_cycle_rewards(
     if is_same_cycle {
         return current_cycle_rewards;
     }
-    current_cycle_rewards + Uint256::from(current_cycle_rewards * reward_increase_percent)
+    current_cycle_rewards + (current_cycle_rewards * reward_increase_percent)
 }
 
 /// @dev Computes user's accrued rewards
@@ -588,7 +576,7 @@ mod tests {
     use cosmwasm_std::{attr, Coin, OwnedDeps, SubMsg, Timestamp, Uint128};
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-    use mars::testing::{
+    use mars_core::testing::{
         assert_generic_error_message, mock_dependencies, mock_env, mock_info, MarsMockQuerier,
         MockEnvParams,
     };

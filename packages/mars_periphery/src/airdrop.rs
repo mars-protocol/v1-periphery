@@ -10,7 +10,7 @@ pub struct InstantiateMsg {
     pub evm_merkle_roots: Option<Vec<String>>,
     pub from_timestamp: Option<u64>,
     pub to_timestamp: u64,
-    pub boostrap_auction_address: String,
+    pub auction_contract_address: String,
     pub total_airdrop_size: Uint128,
 }
 
@@ -20,7 +20,7 @@ pub enum ExecuteMsg {
     /// Admin function to update the configuration parameters
     UpdateConfig {
         owner: Option<String>,
-        boostrap_auction_address: Option<String>,
+        auction_contract_address: Option<String>,
         terra_merkle_roots: Option<Vec<String>>,
         evm_merkle_roots: Option<Vec<String>>,
         from_timestamp: Option<u64>,
@@ -83,7 +83,7 @@ pub struct ConfigResponse {
     pub evm_merkle_roots: Vec<String>,
     pub from_timestamp: u64,
     pub to_timestamp: u64,
-    pub boostrap_auction_address: String,
+    pub auction_contract_address: String,
     pub are_claims_allowed: bool,
 }
 
