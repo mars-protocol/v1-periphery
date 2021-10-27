@@ -30,7 +30,10 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     // CHECK :: init_timestamp needs to be valid
     if msg.init_timestamp < _env.block.time.seconds() {
-        return Err(StdError::generic_err("Invalid timestamp"));
+        return Err(StdError::generic_err(format!(
+            "Invalid timestamp. Current timestamp : {}",
+            _env.block.time.seconds()
+        )));
     }
     // CHECK :: deposit_window,withdrawal_window need to be valid (withdrawal_window < deposit_window)
     if msg.deposit_window == 0u64

@@ -8,7 +8,7 @@ use mars_periphery::lp_staking::{
     TimeResponse,
 };
 
-use terra_mars_lp_staking::state::{Config, StakerInfo, State};
+use mars_lp_staking::state::{Config, StakerInfo, State};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
