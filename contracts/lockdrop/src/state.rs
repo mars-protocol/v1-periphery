@@ -17,13 +17,13 @@ pub const LOCKUP_INFO: Map<&[u8], LockupInfo> = Map::new("lockup_position");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Account who can update config
+    /// Account which can update config
     pub owner: Addr,
     /// Contract used to query addresses related to red-bank (MARS Token)
     pub address_provider: Addr,
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Addr,
-    /// Auction Contract address to which MARS tokens can be delegated to for bootstrapping MARS-UST Pool
+    /// Auction Contract address to which MARS tokens can be deposited for bootstrapping MARS-UST Pool
     pub auction_contract_address: Addr,
     /// Timestamp when Contract will start accepting deposits
     pub init_timestamp: u64,
@@ -55,36 +55,47 @@ pub struct State {
     pub total_ust_locked: Uint256,
     /// maUST held by the contract. This value is updated real-time upon each maUST withdrawal from red bank
     pub total_maust_locked: Uint256,
+    /// MARS Tokens deposited into the bootstrap auction contract
+    pub total_mars_delegated: Uint256,
     /// Boolean value indicating if the user can withdraw thier MARS rewards or not
     pub are_claims_allowed: bool,
     /// Total weighted deposits
     pub total_deposits_weight: Uint256,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
-    pub global_reward_index: Decimal256,
+    pub xmars_per_maust_share: Decimal256,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfo {
     /// Total UST amount deposited by the user across all his lockup positions
     pub total_ust_locked: Uint256,
+    /// User's maUST share against his total locked UST amount
+    pub total_maust_share: Uint256,
     /// Contains lockup Ids of the User's lockup positions with different durations / deposit amounts
     pub lockup_positions: Vec<String>,
+    /// MARS incentives allocated to the user for his weighted lockup positions
+    pub total_mars_incentives: Uint256,
+    /// MARS incentives deposited to the auction contract for MARS-UST Bootstrapping auction
+    pub delegated_mars_incentives: Uint256,
     /// Boolean value indicating if the lockdrop_rewards for the lockup positions have been claimed or not
     pub lockdrop_claimed: bool,
-    /// Value used to calculate deposit_rewards (XMARS) accured by the user
+    /// Ratio used to calculate deposit_rewards (XMARS) accured by the user
     pub reward_index: Decimal256,
     /// Pending rewards to be claimed by the user        
-    pub pending_xmars: Uint256,
+    pub total_xmars_claimed: Uint256,
 }
 
 impl Default for UserInfo {
     fn default() -> Self {
         UserInfo {
             total_ust_locked: Uint256::zero(),
+            total_maust_share: Uint256::zero(),
             lockup_positions: vec![],
+            total_mars_incentives: Uint256::zero(),
+            delegated_mars_incentives: Uint256::zero(),
             lockdrop_claimed: false,
             reward_index: Decimal256::zero(),
-            pending_xmars: Uint256::zero(),
+            total_xmars_claimed: Uint256::zero(),
         }
     }
 }
@@ -95,7 +106,7 @@ pub struct LockupInfo {
     pub duration: u64,
     /// UST locked as part of this lockup position
     pub ust_locked: Uint256,
-    /// Lockdrop incentive distributed to this position
+    /// Lockdrop incentive allocated for this position
     pub lockdrop_reward: Uint256,
     /// Timestamp beyond which this position can be unlocked
     pub unlock_timestamp: u64,

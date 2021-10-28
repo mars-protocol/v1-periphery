@@ -14,7 +14,7 @@ pub struct InstantiateMsg {
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Option<String>,
     /// Bootstrap Auction contract address
-    pub auction_contract_address: Option<String>,    
+    pub auction_contract_address: Option<String>,
     /// Timestamp till when deposits can be made
     pub init_timestamp: u64,
     /// Number of seconds for which lockup deposits will be accepted
@@ -44,7 +44,7 @@ pub struct UpdateConfigMsg {
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Option<String>,
     /// Bootstrap Auction contract address
-    pub auction_contract_address: Option<String>,    
+    pub auction_contract_address: Option<String>,
     /// Timestamp till when deposits can be made
     pub init_timestamp: Option<u64>,
     /// Number of seconds for which lockup deposits will be accepted
@@ -64,24 +64,32 @@ pub struct UpdateConfigMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    // ADMIN Function ::: To update configuration
+    UpdateConfig {
+        new_config: UpdateConfigMsg,
+    },
+    // Function to deposit UST in the contract locked for `duration` number of weeks, starting once the deposits/withdrawals are disabled
     DepositUst {
         duration: u64,
     },
+    // Function to withdraw UST from the lockup position which is locked for `duration` number of weeks
     WithdrawUst {
         duration: u64,
         amount: Uint256,
     },
-    Unlock {
-        duration: u64,
-    },
-    ClaimRewards {},
-    // Called by the bootstrap auction contract when liquidity is added to the
-    // MARS-UST Pool to enable ASTRO withdrawals by users
-    EnableClaims {},
-    UpdateConfig {
-        new_config: UpdateConfigMsg,
-    },
+    // ADMIN Function :: Deposits all UST into the Red Bank
     DepositUstInRedBank {},
+    // Deposit MARS to auction contract
+    DepositMarsToAuction {
+        amount: Uint256,
+    },
+    // Facilitates MARS reward claim and optionally unlocking any lockup position, either once the lockup duration is over or make a forceful unlock
+    ClaimRewardsAndUnlock {
+        lockup_to_unlock_duration: u64,
+        forceful_unlock: bool,
+    },
+    // Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable ASTRO withdrawals by users
+    EnableClaims {},
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),
 }
@@ -99,6 +107,7 @@ pub enum CallbackMsg {
     DissolvePosition {
         user: Addr,
         duration: u64,
+        forceful_unlock: bool,
     },
 }
 
@@ -133,7 +142,7 @@ pub struct ConfigResponse {
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: String,
     /// Auction Contract address to which MARS tokens can be delegated to for bootstrapping MARS-UST Pool
-    pub auction_contract_address: String,    
+    pub auction_contract_address: String,
     /// Timestamp till when deposits can be made
     pub init_timestamp: u64,
     /// Number of seconds for which lockup deposits will be accepted
@@ -160,22 +169,27 @@ pub struct StateResponse {
     pub total_ust_locked: Uint256,
     /// maUST held by the contract. This value is updated real-time upon each maUST withdrawal from red bank
     pub total_maust_locked: Uint256,
+    /// MARS Tokens deposited into the bootstrap auction contract
+    pub total_mars_delegated: Uint256,
     /// Boolean value indicating if the user can withdraw thier MARS rewards or not
-    pub are_claims_allowed: bool,    
+    pub are_claims_allowed: bool,
     /// Total weighted deposits
     pub total_deposits_weight: Uint256,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
-    pub global_reward_index: Decimal256,
+    pub xmars_per_maust_share: Decimal256,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfoResponse {
     pub total_ust_locked: Uint256,
-    pub total_maust_locked: Uint256,
+    pub total_maust_share: Uint256,
     pub lockup_position_ids: Vec<String>,
+    pub total_mars_incentives: Uint256,
+    pub delegated_mars_incentives: Uint256,
     pub is_lockdrop_claimed: bool,
     pub reward_index: Decimal256,
-    pub pending_xmars: Uint256,
+    pub total_xmars_claimed: Uint256,
+    pub pending_xmars_to_claim: Uint256,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
