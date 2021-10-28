@@ -1132,10 +1132,10 @@ fn calculate_mars_incentives_for_lockup(
     config.lockdrop_incentives * Decimal256::from_ratio(amount_weight, total_deposits_weight)
 }
 
-// Returns effective weight for the amount to be used for calculating airdrop rewards
 fn calculate_weight(amount: Uint256, duration: u64, weekly_multiplier: Decimal256) -> Uint256 {
-    let duration_weighted_amount = amount * Uint256::from(duration);
-    duration_weighted_amount * weekly_multiplier
+    let mut lock_weight = Uint256::from(duration - 1) * weekly_multiplier;
+    lock_weight += Uint256::one();
+    lock_weight * amount
 }
 
 /// @dev Accrue xMARS rewards by updating the reward index
