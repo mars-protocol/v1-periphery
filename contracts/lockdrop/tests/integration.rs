@@ -1,3 +1,154 @@
+use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Timestamp, Uint128, Uint64};
+use cw20_base::msg::ExecuteMsg as CW20ExecuteMsg;
+use mars_periphery::lockdrop::{
+    CallbackMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg,
+    StateResponse, UpdateConfigMsg, UserInfoResponse,
+};
+use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+
+fn mock_app() -> App {
+    let api = MockApi::default();
+    let env = mock_env();
+    let bank = BankKeeper::new();
+    let storage = MockStorage::new();
+    let tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
+
+    App::new(api, env.block, bank, storage, tmq)
+}
+
+// Instantiate ASTRO Token Contract
+fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
+    let mars_token_contract = Box::new(ContractWrapper::new(
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
+    ));
+
+    let mars_token_code_id = app.store_code(mars_token_contract);
+
+    let msg = cw20_base::msg::InstantiateMsg {
+        name: String::from("Astro token"),
+        symbol: String::from("ASTRO"),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: Some(cw20::MinterResponse {
+            minter: owner.to_string(),
+            cap: None,
+        }),
+        marketing: None,
+    };
+
+    let mars_token_instance = app
+        .instantiate_contract(
+            mars_token_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("ASTRO"),
+            None,
+        )
+        .unwrap();
+    mars_token_instance
+}
+
+// Instantiate AUCTION Contract
+fn instantiate_auction_contract(
+    app: &mut App,
+    owner: Addr,
+    mars_token_instance: Addr,
+    airdrop_instance: Addr,
+    lockdrop_instance: Addr,
+    pair_instance: Addr,
+    lp_token_instance: Addr,
+) -> (Addr, InstantiateMsg) {
+    let auction_contract = Box::new(ContractWrapper::new(
+        mars_auction::contract::execute,
+        mars_auction::contract::instantiate,
+        mars_auction::contract::query,
+    ));
+
+    let auction_code_id = app.store_code(auction_contract);
+
+    let auction_instantiate_msg = mars_periphery::auction::InstantiateMsg {
+        owner: owner.clone().to_string(),
+        mars_token_address: mars_token_instance.clone().into_string(),
+        airdrop_contract_address: airdrop_instance.to_string(),
+        lockdrop_contract_address: lockdrop_instance.to_string(),
+        astroport_lp_pool: Some(pair_instance.to_string()),
+        lp_token_address: Some(lp_token_instance.to_string()),
+        generator_contract: None,
+        mars_rewards: Uint256::from(1000000000000u64),
+        mars_vesting_duration: 7776000u64,
+        lp_tokens_vesting_duration: 7776000u64,
+        init_timestamp: 1_000_00,
+        deposit_window: 100_000_00,
+        withdrawal_window: 5_000_00,
+    };
+
+    // Init contract
+    let auction_instance = app
+        .instantiate_contract(
+            auction_code_id,
+            owner.clone(),
+            &auction_instantiate_msg,
+            &[],
+            "auction",
+            None,
+        )
+        .unwrap();
+    (auction_instance, auction_instantiate_msg)
+}
+
+// Instantiate LOCKDROP Contract
+fn instantiate_lockdrop_contract(
+    app: &mut App,
+    owner: Addr,
+    mars_token_instance: Addr,
+    airdrop_instance: Addr,
+    lockdrop_instance: Addr,
+    pair_instance: Addr,
+    lp_token_instance: Addr,
+) -> (Addr, InstantiateMsg) {
+    let lockdrop_contract = Box::new(ContractWrapper::new(
+        mars_lockdrop::contract::execute,
+        mars_lockdrop::contract::instantiate,
+        mars_lockdrop::contract::query,
+    ));
+
+    let lockdrop_code_id = app.store_code(lockdrop_contract);
+
+    let lockdrop_instantiate_msg = mars_periphery::lockdrop::InstantiateMsg {
+        owner: owner.clone().to_string(),
+        address_provider: address_provider.to_string(),
+        auction_contract_address: auction_contract.to_string(),
+        ma_ust_token: ma_ust_token.to_string(),
+        init_timestamp: 1_000_00,
+        deposit_window: 100_000_00,
+        withdrawal_window: 5_000_00,
+        min_duration: 1,
+        max_duration: 5,
+        seconds_per_week: 7 * 86400 as u64,
+        denom: Some("uusd".to_string()),
+        weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
+        lockdrop_incentives: Uint256::from(1000000000000u64),
+    };
+
+    // Init contract
+    let lockdrop_instance = app
+        .instantiate_contract(
+            lockdrop_code_id,
+            owner.clone(),
+            &lockdrop_instantiate_msg,
+            &[],
+            "auction",
+            None,
+        )
+        .unwrap();
+    (lockdrop_instance, lockdrop_instantiate_msg)
+}
+
 // #[cfg(test)]
 // mod tests {
 //     use super::*;

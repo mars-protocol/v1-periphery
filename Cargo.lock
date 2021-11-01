@@ -1157,10 +1157,12 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw20 0.8.1",
+ "cw20-base 0.8.1",
  "mars-core",
  "mars-periphery",
  "schemars",
  "serde",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
  "thiserror",
 ]
 
