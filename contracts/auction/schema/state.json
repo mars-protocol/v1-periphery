@@ -3,8 +3,10 @@
   "title": "State",
   "type": "object",
   "required": [
-    "are_staked",
-    "global_reward_index",
+    "are_staked_for_dual_incentives",
+    "are_staked_for_single_incentives",
+    "global_astro_reward_index",
+    "global_mars_reward_index",
     "lp_shares_minted",
     "lp_shares_withdrawn",
     "pool_init_timestamp",
@@ -12,12 +14,24 @@
     "total_ust_deposited"
   ],
   "properties": {
-    "are_staked": {
-      "description": "MARS--UST LP Shares currently staked with the Staking contract",
+    "are_staked_for_dual_incentives": {
+      "description": "True if MARS--UST LP Shares are currently staked with Astroport Generator for dual staking incentives",
       "type": "boolean"
     },
-    "global_reward_index": {
-      "description": "index used to keep track of LP staking rewards and distribute them proportionally among the auction participants",
+    "are_staked_for_single_incentives": {
+      "description": "True if MARS--UST LP Shares are currently staked with the MARS LP Staking contract",
+      "type": "boolean"
+    },
+    "global_astro_reward_index": {
+      "description": "index used to keep track of $ASTRO claimed as LP staking rewards and distribute them proportionally among the auction participants",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal256"
+        }
+      ]
+    },
+    "global_mars_reward_index": {
+      "description": "index used to keep track of $MARS claimed as LP staking rewards and distribute them proportionally among the auction participants",
       "allOf": [
         {
           "$ref": "#/definitions/Decimal256"

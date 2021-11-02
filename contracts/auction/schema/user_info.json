@@ -3,27 +3,33 @@
   "title": "UserInfo",
   "type": "object",
   "required": [
+    "astro_reward_index",
     "lp_shares",
     "mars_deposited",
+    "mars_reward_index",
     "total_auction_incentives",
-    "user_reward_index",
     "ust_deposited",
     "withdrawl_counter",
+    "withdrawn_astro_incentives",
     "withdrawn_auction_incentives",
-    "withdrawn_lp_shares"
+    "withdrawn_lp_shares",
+    "withdrawn_mars_incentives"
   ],
   "properties": {
+    "astro_reward_index": {
+      "$ref": "#/definitions/Decimal256"
+    },
     "lp_shares": {
       "$ref": "#/definitions/Uint256"
     },
     "mars_deposited": {
       "$ref": "#/definitions/Uint256"
     },
+    "mars_reward_index": {
+      "$ref": "#/definitions/Decimal256"
+    },
     "total_auction_incentives": {
       "$ref": "#/definitions/Uint256"
-    },
-    "user_reward_index": {
-      "$ref": "#/definitions/Decimal256"
     },
     "ust_deposited": {
       "$ref": "#/definitions/Uint256"
@@ -31,10 +37,16 @@
     "withdrawl_counter": {
       "type": "boolean"
     },
+    "withdrawn_astro_incentives": {
+      "$ref": "#/definitions/Uint256"
+    },
     "withdrawn_auction_incentives": {
       "$ref": "#/definitions/Uint256"
     },
     "withdrawn_lp_shares": {
+      "$ref": "#/definitions/Uint256"
+    },
+    "withdrawn_mars_incentives": {
       "$ref": "#/definitions/Uint256"
     }
   },

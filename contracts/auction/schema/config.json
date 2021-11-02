@@ -4,12 +4,11 @@
   "type": "object",
   "required": [
     "airdrop_contract_address",
-    "astroport_lp_pool",
+    "astro_token_address",
     "deposit_window",
     "generator_contract",
     "init_timestamp",
     "lockdrop_contract_address",
-    "lp_token_address",
     "lp_tokens_vesting_duration",
     "mars_rewards",
     "mars_token_address",
@@ -26,11 +25,22 @@
         }
       ]
     },
-    "astroport_lp_pool": {
-      "description": "MARS-UST LP Pool address",
+    "astro_token_address": {
+      "description": "ASTRO token address",
       "allOf": [
         {
           "$ref": "#/definitions/Addr"
+        }
+      ]
+    },
+    "astroport_lp_pool": {
+      "description": "MARS-UST LP Pool address",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
         }
       ]
     },
@@ -41,7 +51,7 @@
       "minimum": 0.0
     },
     "generator_contract": {
-      "description": "Astroport Generator contract with which MARS-UST LP Tokens are staked",
+      "description": "Astroport Generator contract with which MARS-UST LP Tokens can be staked",
       "allOf": [
         {
           "$ref": "#/definitions/Addr"
@@ -64,9 +74,12 @@
     },
     "lp_token_address": {
       "description": "MARS-UST LP Token address",
-      "allOf": [
+      "anyOf": [
         {
           "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
         }
       ]
     },
@@ -75,6 +88,17 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "mars_lp_staking_contract": {
+      "description": "MARS LP Staking contract with which MARS-UST LP Tokens can be staked",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "mars_rewards": {
       "description": "Total MARS token rewards to be used to incentivize boostrap auction participants",

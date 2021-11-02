@@ -19,15 +19,19 @@ pub struct Config {
     pub owner: Addr,
     ///  MARS token address
     pub mars_token_address: Addr,
+    ///  ASTRO token address
+    pub astro_token_address: Addr,
     /// Airdrop Contract address
     pub airdrop_contract_address: Addr,
     /// Lockdrop Contract address
     pub lockdrop_contract_address: Addr,
     ///  MARS-UST LP Pool address
-    pub astroport_lp_pool: Addr,
+    pub astroport_lp_pool: Option<Addr>,
     ///  MARS-UST LP Token address
-    pub lp_token_address: Addr,
-    ///  Astroport Generator contract with which MARS-UST LP Tokens are staked
+    pub lp_token_address: Option<Addr>,
+    ///  MARS LP Staking contract with which MARS-UST LP Tokens can be staked
+    pub mars_lp_staking_contract: Option<Addr>,
+    ///  Astroport Generator contract with which MARS-UST LP Tokens can be staked
     pub generator_contract: Addr,
     /// Total MARS token rewards to be used to incentivize boostrap auction participants
     pub mars_rewards: Uint256,
@@ -54,12 +58,16 @@ pub struct State {
     pub lp_shares_minted: Uint256,
     /// Number of LP shares that have been withdrawn as they unvest
     pub lp_shares_withdrawn: Uint256,
-    /// MARS--UST LP Shares currently staked with the Staking contract
-    pub are_staked: bool,
+    /// True if MARS--UST LP Shares are currently staked with the MARS LP Staking contract
+    pub are_staked_for_single_incentives: bool,
+    /// True if MARS--UST LP Shares are currently staked with Astroport Generator for dual staking incentives
+    pub are_staked_for_dual_incentives: bool,
     /// Timestamp at which liquidity was added to the MARS-UST LP Pool
     pub pool_init_timestamp: u64,
-    /// index used to keep track of LP staking rewards and distribute them proportionally among the auction participants
-    pub global_reward_index: Decimal256,
+    /// index used to keep track of $MARS claimed as LP staking rewards and distribute them proportionally among the auction participants
+    pub global_mars_reward_index: Decimal256,
+    /// index used to keep track of $ASTRO claimed as LP staking rewards and distribute them proportionally among the auction participants
+    pub global_astro_reward_index: Decimal256,
 }
 
 impl Default for State {
@@ -70,8 +78,10 @@ impl Default for State {
             lp_shares_minted: Uint256::zero(),
             lp_shares_withdrawn: Uint256::zero(),
             pool_init_timestamp: 0u64,
-            are_staked: false,
-            global_reward_index: Decimal256::zero(),
+            are_staked_for_single_incentives: false,
+            are_staked_for_dual_incentives: false,
+            global_mars_reward_index: Decimal256::zero(),
+            global_astro_reward_index: Decimal256::zero(),
         }
     }
 }
@@ -92,10 +102,14 @@ pub struct UserInfo {
     pub total_auction_incentives: Uint256,
     // MARS rewards withdrawn by the user
     pub withdrawn_auction_incentives: Uint256,
+    // MARS staking incentives (LP token staking) withdrawn by the user
+    pub withdrawn_mars_incentives: Uint256,
     // ASTRO staking incentives (LP token staking) withdrawn by the user
-    pub withdrawn_staking_incentives: Uint256,
-    // Index used to calculate user's staking rewards
-    pub user_reward_index: Decimal256,
+    pub withdrawn_astro_incentives: Uint256,
+    // Index used to calculate user's $MARS staking rewards
+    pub mars_reward_index: Decimal256,
+    // Index used to calculate user's $ASTRO staking rewards
+    pub astro_reward_index: Decimal256,
 }
 
 impl Default for UserInfo {
@@ -108,8 +122,10 @@ impl Default for UserInfo {
             withdrawn_lp_shares: Uint256::zero(),
             total_auction_incentives: Uint256::zero(),
             withdrawn_auction_incentives: Uint256::zero(),
-            withdrawn_staking_incentives: Uint256::zero(),
-            user_reward_index: Decimal256::zero(),
+            withdrawn_mars_incentives: Uint256::zero(),
+            withdrawn_astro_incentives: Uint256::zero(),
+            mars_reward_index: Decimal256::zero(),
+            astro_reward_index: Decimal256::zero(),
         }
     }
 }

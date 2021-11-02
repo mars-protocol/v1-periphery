@@ -3,8 +3,10 @@
   "title": "StateResponse",
   "type": "object",
   "required": [
-    "are_staked",
-    "global_reward_index",
+    "are_staked_for_dual_incentives",
+    "are_staked_for_single_incentives",
+    "global_astro_reward_index",
+    "global_mars_reward_index",
     "lp_shares_minted",
     "lp_shares_withdrawn",
     "pool_init_timestamp",
@@ -12,10 +14,16 @@
     "total_ust_deposited"
   ],
   "properties": {
-    "are_staked": {
+    "are_staked_for_dual_incentives": {
       "type": "boolean"
     },
-    "global_reward_index": {
+    "are_staked_for_single_incentives": {
+      "type": "boolean"
+    },
+    "global_astro_reward_index": {
+      "$ref": "#/definitions/Decimal256"
+    },
+    "global_mars_reward_index": {
       "$ref": "#/definitions/Decimal256"
     },
     "lp_shares_minted": {

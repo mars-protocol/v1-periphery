@@ -11,15 +11,23 @@
         "update_state_on_reward_claim": {
           "type": "object",
           "required": [
+            "prev_astro_balance",
             "prev_mars_balance",
-            "user_address"
+            "user_address",
+            "withdraw_lp_shares"
           ],
           "properties": {
+            "prev_astro_balance": {
+              "$ref": "#/definitions/Uint256"
+            },
             "prev_mars_balance": {
               "$ref": "#/definitions/Uint256"
             },
             "user_address": {
               "$ref": "#/definitions/Addr"
+            },
+            "withdraw_lp_shares": {
+              "$ref": "#/definitions/Uint256"
             }
           }
         }

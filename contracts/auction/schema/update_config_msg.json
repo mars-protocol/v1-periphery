@@ -15,7 +15,7 @@
         "null"
       ]
     },
-    "lp_token_address": {
+    "mars_lp_staking_contract": {
       "type": [
         "string",
         "null"

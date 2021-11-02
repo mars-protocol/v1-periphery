@@ -97,7 +97,19 @@
       ],
       "properties": {
         "stake_lp_tokens": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "dual_incentives_staking",
+            "single_incentive_staking"
+          ],
+          "properties": {
+            "dual_incentives_staking": {
+              "type": "boolean"
+            },
+            "single_incentive_staking": {
+              "type": "boolean"
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -109,19 +121,15 @@
       ],
       "properties": {
         "claim_rewards": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "withdraw_lp_shares"
-      ],
-      "properties": {
-        "withdraw_lp_shares": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "withdraw_unlocked_shares"
+          ],
+          "properties": {
+            "withdraw_unlocked_shares": {
+              "type": "boolean"
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -159,15 +167,23 @@
             "update_state_on_reward_claim": {
               "type": "object",
               "required": [
+                "prev_astro_balance",
                 "prev_mars_balance",
-                "user_address"
+                "user_address",
+                "withdraw_lp_shares"
               ],
               "properties": {
+                "prev_astro_balance": {
+                  "$ref": "#/definitions/Uint256"
+                },
                 "prev_mars_balance": {
                   "$ref": "#/definitions/Uint256"
                 },
                 "user_address": {
                   "$ref": "#/definitions/Addr"
+                },
+                "withdraw_lp_shares": {
+                  "$ref": "#/definitions/Uint256"
                 }
               }
             }
@@ -242,7 +258,7 @@
             "null"
           ]
         },
-        "lp_token_address": {
+        "mars_lp_staking_contract": {
           "type": [
             "string",
             "null"

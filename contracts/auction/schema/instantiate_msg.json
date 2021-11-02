@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "airdrop_contract_address",
+    "astro_token_address",
     "deposit_window",
     "init_timestamp",
     "lockdrop_contract_address",
@@ -18,11 +19,8 @@
     "airdrop_contract_address": {
       "type": "string"
     },
-    "astroport_lp_pool": {
-      "type": [
-        "string",
-        "null"
-      ]
+    "astro_token_address": {
+      "type": "string"
     },
     "deposit_window": {
       "type": "integer",
@@ -43,16 +41,16 @@
     "lockdrop_contract_address": {
       "type": "string"
     },
-    "lp_token_address": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "lp_tokens_vesting_duration": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "mars_lp_staking_contract": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "mars_rewards": {
       "$ref": "#/definitions/Uint256"

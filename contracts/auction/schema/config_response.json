@@ -4,12 +4,11 @@
   "type": "object",
   "required": [
     "airdrop_contract_address",
-    "astroport_lp_pool",
+    "astro_token_address",
     "deposit_window",
     "generator_contract",
     "init_timestamp",
     "lockdrop_contract_address",
-    "lp_token_address",
     "mars_rewards",
     "mars_token_address",
     "owner",
@@ -19,8 +18,18 @@
     "airdrop_contract_address": {
       "type": "string"
     },
-    "astroport_lp_pool": {
+    "astro_token_address": {
       "type": "string"
+    },
+    "astroport_lp_pool": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "deposit_window": {
       "type": "integer",
@@ -39,7 +48,24 @@
       "type": "string"
     },
     "lp_token_address": {
-      "type": "string"
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mars_lp_staking_contract": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "mars_rewards": {
       "$ref": "#/definitions/Uint256"
@@ -57,6 +83,10 @@
     }
   },
   "definitions": {
+    "Addr": {
+      "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+      "type": "string"
+    },
     "Uint256": {
       "type": "string"
     }

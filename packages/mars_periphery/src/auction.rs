@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub owner: String,
     pub mars_token_address: String,
+    pub astro_token_address: String,
     pub airdrop_contract_address: String,
     pub lockdrop_contract_address: String,
-    pub astroport_lp_pool: Option<String>,
-    pub lp_token_address: Option<String>,
+    pub mars_lp_staking_contract: Option<String>,
     pub generator_contract: Option<String>,
     pub mars_rewards: Uint256,
     pub mars_vesting_duration: u64,
@@ -25,7 +25,7 @@ pub struct InstantiateMsg {
 pub struct UpdateConfigMsg {
     pub owner: Option<String>,
     pub astroport_lp_pool: Option<String>,
-    pub lp_token_address: Option<String>,
+    pub mars_lp_staking_contract: Option<String>,
     pub generator_contract: Option<String>,
     pub mars_rewards: Option<Uint256>,
 }
@@ -34,16 +34,26 @@ pub struct UpdateConfigMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
-    UpdateConfig { new_config: UpdateConfigMsg },
+    UpdateConfig {
+        new_config: UpdateConfigMsg,
+    },
 
     DepositUst {},
-    WithdrawUst { amount: Uint256 },
+    WithdrawUst {
+        amount: Uint256,
+    },
 
-    AddLiquidityToAstroportPool { slippage: Option<Decimal> },
-    StakeLpTokens {},
+    AddLiquidityToAstroportPool {
+        slippage: Option<Decimal>,
+    },
+    StakeLpTokens {
+        single_incentive_staking: bool,
+        dual_incentives_staking: bool,
+    },
 
-    ClaimRewards {},
-    WithdrawLpShares {},
+    ClaimRewards {
+        withdraw_unlocked_shares: bool,
+    },
     Callback(CallbackMsg),
 }
 
@@ -57,8 +67,9 @@ pub enum Cw20HookMsg {
 #[serde(rename_all = "snake_case")]
 pub enum CallbackMsg {
     UpdateStateOnRewardClaim {
-        user_address: Addr,
+        user_address: Option<Addr>,
         prev_mars_balance: Uint256,
+        prev_astro_balance: Uint256,
         withdraw_lp_shares: Uint256,
     },
     UpdateStateOnLiquidityAdditionToPool {
@@ -90,10 +101,12 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub owner: String,
     pub mars_token_address: String,
+    pub astro_token_address: String,
     pub airdrop_contract_address: String,
     pub lockdrop_contract_address: String,
-    pub astroport_lp_pool: String,
-    pub lp_token_address: String,
+    pub astroport_lp_pool: Option<Addr>,
+    pub lp_token_address: Option<Addr>,
+    pub mars_lp_staking_contract: Option<Addr>,
     pub generator_contract: String,
     pub mars_rewards: Uint256,
     pub init_timestamp: u64,
@@ -107,9 +120,11 @@ pub struct StateResponse {
     pub total_ust_deposited: Uint256,
     pub lp_shares_minted: Uint256,
     pub lp_shares_withdrawn: Uint256,
-    pub are_staked: bool,
+    pub are_staked_for_single_incentives: bool,
+    pub are_staked_for_dual_incentives: bool,
     pub pool_init_timestamp: u64,
-    pub global_reward_index: Decimal256,
+    pub global_mars_reward_index: Decimal256,
+    pub global_astro_reward_index: Decimal256,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -122,7 +137,10 @@ pub struct UserInfoResponse {
     pub total_auction_incentives: Uint256,
     pub withdrawn_auction_incentives: Uint256,
     pub withdrawable_auction_incentives: Uint256,
-    pub user_reward_index: Decimal256,
-    pub withdrawable_staking_incentives: Uint256,
-    pub withdrawn_staking_incentives: Uint256,
+    pub mars_reward_index: Decimal256,
+    pub withdrawable_mars_incentives: Uint256,
+    pub withdrawn_mars_incentives: Uint256,
+    pub astro_reward_index: Decimal256,
+    pub withdrawable_astro_incentives: Uint256,
+    pub withdrawn_astro_incentives: Uint256,
 }

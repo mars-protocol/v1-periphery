@@ -49,11 +49,11 @@ cosmwasm-bignumber = "2.2.0"
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+# terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
 # needed for intergration testing
-astroport-pair =  { path = "../mocks/mock_astroport/pair" }
-astroport-token =  { path = "../mocks/mock_astroport/token" }
-astroport-vesting = {path = "../mocks/mock_astroport/vesting"}
-astroport-generator = {path = "../mocks/mock_astroport/generator"}
-mars-airdrop =  { path = "../airdrop" }
-mars-lockdrop =  { path = "../lockdrop" }
+# astroport-pair =  { path = "../mocks/mock_astroport/pair" }
+# astroport-token =  { path = "../mocks/mock_astroport/token" }
+# astroport-vesting = {path = "../mocks/mock_astroport/vesting"}
+# astroport-generator = {path = "../mocks/mock_astroport/generator"}
+# mars-airdrop =  { path = "../airdrop" }
+# mars-lockdrop =  { path = "../lockdrop" }
