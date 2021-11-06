@@ -24,9 +24,8 @@ pub enum MarsError {
     },
 }
 
-
 impl From<MarsError> for StdError {
-    fn from(error: MarsError ) -> Self {
-        StdError::generic_err(format!("Address provider Error : {}",error))
+    fn from(error: MarsError) -> Self {
+        StdError::generic_err(format!("Address provider Error : {}", error))
     }
 }

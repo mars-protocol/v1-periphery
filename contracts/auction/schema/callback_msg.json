@@ -13,7 +13,6 @@
           "required": [
             "prev_astro_balance",
             "prev_mars_balance",
-            "user_address",
             "withdraw_lp_shares"
           ],
           "properties": {
@@ -24,7 +23,14 @@
               "$ref": "#/definitions/Uint256"
             },
             "user_address": {
-              "$ref": "#/definitions/Addr"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "withdraw_lp_shares": {
               "$ref": "#/definitions/Uint256"

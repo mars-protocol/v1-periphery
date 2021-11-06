@@ -4,11 +4,11 @@ version = 3
 
 [[package]]
 name = "addr2line"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e61f2b7f93d2c7d2b08263acaa4a363b3e276806c68af6134c44f523bf1aacd"
+checksum = "b9ecd88a8c8378ca913a680cd98f0f13ac67383d35993f86c90a70e3f137816b"
 dependencies = [
- "gimli 0.25.0",
+ "gimli 0.26.1",
 ]
 
 [[package]]
@@ -130,9 +130,9 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "backtrace"
-version = "0.3.62"
+version = "0.3.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "091bcdf2da9950f96aa522681ce805e6857f6ca8df73833d35736ab2dc78e152"
+checksum = "321629d8ba6513061f26707241fa9bc89524ff1cd7a915a97ef0c62c666ce1b6"
 dependencies = [
  "addr2line",
  "cc",
@@ -498,7 +498,7 @@ dependencies = [
 [[package]]
 name = "cw-storage-plus"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#b3991b9b109accf445fec086ce9792b197be6ca4"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -540,7 +540,7 @@ dependencies = [
 [[package]]
 name = "cw0"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#b3991b9b109accf445fec086ce9792b197be6ca4"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -890,9 +890,9 @@ dependencies = [
 
 [[package]]
 name = "gimli"
-version = "0.25.0"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0a01e0497841a3b2db4f8afa483cce65f7e96a3498bd6c541734792aeac8fe7"
+checksum = "78cc372d058dcf6d5ecd98510e7fbc9e5aec4d21de70f65fea8fecebcd881bd4"
 
 [[package]]
 name = "group"
@@ -1123,7 +1123,6 @@ dependencies = [
  "schemars",
  "serde",
  "terra-cosmwasm",
- "terraswap",
  "thiserror",
 ]
 
@@ -1366,9 +1365,9 @@ dependencies = [
 
 [[package]]
 name = "ppv-lite86"
-version = "0.2.14"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3ca011bd0129ff4ae15cd04c4eef202cadf6c51c21e47aba319b4e0501db741"
+checksum = "ed0cfbc8191465bed66e1718596ee0b0b35d5ee1f41c5df2189d0fe8bde535ba"
 
 [[package]]
 name = "proc-macro-error"
@@ -1864,7 +1863,7 @@ dependencies = [
 [[package]]
 name = "terra-multi-test"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#edab04fe04412eb55cde5b79132043a8c49c5df5"
+source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#b3991b9b109accf445fec086ce9792b197be6ca4"
 dependencies = [
  "anyhow",
  "cosmwasm-std",

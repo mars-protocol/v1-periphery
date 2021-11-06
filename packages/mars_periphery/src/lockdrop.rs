@@ -1,6 +1,4 @@
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, StdResult, WasmMsg};
-
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -27,12 +25,12 @@ pub struct InstantiateMsg {
     pub max_duration: u64,
     /// Number of seconds per week
     pub seconds_per_week: u64,
-    /// "uusd" - Native token accepted by the contract for deposits
-    pub denom: Option<String>,
     /// Lockdrop Reward multiplier
-    pub weekly_multiplier: Option<Decimal256>,
+    pub weekly_multiplier: u64,
+    /// Lockdrop Reward divider
+    pub weekly_divider: u64,
     /// Total MARS lockdrop incentives to be distributed among the users
-    pub lockdrop_incentives: Option<Uint256>,
+    pub lockdrop_incentives: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -56,9 +54,9 @@ pub struct UpdateConfigMsg {
     /// Max. no. of days allowed for lockup
     pub max_duration: Option<u64>,
     /// Lockdrop Reward multiplier
-    pub weekly_multiplier: Option<Decimal256>,
+    pub weekly_multiplier: Option<Decimal>,
     /// Total MARS lockdrop incentives to be distributed among the users
-    pub lockdrop_incentives: Option<Uint256>,
+    pub lockdrop_incentives: Option<Uint128>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -75,13 +73,13 @@ pub enum ExecuteMsg {
     // Function to withdraw UST from the lockup position which is locked for `duration` number of weeks
     WithdrawUst {
         duration: u64,
-        amount: Uint256,
+        amount: Uint128,
     },
     // ADMIN Function :: Deposits all UST into the Red Bank
     DepositUstInRedBank {},
     // Deposit MARS to auction contract
     DepositMarsToAuction {
-        amount: Uint256,
+        amount: Uint128,
     },
     // Facilitates MARS reward claim and optionally unlocking any lockup position, either once the lockup duration is over or make a forceful unlock
     ClaimRewardsAndUnlock {
@@ -98,11 +96,11 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum CallbackMsg {
     UpdateStateOnRedBankDeposit {
-        prev_ma_ust_balance: Uint256,
+        prev_ma_ust_balance: Uint128,
     },
     UpdateStateOnClaim {
         user: Addr,
-        prev_xmars_balance: Uint256,
+        prev_xmars_balance: Uint128,
     },
     DissolvePosition {
         user: Addr,
@@ -154,42 +152,44 @@ pub struct ConfigResponse {
     /// Max. no. of weeks allowed for lockup
     pub max_duration: u64,
     /// Lockdrop Reward multiplier
-    pub multiplier: Decimal256,
+    pub weekly_multiplier: u64,
+    /// Lockdrop Reward divider
+    pub weekly_divider: u64,
     /// Total MARS lockdrop incentives to be distributed among the users
-    pub lockdrop_incentives: Uint256,
+    pub lockdrop_incentives: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
     /// Total UST deposited at the end of Lockdrop window. This value remains unchanged post the lockdrop window
-    pub final_ust_locked: Uint256,
+    pub final_ust_locked: Uint128,
     /// maUST minted at the end of Lockdrop window upon UST deposit in red bank. This value remains unchanged post the lockdrop window
-    pub final_maust_locked: Uint256,
+    pub final_maust_locked: Uint128,
     /// UST deposited in the contract. This value is updated real-time upon each UST deposit / unlock
-    pub total_ust_locked: Uint256,
+    pub total_ust_locked: Uint128,
     /// maUST held by the contract. This value is updated real-time upon each maUST withdrawal from red bank
-    pub total_maust_locked: Uint256,
+    pub total_maust_locked: Uint128,
     /// MARS Tokens deposited into the bootstrap auction contract
-    pub total_mars_delegated: Uint256,
+    pub total_mars_delegated: Uint128,
     /// Boolean value indicating if the user can withdraw thier MARS rewards or not
     pub are_claims_allowed: bool,
     /// Total weighted deposits
-    pub total_deposits_weight: Uint256,
+    pub total_deposits_weight: Uint128,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
-    pub xmars_per_maust_share: Decimal256,
+    pub xmars_per_maust_share: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfoResponse {
-    pub total_ust_locked: Uint256,
-    pub total_maust_share: Uint256,
+    pub total_ust_locked: Uint128,
+    pub total_maust_share: Uint128,
     pub lockup_position_ids: Vec<String>,
-    pub total_mars_incentives: Uint256,
-    pub delegated_mars_incentives: Uint256,
+    pub total_mars_incentives: Uint128,
+    pub delegated_mars_incentives: Uint128,
     pub is_lockdrop_claimed: bool,
-    pub reward_index: Decimal256,
-    pub total_xmars_claimed: Uint256,
-    pub pending_xmars_to_claim: Uint256,
+    pub reward_index: Decimal,
+    pub total_xmars_claimed: Uint128,
+    pub pending_xmars_to_claim: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -197,11 +197,11 @@ pub struct LockUpInfoResponse {
     /// Lockup Duration
     pub duration: u64,
     /// UST locked as part of this lockup position
-    pub ust_locked: Uint256,
+    pub ust_locked: Uint128,
     /// MA-UST share
-    pub maust_balance: Uint256,
+    pub maust_balance: Uint128,
     /// Lockdrop incentive distributed to this position
-    pub lockdrop_reward: Uint256,
+    pub lockdrop_reward: Uint128,
     /// Timestamp beyond which this position can be unlocked
     pub unlock_timestamp: u64,
 }

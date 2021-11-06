@@ -1,7 +1,5 @@
-use cosmwasm_std::{Addr, StdError, StdResult};
+use cosmwasm_std::{Addr, Decimal, StdError, StdResult, Uint128};
 use cw_storage_plus::{Item, Map};
-
-use cosmwasm_bignumber::{Decimal256, Uint256};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,8 +16,8 @@ pub const STAKER_INFO: Map<&Addr, StakerInfo> = Map::new("staker");
 pub struct Config {
     /// Account who can update config
     pub owner: Addr,
-    /// Contract used to query addresses related to red-bank (MARS Token)
-    pub address_provider: Addr,
+    /// Mars token Contract
+    pub mars_token: Addr,
     ///  MARS-UST LP token address - accepted by the contract via Cw20ReceiveMsg function
     pub staking_token: Addr,
     /// Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens
@@ -29,13 +27,12 @@ pub struct Config {
     // Cycle duration in timestamps
     pub cycle_duration: u64,
     /// Percent increase in Rewards per cycle        
-    pub reward_increase: Decimal256,
+    pub reward_increase: Decimal,
 }
 
 impl Config {
     pub fn validate(&self) -> StdResult<()> {
-        if (self.init_timestamp < self.till_timestamp) && (self.reward_increase < Decimal256::one())
-        {
+        if (self.init_timestamp < self.till_timestamp) && (self.reward_increase < Decimal::one()) {
             return Ok(());
         }
         Err(StdError::generic_err("Invalid configuration"))
@@ -47,31 +44,31 @@ pub struct State {
     /// Keeps track of the MARS distribution cycle
     pub current_cycle: u64,
     /// Number of MARS tokens to be distributed during the current cycle      
-    pub current_cycle_rewards: Uint256,
+    pub current_cycle_rewards: Uint128,
     /// Timestamp at which the global_reward_index was last updated
     pub last_distributed: u64,
     /// Total number of MARS-UST LP tokens staked with the contract
-    pub total_bond_amount: Uint256,
+    pub total_bond_amount: Uint128,
     /// Used to calculate MARS rewards accured over time elapsed. Ratio =  Total distributed MARS tokens / total bond amount
-    pub global_reward_index: Decimal256,
+    pub global_reward_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakerInfo {
     /// Number of MARS-UST LP tokens staked by the user
-    pub bond_amount: Uint256,
+    pub bond_amount: Uint128,
     /// Used to calculate MARS rewards accured over time elapsed. Ratio = distributed MARS tokens / user's bonded amount
-    pub reward_index: Decimal256,
+    pub reward_index: Decimal,
     /// Pending MARS tokens which are yet to be claimed
-    pub pending_reward: Uint256,
+    pub pending_reward: Uint128,
 }
 
 impl Default for StakerInfo {
     fn default() -> Self {
         StakerInfo {
-            reward_index: Decimal256::one(),
-            bond_amount: Uint256::zero(),
-            pending_reward: Uint256::zero(),
+            reward_index: Decimal::one(),
+            bond_amount: Uint128::zero(),
+            pending_reward: Uint128::zero(),
         }
     }
 }

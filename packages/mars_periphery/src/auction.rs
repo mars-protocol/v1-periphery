@@ -1,5 +1,4 @@
-use cosmwasm_bignumber::{Decimal256, Uint256};
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, StdResult, WasmMsg};
+use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,9 +10,8 @@ pub struct InstantiateMsg {
     pub astro_token_address: String,
     pub airdrop_contract_address: String,
     pub lockdrop_contract_address: String,
-    pub mars_lp_staking_contract: Option<String>,
-    pub generator_contract: Option<String>,
-    pub mars_rewards: Uint256,
+    pub generator_contract: String,
+    pub mars_rewards: Uint128,
     pub mars_vesting_duration: u64,
     pub lp_tokens_vesting_duration: u64,
     pub init_timestamp: u64,
@@ -27,7 +25,6 @@ pub struct UpdateConfigMsg {
     pub astroport_lp_pool: Option<String>,
     pub mars_lp_staking_contract: Option<String>,
     pub generator_contract: Option<String>,
-    pub mars_rewards: Option<Uint256>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -40,7 +37,7 @@ pub enum ExecuteMsg {
 
     DepositUst {},
     WithdrawUst {
-        amount: Uint256,
+        amount: Uint128,
     },
 
     AddLiquidityToAstroportPool {
@@ -68,12 +65,12 @@ pub enum Cw20HookMsg {
 pub enum CallbackMsg {
     UpdateStateOnRewardClaim {
         user_address: Option<Addr>,
-        prev_mars_balance: Uint256,
-        prev_astro_balance: Uint256,
-        withdraw_lp_shares: Uint256,
+        prev_mars_balance: Uint128,
+        prev_astro_balance: Uint128,
+        withdraw_lp_shares: Uint128,
     },
     UpdateStateOnLiquidityAdditionToPool {
-        prev_lp_balance: Uint256,
+        prev_lp_balance: Uint128,
     },
 }
 
@@ -108,7 +105,7 @@ pub struct ConfigResponse {
     pub lp_token_address: Option<Addr>,
     pub mars_lp_staking_contract: Option<Addr>,
     pub generator_contract: String,
-    pub mars_rewards: Uint256,
+    pub mars_rewards: Uint128,
     pub init_timestamp: u64,
     pub deposit_window: u64,
     pub withdrawal_window: u64,
@@ -116,31 +113,31 @@ pub struct ConfigResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
-    pub total_mars_deposited: Uint256,
-    pub total_ust_deposited: Uint256,
-    pub lp_shares_minted: Uint256,
-    pub lp_shares_withdrawn: Uint256,
+    pub total_mars_deposited: Uint128,
+    pub total_ust_deposited: Uint128,
+    pub lp_shares_minted: Uint128,
+    pub lp_shares_withdrawn: Uint128,
     pub are_staked_for_single_incentives: bool,
     pub are_staked_for_dual_incentives: bool,
     pub pool_init_timestamp: u64,
-    pub global_mars_reward_index: Decimal256,
-    pub global_astro_reward_index: Decimal256,
+    pub global_mars_reward_index: Decimal,
+    pub global_astro_reward_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfoResponse {
-    pub mars_deposited: Uint256,
-    pub ust_deposited: Uint256,
-    pub lp_shares: Uint256,
-    pub withdrawn_lp_shares: Uint256,
-    pub withdrawable_lp_shares: Uint256,
-    pub total_auction_incentives: Uint256,
-    pub withdrawn_auction_incentives: Uint256,
-    pub withdrawable_auction_incentives: Uint256,
-    pub mars_reward_index: Decimal256,
-    pub withdrawable_mars_incentives: Uint256,
-    pub withdrawn_mars_incentives: Uint256,
-    pub astro_reward_index: Decimal256,
-    pub withdrawable_astro_incentives: Uint256,
-    pub withdrawn_astro_incentives: Uint256,
+    pub mars_deposited: Uint128,
+    pub ust_deposited: Uint128,
+    pub lp_shares: Uint128,
+    pub withdrawn_lp_shares: Uint128,
+    pub withdrawable_lp_shares: Uint128,
+    pub total_auction_incentives: Uint128,
+    pub withdrawn_auction_incentives: Uint128,
+    pub withdrawable_auction_incentives: Uint128,
+    pub mars_reward_index: Decimal,
+    pub withdrawable_mars_incentives: Uint128,
+    pub withdrawn_mars_incentives: Uint128,
+    pub astro_reward_index: Decimal,
+    pub withdrawable_astro_incentives: Uint128,
+    pub withdrawn_astro_incentives: Uint128,
 }

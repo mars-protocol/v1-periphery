@@ -1,7 +1,5 @@
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
-
-use cosmwasm_bignumber::{Decimal256, Uint256};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     /// Account who can update config
     pub owner: Option<String>,
-    /// Contract used to query addresses related to red-bank (MARS Token)
-    pub address_provider: Option<String>,
+    /// Mars token Contract
+    pub mars_token: String,
     ///  MARS-UST LP token address - accepted by the contract via Cw20ReceiveMsg function
     pub staking_token: Option<String>,
     /// Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens
@@ -18,19 +16,17 @@ pub struct InstantiateMsg {
     /// Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp
     pub till_timestamp: u64,
     /// $MARS Rewards distributed during the 1st cycle.
-    pub cycle_rewards: Option<Uint256>,
+    pub cycle_rewards: Option<Uint128>,
     /// Cycle duration in timestamps
     pub cycle_duration: u64,
     /// Percent increase in Rewards per cycle
-    pub reward_increase: Option<Decimal256>,
+    pub reward_increase: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateConfigMsg {
     /// Account who can update config
     pub owner: Option<String>,
-    /// Contract used to query addresses related to red-bank (MARS Token)
-    pub address_provider: Option<String>,
     ///  MARS-UST LP token address - accepted by the contract via Cw20ReceiveMsg function
     pub staking_token: Option<String>,
     /// Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens
@@ -38,9 +34,9 @@ pub struct UpdateConfigMsg {
     /// Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp
     pub till_timestamp: Option<u64>,
     /// $MARS Rewards distributed during the 1st cycle.
-    pub cycle_rewards: Option<Uint256>,
+    pub cycle_rewards: Option<Uint128>,
     /// Percent increase in Rewards per cycle
-    pub reward_increase: Option<Decimal256>,
+    pub reward_increase: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -56,7 +52,7 @@ pub enum ExecuteMsg {
     /// Accrued rewards are claimed along-with this function
     /// @param amount The no. of LP shares to be subtracted from the total Bonded and sent back to the user
     Unbond {
-        amount: Uint256,
+        amount: Uint128,
         withdraw_pending_reward: Option<bool>,
     },
     /// Claim pending rewards
@@ -95,8 +91,6 @@ pub struct MigrateMsg {}
 pub struct ConfigResponse {
     /// Account who can update config
     pub owner: String,
-    /// Contract used to query addresses related to red-bank
-    pub address_provider: String,
     ///  $MARS token address
     pub mars_token: String,
     ///  MARS-UST LP token address
@@ -108,7 +102,7 @@ pub struct ConfigResponse {
     /// Cycle duration in timestamps         
     pub cycle_duration: u64,
     /// Percent increase in Rewards per cycle
-    pub reward_increase: Decimal256,
+    pub reward_increase: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -116,13 +110,13 @@ pub struct StateResponse {
     /// Timestamp at which the current reward cycle begin
     pub current_cycle: u64,
     /// MARS rewards to be distributed in the current cycle
-    pub current_cycle_rewards: Uint256,
+    pub current_cycle_rewards: Uint128,
     /// Timestamp at which the global_reward_index was last updated
     pub last_distributed: u64,
     /// Total number of MARS-UST LP tokens deposited in the contract
-    pub total_bond_amount: Uint256,
+    pub total_bond_amount: Uint128,
     ///  total MARS rewards / total_bond_amount ratio. Used to calculate MARS rewards accured over time elapsed
-    pub global_reward_index: Decimal256,
+    pub global_reward_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -130,11 +124,11 @@ pub struct StakerInfoResponse {
     /// User address
     pub staker: String,
     /// MARS-UST LP tokens deposited by the user
-    pub bond_amount: Uint256,
+    pub bond_amount: Uint128,
     /// MARS rewards / bond_amount ratio.  Used to calculate MARS rewards accured over time elapsed
-    pub reward_index: Decimal256,
+    pub reward_index: Decimal,
     /// Pending MARS rewards which are yet to be claimed
-    pub pending_reward: Uint256,
+    pub pending_reward: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
