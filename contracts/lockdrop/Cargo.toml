@@ -29,7 +29,7 @@ mars-core = { path = "../../packages/mars-core", version = "1.0.0" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
-cw20 = { version = "0.8" } 
+cw20 = "0.9.0"
 cw-storage-plus = "0.8"
 cw20-base = { version = "0.8", features = ["library"] }
 
@@ -41,4 +41,11 @@ thiserror = { version = "1.0.26" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
+mars-auction =  { path = "../auction" }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+# For testcases
+mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
+mars-staking =  { path = "../mocks/mock_redbank/mars-staking" }
+mars-incentives =  { path = "../mocks/mock_redbank/mars-incentives" }
+mars-xmars-token =  { path = "../mocks/mock_redbank/mars-xmars-token" }
+

@@ -1,4 +1,3 @@
-use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, Timestamp, Uint128, Uint64};
 use cw20_base::msg::ExecuteMsg as CW20ExecuteMsg;
@@ -18,7 +17,7 @@ fn mock_app() -> App {
     App::new(api, env.block, bank, storage, tmq)
 }
 
-// Instantiate ASTRO Token Contract
+// Instantiate MARS Token Contract
 fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
     let mars_token_contract = Box::new(ContractWrapper::new(
         cw20_base::contract::execute,
@@ -29,8 +28,8 @@ fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
     let mars_token_code_id = app.store_code(mars_token_contract);
 
     let msg = cw20_base::msg::InstantiateMsg {
-        name: String::from("Astro token"),
-        symbol: String::from("ASTRO"),
+        name: String::from("MARS token"),
+        symbol: String::from("MARS"),
         decimals: 6,
         initial_balances: vec![],
         mint: Some(cw20::MinterResponse {
@@ -46,12 +45,132 @@ fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
             owner.clone(),
             &msg,
             &[],
-            String::from("ASTRO"),
+            String::from("MARS"),
             None,
         )
         .unwrap();
     mars_token_instance
 }
+
+// Instantiate Red Bank Contract
+fn instantiate_red_bank(app: &mut App, owner: Addr) -> Addr {
+    // RED BANK :: Address provider
+    let mars_address_provider = Box::new(ContractWrapper::new(
+        mars_address_provider::contract::execute,
+        mars_address_provider::contract::instantiate,
+        mars_address_provider::contract::query,
+    ));
+
+    let mars_address_provider_code_id = app.store_code(mars_address_provider);
+
+    let mars_address_provider_instance = app
+        .instantiate_contract(
+            mars_address_provider_code_id,
+            owner.clone(),
+            &mars_core::address_provider::msg::InstantiateMsg {
+                owner: owner.clone().to_string(),
+            },
+            &[],
+            String::from("address_provider"),
+            None,
+        )
+        .unwrap();
+
+    // RED BANK :: Staking Contract
+    let mars_staking = Box::new(ContractWrapper::new(
+        mars_staking::contract::execute,
+        mars_staking::contract::instantiate,
+        mars_staking::contract::query,
+    ));
+
+    let mars_staking_code_id = app.store_code(mars_staking);
+
+    let mars_staking_instance = app
+        .instantiate_contract(
+            mars_staking_code_id,
+            owner.clone(),
+            &mars_core::staking::msg::InstantiateMsg {
+                config: mars_core::staking::msg::CreateOrUpdateConfig {
+                    owner: Some(owner.clone().to_string()),
+                 address_provider_address: Some(mars_address_provider_instance.clone().to_string()),
+                     astroport_factory_address: None,
+                     astroport_max_spread: None,
+                     cooldown_duration: None,
+                },
+            },
+            &[],
+            String::from("mars_staking"),
+            None,
+        )
+        .unwrap();
+
+
+    // RED BANK :: Incentives Contract
+    let red_bank_incentives = Box::new(ContractWrapper::new(
+        mars_incentives::contract::execute,
+        mars_incentives::contract::instantiate,
+        mars_incentives::contract::query,
+    ));
+
+    let red_bank_incentives_code_id = app.store_code(red_bank_incentives);
+
+    let red_bank_incentives_instance = app
+        .instantiate_contract(
+            red_bank_incentives_code_id,
+            owner.clone(),
+            &mars_core::incentives::msg::InstantiateMsg {
+                owner: owner.clone().to_string(),
+                address_provider_address: mars_address_provider_instance.clone().to_string(),
+            },
+            &[],
+            String::from("red_bank_incentives"),
+            None,
+        )
+        .unwrap();
+
+    // RED BANK :: XMARS Contract
+    let red_bank_xmars = Box::new(ContractWrapper::new(
+        mars_xmars_token::contract::execute,
+        mars_xmars_token::contract::instantiate,
+        mars_xmars_token::contract::query,
+    ));
+
+    let red_bank_xmars_code_id = app.store_code(red_bank_xmars);
+
+    let red_bank_xmars_instance = app
+        .instantiate_contract(
+            red_bank_xmars_code_id,
+            owner.clone(),
+            &mars_core::xmars_token::msg::InstantiateMsg {
+                name: String::from("XMARS token"),
+                symbol: String::from("XMARS"),
+                decimals: 6,
+                initial_balances: vec![],
+                mint: Some(cw20::MinterResponse {
+                    minter: owner.to_string(),
+                    cap: None,
+                }),
+                marketing: None,
+            },
+            &[],
+            String::from("xmars_token"),
+            None,
+        )
+        .unwrap();
+
+
+
+// let msg = cw20_base::msg::InstantiateMsg {
+//     name: String::from("MARS token"),
+//     symbol: String::from("MARS"),
+//     decimals: 6,
+//     initial_balances: vec![],
+//     mint: Some(cw20::MinterResponse {
+//         minter: owner.to_string(),
+//         cap: None,
+//     }),
+//     marketing: None,
+// };
 
 // Instantiate AUCTION Contract
 fn instantiate_auction_contract(
@@ -62,7 +181,7 @@ fn instantiate_auction_contract(
     lockdrop_instance: Addr,
     pair_instance: Addr,
     lp_token_instance: Addr,
-) -> (Addr, InstantiateMsg) {
+) -> (Addr, mars_periphery::auction::InstantiateMsg) {
     let auction_contract = Box::new(ContractWrapper::new(
         mars_auction::contract::execute,
         mars_auction::contract::instantiate,
@@ -74,12 +193,11 @@ fn instantiate_auction_contract(
     let auction_instantiate_msg = mars_periphery::auction::InstantiateMsg {
         owner: owner.clone().to_string(),
         mars_token_address: mars_token_instance.clone().into_string(),
+        astro_token_address: "astro_token".to_string(),
         airdrop_contract_address: airdrop_instance.to_string(),
         lockdrop_contract_address: lockdrop_instance.to_string(),
-        astroport_lp_pool: Some(pair_instance.to_string()),
-        lp_token_address: Some(lp_token_instance.to_string()),
-        generator_contract: None,
-        mars_rewards: Uint256::from(1000000000000u64),
+        generator_contract: "generator_contract".to_string(),
+        mars_rewards: Uint128::from(1000000000000u64),
         mars_vesting_duration: 7776000u64,
         lp_tokens_vesting_duration: 7776000u64,
         init_timestamp: 1_000_00,
@@ -105,11 +223,9 @@ fn instantiate_auction_contract(
 fn instantiate_lockdrop_contract(
     app: &mut App,
     owner: Addr,
-    mars_token_instance: Addr,
-    airdrop_instance: Addr,
-    lockdrop_instance: Addr,
-    pair_instance: Addr,
-    lp_token_instance: Addr,
+    address_provider: Addr,
+    auction_contract_address: Addr,
+    ma_ust_token: Addr,
 ) -> (Addr, InstantiateMsg) {
     let lockdrop_contract = Box::new(ContractWrapper::new(
         mars_lockdrop::contract::execute,
@@ -121,18 +237,18 @@ fn instantiate_lockdrop_contract(
 
     let lockdrop_instantiate_msg = mars_periphery::lockdrop::InstantiateMsg {
         owner: owner.clone().to_string(),
-        address_provider: address_provider.to_string(),
-        auction_contract_address: auction_contract.to_string(),
-        ma_ust_token: ma_ust_token.to_string(),
+        address_provider: Some(address_provider.to_string()),
+        auction_contract_address: Some(auction_contract_address.to_string()),
+        ma_ust_token: Some(ma_ust_token.to_string()),
         init_timestamp: 1_000_00,
         deposit_window: 100_000_00,
         withdrawal_window: 5_000_00,
         min_duration: 1,
         max_duration: 5,
         seconds_per_week: 7 * 86400 as u64,
-        denom: Some("uusd".to_string()),
-        weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
-        lockdrop_incentives: Uint256::from(1000000000000u64),
+        weekly_multiplier: 9u64,
+        weekly_divider: 100u64,
+        lockdrop_incentives: Uint128::from(1000000000000u64),
     };
 
     // Init contract
@@ -149,120 +265,125 @@ fn instantiate_lockdrop_contract(
     (lockdrop_instance, lockdrop_instantiate_msg)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+// Initiates Lockdrop Contract with properly configured Config
+fn init_all_contracts(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, InstantiateMsg) {
+    let mars_token_instance = instantiate_mars_token(app, owner.clone());
 
-//     use cosmwasm_std::testing::{MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-//     use cosmwasm_std::{attr, coin, Coin, Decimal, OwnedDeps, SubMsg, Timestamp, Uint128};
+    let (lp_staking_instance, staking_token_instance, lp_staking_instantiate_msg) =
+        instantiate_lp_staking_contract(app, owner.clone(), mars_token_instance.clone());
 
-//     use mars::testing::{
-//         assert_generic_error_message, mock_dependencies, mock_env, mock_info, MarsMockQuerier,
-//         MockEnvParams,
-//     };
+    return (
+        mars_token_instance,
+        lp_staking_instance,
+        staking_token_instance,
+        lp_staking_instantiate_msg,
+    );
+}
 
-//     use mars_periphery::lockdrop::{CallbackMsg, ExecuteMsg, InstantiateMsg, UpdateConfigMsg};
+#[test]
+fn test_proper_initialization() {
+    let owner = Addr::unchecked("contract_owner");
 
-//     #[test]
-//     fn test_proper_initialization() {
-//         let mut deps = mock_dependencies(&[]);
-//         let info = mock_info("owner");
-//         let env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(10_000_001),
-//             ..Default::default()
-//         });
+    let mut app = mock_app();
+    let (
+        address_provider,
+        ma_ust_token,
+        auction_contract_address,
+        lockdrop_contract,
+        lockdrop_instantiate_msg,
+    ) = init_all_contracts(&mut app, owner.clone());
 
-//         let mut base_config = InstantiateMsg {
-//             owner: "owner".to_string(),
-//             address_provider: None,
-//             ma_ust_token: None,
-//             init_timestamp: 10_000_000,
-//             deposit_window: 100000,
-//             withdrawal_window: 72000,
-//             min_duration: 1,
-//             max_duration: 5,
-//             seconds_per_week: 7 * 86400 as u64,
-//             denom: Some("uusd".to_string()),
-//             weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
-//             lockdrop_incentives: None,
-//         };
+    //         let mut base_config = InstantiateMsg {
+    //             owner: "owner".to_string(),
+    //             address_provider: None,
+    //             ma_ust_token: None,
+    //             init_timestamp: 10_000_000,
+    //             deposit_window: 100000,
+    //             withdrawal_window: 72000,
+    //             min_duration: 1,
+    //             max_duration: 5,
+    //             seconds_per_week: 7 * 86400 as u64,
+    //             denom: Some("uusd".to_string()),
+    //             weekly_multiplier: Some(Decimal::from_ratio(9u64, 100u64)),
+    //             lockdrop_incentives: None,
+    //         };
 
-//         // ***
-//         // *** Test :: "Invalid timestamp" ***
-//         // ***
-//         base_config.init_timestamp = 10_000_000;
-//         let mut res_f = instantiate(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             base_config.clone(),
-//         );
-//         assert_generic_error_message(res_f, "Invalid timestamp");
+    //         // ***
+    //         // *** Test :: "Invalid timestamp" ***
+    //         // ***
+    //         base_config.init_timestamp = 10_000_000;
+    //         let mut res_f = instantiate(
+    //             deps.as_mut(),
+    //             env.clone(),
+    //             info.clone(),
+    //             base_config.clone(),
+    //         );
+    //         assert_generic_error_message(res_f, "Invalid timestamp");
 
-//         // ***
-//         // *** Test :: "Invalid deposit / withdraw window" ***
-//         // ***
-//         base_config.init_timestamp = 10_000_007;
-//         base_config.deposit_window = 15u64;
-//         base_config.withdrawal_window = 15u64;
-//         res_f = instantiate(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             base_config.clone(),
-//         );
-//         assert_generic_error_message(res_f, "Invalid deposit / withdraw window");
+    //         // ***
+    //         // *** Test :: "Invalid deposit / withdraw window" ***
+    //         // ***
+    //         base_config.init_timestamp = 10_000_007;
+    //         base_config.deposit_window = 15u64;
+    //         base_config.withdrawal_window = 15u64;
+    //         res_f = instantiate(
+    //             deps.as_mut(),
+    //             env.clone(),
+    //             info.clone(),
+    //             base_config.clone(),
+    //         );
+    //         assert_generic_error_message(res_f, "Invalid deposit / withdraw window");
 
-//         // ***
-//         // *** Test :: "Invalid Lockup durations" ***
-//         // ***
-//         base_config.init_timestamp = 10_000_007;
-//         base_config.deposit_window = 15u64;
-//         base_config.withdrawal_window = 9u64;
-//         base_config.max_duration = 9u64;
-//         base_config.min_duration = 9u64;
-//         res_f = instantiate(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             base_config.clone(),
-//         );
-//         assert_generic_error_message(res_f, "Invalid Lockup durations");
+    //         // ***
+    //         // *** Test :: "Invalid Lockup durations" ***
+    //         // ***
+    //         base_config.init_timestamp = 10_000_007;
+    //         base_config.deposit_window = 15u64;
+    //         base_config.withdrawal_window = 9u64;
+    //         base_config.max_duration = 9u64;
+    //         base_config.min_duration = 9u64;
+    //         res_f = instantiate(
+    //             deps.as_mut(),
+    //             env.clone(),
+    //             info.clone(),
+    //             base_config.clone(),
+    //         );
+    //         assert_generic_error_message(res_f, "Invalid Lockup durations");
 
-//         // ***
-//         // *** Test :: Should instantiate successfully ***
-//         // ***
-//         base_config.min_duration = 1u64;
-//         let res_s = instantiate(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             base_config.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(0, res_s.messages.len());
-//         // let's verify the config
-//         let config_ = query_config(deps.as_ref()).unwrap();
-//         assert_eq!("owner".to_string(), config_.owner);
-//         assert_eq!("".to_string(), config_.address_provider);
-//         assert_eq!("".to_string(), config_.ma_ust_token);
-//         assert_eq!(10_000_007, config_.init_timestamp);
-//         assert_eq!(15u64, config_.deposit_window);
-//         assert_eq!(9u64, config_.withdrawal_window);
-//         assert_eq!(1u64, config_.min_duration);
-//         assert_eq!(9u64, config_.max_duration);
-//         assert_eq!(Decimal256::from_ratio(9u64, 100u64), config_.multiplier);
-//         assert_eq!(Uint256::zero(), config_.lockdrop_incentives);
+    //         // ***
+    //         // *** Test :: Should instantiate successfully ***
+    //         // ***
+    //         base_config.min_duration = 1u64;
+    //         let res_s = instantiate(
+    //             deps.as_mut(),
+    //             env.clone(),
+    //             info.clone(),
+    //             base_config.clone(),
+    //         )
+    //         .unwrap();
+    //         assert_eq!(0, res_s.messages.len());
+    //         // let's verify the config
+    //         let config_ = query_config(deps.as_ref()).unwrap();
+    //         assert_eq!("owner".to_string(), config_.owner);
+    //         assert_eq!("".to_string(), config_.address_provider);
+    //         assert_eq!("".to_string(), config_.ma_ust_token);
+    //         assert_eq!(10_000_007, config_.init_timestamp);
+    //         assert_eq!(15u64, config_.deposit_window);
+    //         assert_eq!(9u64, config_.withdrawal_window);
+    //         assert_eq!(1u64, config_.min_duration);
+    //         assert_eq!(9u64, config_.max_duration);
+    //         assert_eq!(Decimal::from_ratio(9u64, 100u64), config_.multiplier);
+    //         assert_eq!(Uint128::zero(), config_.lockdrop_incentives);
 
-//         // let's verify the state
-//         let state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::zero(), state_.final_ust_locked);
-//         assert_eq!(Uint256::zero(), state_.final_maust_locked);
-//         assert_eq!(Uint256::zero(), state_.total_ust_locked);
-//         assert_eq!(Uint256::zero(), state_.total_maust_locked);
-//         assert_eq!(Decimal256::zero(), state_.global_reward_index);
-//         assert_eq!(Uint256::zero(), state_.total_deposits_weight);
-//     }
+    //         // let's verify the state
+    //         let state_ = query_state(deps.as_ref()).unwrap();
+    //         assert_eq!(Uint128::zero(), state_.final_ust_locked);
+    //         assert_eq!(Uint128::zero(), state_.final_maust_locked);
+    //         assert_eq!(Uint128::zero(), state_.total_ust_locked);
+    //         assert_eq!(Uint128::zero(), state_.total_maust_locked);
+    //         assert_eq!(Decimal::zero(), state_.global_reward_index);
+    //         assert_eq!(Uint128::zero(), state_.total_deposits_weight);
+}
 
 //     #[test]
 //     fn test_update_config() {
@@ -285,7 +406,7 @@ fn instantiate_lockdrop_contract(
 //             max_duration: 5u64,
 //             seconds_per_week: 7 * 86400 as u64,
 //             denom: Some("uusd".to_string()),
-//             weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
+//             weekly_multiplier: Some(Decimal::from_ratio(9u64, 100u64)),
 //             lockdrop_incentives: None,
 //         };
 //         let res_s = instantiate(
@@ -350,8 +471,8 @@ fn instantiate_lockdrop_contract(
 //         assert_eq!(72000u64, config_.withdrawal_window);
 //         assert_eq!(1u64, config_.min_duration);
 //         assert_eq!(5u64, config_.max_duration);
-//         assert_eq!(Decimal256::from_ratio(9u64, 100u64), config_.multiplier);
-//         assert_eq!(Uint256::zero(), config_.lockdrop_incentives);
+//         assert_eq!(Decimal::from_ratio(9u64, 100u64), config_.multiplier);
+//         assert_eq!(Uint128::zero(), config_.lockdrop_incentives);
 
 //         // ***
 //         // *** Test :: Don't Update init_timestamp,min_lock_duration, max_lock_duration, weekly_multiplier (Reason :: env.block.time.seconds() >= config.init_timestamp)  ***
@@ -364,8 +485,8 @@ fn instantiate_lockdrop_contract(
 //         update_config.init_timestamp = Some(1_000_000_39);
 //         update_config.min_duration = Some(3u64);
 //         update_config.max_duration = Some(9u64);
-//         update_config.weekly_multiplier = Some(Decimal256::from_ratio(17u64, 100u64));
-//         update_config.lockdrop_incentives = Some(Uint256::from(100000u64));
+//         update_config.weekly_multiplier = Some(Decimal::from_ratio(17u64, 100u64));
+//         update_config.lockdrop_incentives = Some(Uint128::from(100000u64));
 //         update_config_msg = ExecuteMsg::UpdateConfig {
 //             new_config: update_config.clone(),
 //         };
@@ -386,8 +507,8 @@ fn instantiate_lockdrop_contract(
 //         assert_eq!(1_000_000_05, config_.init_timestamp);
 //         assert_eq!(1u64, config_.min_duration);
 //         assert_eq!(5u64, config_.max_duration);
-//         assert_eq!(Decimal256::from_ratio(9u64, 100u64), config_.multiplier);
-//         assert_eq!(Uint256::from(100000u64), config_.lockdrop_incentives);
+//         assert_eq!(Decimal::from_ratio(9u64, 100u64), config_.multiplier);
+//         assert_eq!(Uint128::from(100000u64), config_.lockdrop_incentives);
 
 //         // ***
 //         // *** Test :: Update init_timestamp successfully ***
@@ -412,8 +533,8 @@ fn instantiate_lockdrop_contract(
 //         assert_eq!(1_000_000_39, config_.init_timestamp);
 //         assert_eq!(3u64, config_.min_duration);
 //         assert_eq!(9u64, config_.max_duration);
-//         assert_eq!(Decimal256::from_ratio(17u64, 100u64), config_.multiplier);
-//         assert_eq!(Uint256::from(100000u64), config_.lockdrop_incentives);
+//         assert_eq!(Decimal::from_ratio(17u64, 100u64), config_.multiplier);
+//         assert_eq!(Uint128::from(100000u64), config_.lockdrop_incentives);
 //     }
 
 //     #[test]
@@ -522,26 +643,26 @@ fn instantiate_lockdrop_contract(
 //         let mut lockdrop_ =
 //             query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
 //         assert_eq!(3u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(10000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::zero(), lockdrop_.maust_balance);
-//         assert_eq!(Uint256::from(21432423343u64), lockdrop_.lockdrop_reward);
+//         assert_eq!(Uint128::from(10000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::zero(), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(21432423343u64), lockdrop_.lockdrop_reward);
 //         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
 //         // let's verify the User
 //         let mut user_ =
 //             query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(10000u64), user_.total_ust_locked);
-//         assert_eq!(Uint256::zero(), user_.total_maust_locked);
+//         assert_eq!(Uint128::from(10000u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::zero(), user_.total_maust_locked);
 //         assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
 //         assert_eq!(false, user_.is_lockdrop_claimed);
-//         assert_eq!(Decimal256::zero(), user_.reward_index);
-//         assert_eq!(Uint256::zero(), user_.pending_xmars);
+//         assert_eq!(Decimal::zero(), user_.reward_index);
+//         assert_eq!(Uint128::zero(), user_.pending_xmars);
 //         // let's verify the state
 //         let mut state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::zero(), state_.final_ust_locked);
-//         assert_eq!(Uint256::zero(), state_.final_maust_locked);
-//         assert_eq!(Uint256::from(10000u64), state_.total_ust_locked);
-//         assert_eq!(Uint256::zero(), state_.total_maust_locked);
-//         assert_eq!(Uint256::from(2700u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::zero(), state_.final_ust_locked);
+//         assert_eq!(Uint128::zero(), state_.final_maust_locked);
+//         assert_eq!(Uint128::from(10000u64), state_.total_ust_locked);
+//         assert_eq!(Uint128::zero(), state_.total_maust_locked);
+//         assert_eq!(Uint128::from(2700u64), state_.total_deposits_weight);
 
 //         // ***
 //         // *** Test #2 :: Successfully deposit UST  ***
@@ -566,16 +687,16 @@ fn instantiate_lockdrop_contract(
 //         // let's verify the Lockdrop
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
 //         assert_eq!(3u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(10100u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(10100u64), lockdrop_.ust_locked);
 //         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
 //         // let's verify the User
 //         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(10100u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(10100u64), user_.total_ust_locked);
 //         assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
 //         // let's verify the state
 //         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::from(10100u64), state_.total_ust_locked);
-//         assert_eq!(Uint256::from(2727u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::from(10100u64), state_.total_ust_locked);
+//         assert_eq!(Uint128::from(2727u64), state_.total_deposits_weight);
 
 //         // ***
 //         // *** Test #3 :: Successfully deposit UST (new lockup)  ***
@@ -601,19 +722,19 @@ fn instantiate_lockdrop_contract(
 //         // let's verify the Lockdrop
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
 //         assert_eq!(5u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(5432u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(5432u64), lockdrop_.ust_locked);
 //         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
 //         // let's verify the User
 //         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(15532u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(15532u64), user_.total_ust_locked);
 //         assert_eq!(
 //             vec!["depositor3".to_string(), "depositor5".to_string()],
 //             user_.lockup_position_ids
 //         );
 //         // let's verify the state
 //         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::from(15532u64), state_.total_ust_locked);
-//         assert_eq!(Uint256::from(5171u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::from(15532u64), state_.total_ust_locked);
+//         assert_eq!(Uint128::from(5171u64), state_.total_deposits_weight);
 //     }
 
 //     #[test]
@@ -681,7 +802,7 @@ fn instantiate_lockdrop_contract(
 //             ..Default::default()
 //         });
 //         let mut withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint256::from(100u64),
+//             amount: Uint128::from(100u64),
 //             duration: 5u64,
 //         };
 //         let mut withdrawal_f = execute(
@@ -700,7 +821,7 @@ fn instantiate_lockdrop_contract(
 //             ..Default::default()
 //         });
 //         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint256::from(100u64),
+//             amount: Uint128::from(100u64),
 //             duration: 4u64,
 //         };
 //         withdrawal_f = execute(
@@ -715,7 +836,7 @@ fn instantiate_lockdrop_contract(
 //         // *** Test :: Error "Invalid withdrawal request" Reason :: Invalid amount ***
 //         // ***
 //         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint256::from(100000000u64),
+//             amount: Uint128::from(100000000u64),
 //             duration: 5u64,
 //         };
 //         withdrawal_f = execute(
@@ -727,7 +848,7 @@ fn instantiate_lockdrop_contract(
 //         assert_generic_error_message(withdrawal_f, "Invalid withdrawal request");
 
 //         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint256::from(0u64),
+//             amount: Uint128::from(0u64),
 //             duration: 5u64,
 //         };
 //         withdrawal_f = execute(
@@ -742,7 +863,7 @@ fn instantiate_lockdrop_contract(
 //         // *** Test #1 :: Successfully withdraw UST  ***
 //         // ***
 //         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint256::from(42u64),
+//             amount: Uint128::from(42u64),
 //             duration: 5u64,
 //         };
 //         let mut withdrawal_s = execute(
@@ -765,26 +886,26 @@ fn instantiate_lockdrop_contract(
 //         let mut lockdrop_ =
 //             query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
 //         assert_eq!(5u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(999958u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(999958u64), lockdrop_.ust_locked);
 //         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
 //         // let's verify the User
 //         let mut user_ =
 //             query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(1999958u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(1999958u64), user_.total_ust_locked);
 //         assert_eq!(
 //             vec!["depositor3".to_string(), "depositor5".to_string()],
 //             user_.lockup_position_ids
 //         );
 //         // let's verify the state
 //         let mut state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::from(1999958u64), state_.total_ust_locked);
-//         assert_eq!(Uint256::from(719982u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::from(1999958u64), state_.total_ust_locked);
+//         assert_eq!(Uint128::from(719982u64), state_.total_deposits_weight);
 
 //         // ***
 //         // *** Test #2 :: Successfully withdraw UST  ***
 //         // ***
 //         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint256::from(999958u64),
+//             amount: Uint128::from(999958u64),
 //             duration: 5u64,
 //         };
 //         withdrawal_s = execute(
@@ -806,22 +927,22 @@ fn instantiate_lockdrop_contract(
 //         // let's verify the Lockdrop
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
 //         assert_eq!(5u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(0u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(0u64), lockdrop_.ust_locked);
 //         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
 //         // let's verify the User
 //         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(1000000u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(1000000u64), user_.total_ust_locked);
 //         assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
 //         // let's verify the state
 //         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::from(1000000u64), state_.total_ust_locked);
-//         assert_eq!(Uint256::from(270001u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::from(1000000u64), state_.total_ust_locked);
+//         assert_eq!(Uint128::from(270001u64), state_.total_deposits_weight);
 
 //         // ***
 //         // *** Test #3 :: Successfully withdraw UST  ***
 //         // ***
 //         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint256::from(1000u64),
+//             amount: Uint128::from(1000u64),
 //             duration: 3u64,
 //         };
 //         withdrawal_s = execute(
@@ -843,16 +964,16 @@ fn instantiate_lockdrop_contract(
 //         // let's verify the Lockdrop
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
 //         assert_eq!(3u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(999000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(999000u64), lockdrop_.ust_locked);
 //         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
 //         // let's verify the User
 //         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(999000u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(999000u64), user_.total_ust_locked);
 //         assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
 //         // let's verify the state
 //         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::from(999000u64), state_.total_ust_locked);
-//         assert_eq!(Uint256::from(269731u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::from(999000u64), state_.total_ust_locked);
+//         assert_eq!(Uint128::from(269731u64), state_.total_deposits_weight);
 //     }
 
 //     #[test]
@@ -1008,7 +1129,7 @@ fn instantiate_lockdrop_contract(
 //                 })),
 //                 SubMsg::new(
 //                     CallbackMsg::UpdateStateOnRedBankDeposit {
-//                         prev_ma_ust_balance: Uint256::from(0u64)
+//                         prev_ma_ust_balance: Uint128::from(0u64)
 //                     }
 //                     .to_cosmos_msg(&env.clone().contract.address)
 //                     .unwrap()
@@ -1017,12 +1138,12 @@ fn instantiate_lockdrop_contract(
 //         );
 //         // let's verify the state
 //         let state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::zero(), state_.final_ust_locked);
-//         assert_eq!(Uint256::zero(), state_.final_maust_locked);
-//         assert_eq!(Uint256::from(2000000u64), state_.total_ust_locked);
-//         assert_eq!(Uint256::zero(), state_.total_maust_locked);
-//         assert_eq!(Decimal256::zero(), state_.global_reward_index);
-//         assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::zero(), state_.final_ust_locked);
+//         assert_eq!(Uint128::zero(), state_.final_maust_locked);
+//         assert_eq!(Uint128::from(2000000u64), state_.total_ust_locked);
+//         assert_eq!(Uint128::zero(), state_.total_maust_locked);
+//         assert_eq!(Decimal::zero(), state_.global_reward_index);
+//         assert_eq!(Uint128::from(720000u64), state_.total_deposits_weight);
 //     }
 
 //     #[test]
@@ -1095,7 +1216,7 @@ fn instantiate_lockdrop_contract(
 //         // ***
 //         info = mock_info(&env.clone().contract.address.to_string());
 //         let callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnRedBankDeposit {
-//             prev_ma_ust_balance: Uint256::from(100u64),
+//             prev_ma_ust_balance: Uint128::from(100u64),
 //         });
 //         let redbank_callback_s = execute(
 //             deps.as_mut(),
@@ -1115,22 +1236,22 @@ fn instantiate_lockdrop_contract(
 //         // let's verify the state
 //         let state_ = query_state(deps.as_ref()).unwrap();
 //         // final : tracks Total UST deposited / Total MA-UST Minted
-//         assert_eq!(Uint256::from(2000000u64), state_.final_ust_locked);
-//         assert_eq!(Uint256::from(196900u64), state_.final_maust_locked);
+//         assert_eq!(Uint128::from(2000000u64), state_.final_ust_locked);
+//         assert_eq!(Uint128::from(196900u64), state_.final_maust_locked);
 //         // Total : tracks UST / MA-UST Available with the lockdrop contract
-//         assert_eq!(Uint256::zero(), state_.total_ust_locked);
-//         assert_eq!(Uint256::from(196900u64), state_.total_maust_locked);
+//         assert_eq!(Uint128::zero(), state_.total_ust_locked);
+//         assert_eq!(Uint128::from(196900u64), state_.total_maust_locked);
 //         // global_reward_index, total_deposits_weight :: Used for lockdrop / X-Mars distribution
-//         assert_eq!(Decimal256::zero(), state_.global_reward_index);
-//         assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
+//         assert_eq!(Decimal::zero(), state_.global_reward_index);
+//         assert_eq!(Uint128::from(720000u64), state_.total_deposits_weight);
 
 //         // let's verify the User
 //         let user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(2000000u64), user_.total_ust_locked);
-//         assert_eq!(Uint256::from(196900u64), user_.total_maust_locked);
+//         assert_eq!(Uint128::from(2000000u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(196900u64), user_.total_maust_locked);
 //         assert_eq!(false, user_.is_lockdrop_claimed);
-//         assert_eq!(Decimal256::zero(), user_.reward_index);
-//         assert_eq!(Uint256::zero(), user_.pending_xmars);
+//         assert_eq!(Decimal::zero(), user_.reward_index);
+//         assert_eq!(Uint128::zero(), user_.pending_xmars);
 //         assert_eq!(
 //             vec!["depositor3".to_string(), "depositor5".to_string()],
 //             user_.lockup_position_ids
@@ -1140,17 +1261,17 @@ fn instantiate_lockdrop_contract(
 //         let mut lockdrop_ =
 //             query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
 //         assert_eq!(3u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(1000000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(98450u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint256::from(8037158753u64), lockdrop_.lockdrop_reward);
+//         assert_eq!(Uint128::from(1000000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(98450u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(8037158753u64), lockdrop_.lockdrop_reward);
 //         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
 
 //         // let's verify the lockup #2
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
 //         assert_eq!(5u64, lockdrop_.duration);
-//         assert_eq!(Uint256::from(1000000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(98450u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint256::from(13395264589u64), lockdrop_.lockdrop_reward);
+//         assert_eq!(Uint128::from(1000000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(98450u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(13395264589u64), lockdrop_.lockdrop_reward);
 //         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
 //     }
 
@@ -1290,7 +1411,7 @@ fn instantiate_lockdrop_contract(
 //                 SubMsg::new(
 //                     CallbackMsg::UpdateStateOnClaim {
 //                         user: Addr::unchecked("depositor".to_string()),
-//                         prev_xmars_balance: Uint256::from(0u64)
+//                         prev_xmars_balance: Uint128::from(0u64)
 //                     }
 //                     .to_cosmos_msg(&env.clone().contract.address)
 //                     .unwrap()
@@ -1326,7 +1447,7 @@ fn instantiate_lockdrop_contract(
 //             vec![SubMsg::new(
 //                 CallbackMsg::UpdateStateOnClaim {
 //                     user: Addr::unchecked("depositor".to_string()),
-//                     prev_xmars_balance: Uint256::from(58460u64)
+//                     prev_xmars_balance: Uint128::from(58460u64)
 //                 }
 //                 .to_cosmos_msg(&env.clone().contract.address)
 //                 .unwrap()
@@ -1440,7 +1561,7 @@ fn instantiate_lockdrop_contract(
 //         );
 //         info = mock_info(&env.clone().contract.address.to_string());
 //         let callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnRedBankDeposit {
-//             prev_ma_ust_balance: Uint256::from(0u64),
+//             prev_ma_ust_balance: Uint128::from(0u64),
 //         });
 //         let redbank_callback_s = execute(
 //             deps.as_mut(),
@@ -1460,14 +1581,14 @@ fn instantiate_lockdrop_contract(
 //         // let's verify the state
 //         let mut state_ = query_state(deps.as_ref()).unwrap();
 //         // final : tracks Total UST deposited / Total MA-UST Minted
-//         assert_eq!(Uint256::from(14900000u64), state_.final_ust_locked);
-//         assert_eq!(Uint256::from(197000u64), state_.final_maust_locked);
+//         assert_eq!(Uint128::from(14900000u64), state_.final_ust_locked);
+//         assert_eq!(Uint128::from(197000u64), state_.final_maust_locked);
 //         // Total : tracks UST / MA-UST Available with the lockdrop contract
-//         assert_eq!(Uint256::zero(), state_.total_ust_locked);
-//         assert_eq!(Uint256::from(197000u64), state_.total_maust_locked);
+//         assert_eq!(Uint128::zero(), state_.total_ust_locked);
+//         assert_eq!(Uint128::from(197000u64), state_.total_maust_locked);
 //         // global_reward_index, total_deposits_weight :: Used for lockdrop / X-Mars distribution
-//         assert_eq!(Decimal256::zero(), state_.global_reward_index);
-//         assert_eq!(Uint256::from(5364000u64), state_.total_deposits_weight);
+//         assert_eq!(Decimal::zero(), state_.global_reward_index);
+//         assert_eq!(Uint128::from(5364000u64), state_.total_deposits_weight);
 
 //         // ***
 //         // *** Test #1 :: Successfully updates state on Reward claim (Claims both MARS and XMARS) ***
@@ -1488,7 +1609,7 @@ fn instantiate_lockdrop_contract(
 //         info = mock_info(&env.clone().contract.address.to_string());
 //         let mut callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnClaim {
 //             user: Addr::unchecked("depositor".to_string()),
-//             prev_xmars_balance: Uint256::from(100u64),
+//             prev_xmars_balance: Uint128::from(100u64),
 //         });
 //         let mut redbank_callback_s = execute(
 //             deps.as_mut(),
@@ -1532,22 +1653,22 @@ fn instantiate_lockdrop_contract(
 //         );
 //         // let's verify the state
 //         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::zero(), state_.total_ust_locked);
+//         assert_eq!(Uint128::zero(), state_.total_ust_locked);
 //         assert_eq!(
-//             Decimal256::from_ratio(58360u64, 197000u64),
+//             Decimal::from_ratio(58360u64, 197000u64),
 //             state_.global_reward_index
 //         );
 //         // let's verify the User
 //         let mut user_ =
 //             query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(2000000u64), user_.total_ust_locked);
-//         assert_eq!(Uint256::from(26442u64), user_.total_maust_locked);
+//         assert_eq!(Uint128::from(2000000u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(26442u64), user_.total_maust_locked);
 //         assert_eq!(true, user_.is_lockdrop_claimed);
 //         assert_eq!(
-//             Decimal256::from_ratio(58360u64, 197000u64),
+//             Decimal::from_ratio(58360u64, 197000u64),
 //             user_.reward_index
 //         );
-//         assert_eq!(Uint256::zero(), user_.pending_xmars);
+//         assert_eq!(Uint128::zero(), user_.pending_xmars);
 //         assert_eq!(
 //             vec!["depositor3".to_string(), "depositor5".to_string()],
 //             user_.lockup_position_ids
@@ -1555,15 +1676,15 @@ fn instantiate_lockdrop_contract(
 //         // // let's verify user's lockup #1
 //         let mut lockdrop_ =
 //             query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
-//         assert_eq!(Uint256::from(1000000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(13221u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint256::from(1078813255u64), lockdrop_.lockdrop_reward);
+//         assert_eq!(Uint128::from(1000000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(13221u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(1078813255u64), lockdrop_.lockdrop_reward);
 //         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
 //         // // let's verify user's lockup #1
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
-//         assert_eq!(Uint256::from(1000000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(13221u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint256::from(1798022092u64), lockdrop_.lockdrop_reward);
+//         assert_eq!(Uint128::from(1000000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(13221u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(1798022092u64), lockdrop_.lockdrop_reward);
 //         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
 
 //         // ***
@@ -1578,7 +1699,7 @@ fn instantiate_lockdrop_contract(
 //         );
 //         callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnClaim {
 //             user: Addr::unchecked("depositor".to_string()),
-//             prev_xmars_balance: Uint256::from(56430u64),
+//             prev_xmars_balance: Uint128::from(56430u64),
 //         });
 //         redbank_callback_s = execute(
 //             deps.as_mut(),
@@ -1612,14 +1733,14 @@ fn instantiate_lockdrop_contract(
 //         // let's verify the User
 //         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
 //         assert_eq!(true, user_.is_lockdrop_claimed);
-//         assert_eq!(Uint256::zero(), user_.pending_xmars);
+//         assert_eq!(Uint128::zero(), user_.pending_xmars);
 
 //         // ***
 //         // *** Test #3 :: Successfully updates state on Reward claim (Claims MARS and XMARS for 2nd depositor) ***
 //         // ***
 //         callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnClaim {
 //             user: Addr::unchecked("depositor2".to_string()),
-//             prev_xmars_balance: Uint256::from(0u64),
+//             prev_xmars_balance: Uint128::from(0u64),
 //         });
 //         redbank_callback_s = execute(
 //             deps.as_mut(),
@@ -1663,25 +1784,25 @@ fn instantiate_lockdrop_contract(
 //         );
 //         // let's verify the User
 //         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor2".to_string()).unwrap();
-//         assert_eq!(Uint256::from(12900000u64), user_.total_ust_locked);
-//         assert_eq!(Uint256::from(170557u64), user_.total_maust_locked);
+//         assert_eq!(Uint128::from(12900000u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(170557u64), user_.total_maust_locked);
 //         assert_eq!(true, user_.is_lockdrop_claimed);
-//         assert_eq!(Uint256::zero(), user_.pending_xmars);
+//         assert_eq!(Uint128::zero(), user_.pending_xmars);
 //         assert_eq!(
 //             vec!["depositor23".to_string(), "depositor25".to_string()],
 //             user_.lockup_position_ids
 //         );
 //         // // let's verify user's lockup #1
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor23".to_string()).unwrap();
-//         assert_eq!(Uint256::from(6450000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(85278u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint256::from(6958345498u64), lockdrop_.lockdrop_reward);
+//         assert_eq!(Uint128::from(6450000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(85278u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(6958345498u64), lockdrop_.lockdrop_reward);
 //         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
 //         // // let's verify user's lockup #1
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor25".to_string()).unwrap();
-//         assert_eq!(Uint256::from(6450000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(85278u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint256::from(11597242496u64), lockdrop_.lockdrop_reward);
+//         assert_eq!(Uint128::from(6450000u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(85278u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(11597242496u64), lockdrop_.lockdrop_reward);
 //         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
 //     }
 
@@ -1752,7 +1873,7 @@ fn instantiate_lockdrop_contract(
 //         );
 //         info = mock_info(&env.clone().contract.address.to_string());
 //         let callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnRedBankDeposit {
-//             prev_ma_ust_balance: Uint256::from(0u64),
+//             prev_ma_ust_balance: Uint128::from(0u64),
 //         });
 //         execute(
 //             deps.as_mut(),
@@ -1822,7 +1943,7 @@ fn instantiate_lockdrop_contract(
 //                 SubMsg::new(
 //                     CallbackMsg::UpdateStateOnClaim {
 //                         user: Addr::unchecked("depositor".to_string()),
-//                         prev_xmars_balance: Uint256::from(19700000u64)
+//                         prev_xmars_balance: Uint128::from(19700000u64)
 //                     }
 //                     .to_cosmos_msg(&env.clone().contract.address)
 //                     .unwrap()
@@ -1917,7 +2038,7 @@ fn instantiate_lockdrop_contract(
 //         );
 //         info = mock_info(&env.clone().contract.address.to_string());
 //         let callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnRedBankDeposit {
-//             prev_ma_ust_balance: Uint256::from(0u64),
+//             prev_ma_ust_balance: Uint128::from(0u64),
 //         });
 //         execute(
 //             deps.as_mut(),
@@ -1951,23 +2072,23 @@ fn instantiate_lockdrop_contract(
 //         );
 //         // let's verify the state
 //         let mut state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::from(2000000u64), state_.final_ust_locked);
-//         assert_eq!(Uint256::from(19700000u64), state_.final_maust_locked);
-//         assert_eq!(Uint256::from(9850000u64), state_.total_maust_locked);
-//         assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::from(2000000u64), state_.final_ust_locked);
+//         assert_eq!(Uint128::from(19700000u64), state_.final_maust_locked);
+//         assert_eq!(Uint128::from(9850000u64), state_.total_maust_locked);
+//         assert_eq!(Uint128::from(720000u64), state_.total_deposits_weight);
 //         // let's verify the User
 //         deps.querier
 //             .set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64));
 //         let mut user_ =
 //             query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(1000000u64), user_.total_ust_locked);
-//         assert_eq!(Uint256::from(9850000u64), user_.total_maust_locked);
+//         assert_eq!(Uint128::from(1000000u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(9850000u64), user_.total_maust_locked);
 //         assert_eq!(vec!["depositor5".to_string()], user_.lockup_position_ids);
 //         // let's verify user's lockup #1 (which is dissolved)
 //         let mut lockdrop_ =
 //             query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
-//         assert_eq!(Uint256::from(0u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(0u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(0u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(0u64), lockdrop_.maust_balance);
 
 //         // ***
 //         // *** Test #2 :: Should successfully dissolve the position ***
@@ -1993,18 +2114,18 @@ fn instantiate_lockdrop_contract(
 //         );
 //         // let's verify the state
 //         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint256::from(2000000u64), state_.final_ust_locked);
-//         assert_eq!(Uint256::from(19700000u64), state_.final_maust_locked);
-//         assert_eq!(Uint256::from(0u64), state_.total_maust_locked);
-//         assert_eq!(Uint256::from(720000u64), state_.total_deposits_weight);
+//         assert_eq!(Uint128::from(2000000u64), state_.final_ust_locked);
+//         assert_eq!(Uint128::from(19700000u64), state_.final_maust_locked);
+//         assert_eq!(Uint128::from(0u64), state_.total_maust_locked);
+//         assert_eq!(Uint128::from(720000u64), state_.total_deposits_weight);
 //         // let's verify the User
 //         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint256::from(0u64), user_.total_ust_locked);
-//         assert_eq!(Uint256::from(0u64), user_.total_maust_locked);
+//         assert_eq!(Uint128::from(0u64), user_.total_ust_locked);
+//         assert_eq!(Uint128::from(0u64), user_.total_maust_locked);
 //         // let's verify user's lockup #1 (which is dissolved)
 //         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
-//         assert_eq!(Uint256::from(0u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint256::from(0u64), lockdrop_.maust_balance);
+//         assert_eq!(Uint128::from(0u64), lockdrop_.ust_locked);
+//         assert_eq!(Uint128::from(0u64), lockdrop_.maust_balance);
 //     }
 
 //     fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
@@ -2026,8 +2147,8 @@ fn instantiate_lockdrop_contract(
 //             max_duration: 9u64,
 //             seconds_per_week: 7 * 86400 as u64,
 //             denom: Some("uusd".to_string()),
-//             weekly_multiplier: Some(Decimal256::from_ratio(9u64, 100u64)),
-//             lockdrop_incentives: Some(Uint256::from(21432423343u64)),
+//             weekly_multiplier: Some(Decimal::from_ratio(9u64, 100u64)),
+//             lockdrop_incentives: Some(Uint128::from(21432423343u64)),
 //         };
 //         instantiate(deps.as_mut(), env, info, base_config).unwrap();
 //         deps

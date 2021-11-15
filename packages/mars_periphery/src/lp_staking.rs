@@ -29,10 +29,6 @@ pub struct UpdateConfigMsg {
     pub owner: Option<String>,
     ///  MARS-UST LP token address - accepted by the contract via Cw20ReceiveMsg function
     pub staking_token: Option<String>,
-    /// Timestamp from which MARS Rewards will start getting accrued against the staked LP tokens
-    pub init_timestamp: Option<u64>,
-    /// Timestamp till which MARS Rewards will be accrued. No staking rewards are accrued beyond this timestamp
-    pub till_timestamp: Option<u64>,
     /// $MARS Rewards distributed during the 1st cycle.
     pub cycle_rewards: Option<Uint128>,
     /// Percent increase in Rewards per cycle
