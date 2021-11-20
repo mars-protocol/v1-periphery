@@ -108,7 +108,7 @@ pub fn receive_cw20(
                 return Err(StdError::generic_err("unauthorized"));
             }
             let cw20_sender = deps.api.addr_validate(&cw20_msg.sender)?;
-            bond(deps, env, cw20_sender, cw20_msg.amount.into())
+            bond(deps, env, cw20_sender, cw20_msg.amount)
         }
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
@@ -387,8 +387,14 @@ fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount:
 
 /// @dev Decreases total LP shares and user's staked LP shares by `amount`
 fn decrease_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {
-    state.total_bond_amount = state.total_bond_amount - amount;
-    staker_info.bond_amount = staker_info.bond_amount - amount;
+    state.total_bond_amount = state
+        .total_bond_amount
+        .checked_sub(amount)
+        .expect("total_bond_amount :: overflow on subtraction");
+    staker_info.bond_amount = staker_info
+        .bond_amount
+        .checked_sub(amount)
+        .expect("bond_amount :: overflow on subtraction");
 }
 
 /// @dev Computes total accrued rewards
@@ -417,12 +423,11 @@ fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
                 config.cycle_duration,
             ),
         );
-        rewards_to_distribute = rewards_to_distribute
-            + rewards_distributed_for_cycle(
-                Decimal::from_ratio(state.current_cycle_rewards, config.cycle_duration),
-                std::cmp::max(state.last_distributed, config.init_timestamp),
-                std::cmp::min(cur_timestamp, last_distribution_next_timestamp),
-            );
+        rewards_to_distribute += rewards_distributed_for_cycle(
+            Decimal::from_ratio(state.current_cycle_rewards, config.cycle_duration),
+            std::cmp::max(state.last_distributed, config.init_timestamp),
+            std::cmp::min(cur_timestamp, last_distribution_next_timestamp),
+        );
         state.current_cycle_rewards = calculate_cycle_rewards(
             state.current_cycle_rewards,
             config.reward_increase,
@@ -508,7 +513,7 @@ fn build_send_cw20_token_msg(
         contract_addr: token_contract_address.into(),
         msg: to_binary(&Cw20ExecuteMsg::Transfer {
             recipient: recipient.into(),
-            amount: amount.into(),
+            amount,
         })?,
         funds: vec![],
     }))
