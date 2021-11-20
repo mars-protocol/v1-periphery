@@ -57,7 +57,11 @@ pub fn instantiate(
         withdrawal_window: msg.withdrawal_window,
     };
 
+    let state = STATE.load(deps.storage).unwrap_or_default();
+
     CONFIG.save(deps.storage, &config)?;
+    STATE.save(deps.storage, &state)?;
+
     Ok(Response::default())
 }
 
