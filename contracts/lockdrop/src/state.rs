@@ -60,7 +60,7 @@ pub struct State {
     /// Total weighted deposits
     pub total_deposits_weight: Uint128,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
-    pub xmars_per_maust_share: Decimal,
+    pub xmars_rewards_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

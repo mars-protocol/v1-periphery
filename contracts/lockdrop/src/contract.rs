@@ -29,15 +29,15 @@ const UUSD_DENOM: &str = "uusd";
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     // CHECK :: init_timestamp needs to be valid
-    if msg.init_timestamp < _env.block.time.seconds() {
+    if msg.init_timestamp < env.block.time.seconds() {
         return Err(StdError::generic_err(format!(
             "Invalid timestamp. Current timestamp : {}",
-            _env.block.time.seconds()
+            env.block.time.seconds()
         )));
     }
     // CHECK :: deposit_window,withdrawal_window need to be valid (withdrawal_window < deposit_window)
@@ -81,7 +81,7 @@ pub fn instantiate(
         total_deposits_weight: Uint128::zero(),
         total_mars_delegated: Uint128::zero(),
         are_claims_allowed: false,
-        xmars_per_maust_share: Decimal::zero(),
+        xmars_rewards_index: Decimal::zero(),
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -90,34 +90,29 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::UpdateConfig { new_config } => update_config(deps, _env, info, new_config),
-        ExecuteMsg::DepositUst { duration } => try_deposit_ust(deps, _env, info, duration),
+        ExecuteMsg::UpdateConfig { new_config } => update_config(deps, env, info, new_config),
+        ExecuteMsg::DepositUst { duration } => try_deposit_ust(deps, env, info, duration),
         ExecuteMsg::WithdrawUst { duration, amount } => {
-            try_withdraw_ust(deps, _env, info, duration, amount)
+            try_withdraw_ust(deps, env, info, duration, amount)
         }
         ExecuteMsg::DepositMarsToAuction { amount } => {
-            handle_deposit_mars_to_auction(deps, _env, info, amount)
+            handle_deposit_mars_to_auction(deps, env, info, amount)
         }
         ExecuteMsg::EnableClaims {} => handle_enable_claims(deps, info),
-        ExecuteMsg::DepositUstInRedBank {} => try_deposit_in_red_bank(deps, _env, info),
+        ExecuteMsg::DepositUstInRedBank {} => try_deposit_in_red_bank(deps, env, info),
         ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration,
             forceful_unlock,
         } => handle_claim_rewards_and_unlock_position(
             deps,
-            _env,
+            env,
             info,
             lockup_to_unlock_duration,
             forceful_unlock,
         ),
-        ExecuteMsg::Callback(msg) => _handle_callback(deps, _env, info, msg),
+        ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
 }
 
@@ -150,11 +145,11 @@ fn _handle_callback(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
-        QueryMsg::UserInfo { address } => to_binary(&query_user_info(deps, _env, address)?),
+        QueryMsg::UserInfo { address } => to_binary(&query_user_info(deps, env, address)?),
         QueryMsg::LockUpInfo { address, duration } => {
             to_binary(&query_lockup_info(deps, address, duration)?)
         }
@@ -644,8 +639,8 @@ pub fn handle_claim_rewards_and_unlock_position(
     let xmars_address = addresses_query.pop().unwrap();
     let incentives_address = addresses_query.pop().unwrap();
 
-    // XMARS REWARDS :: Query if any rewards to claim and if so, claim them
-    let xmars_unclaimed: Uint128 = query_pending_xmars_to_be_claimed(
+    // MARS REWARDS :: Query if any rewards to claim and if so, claim them (we receive them as XMARS)
+    let mars_unclaimed: Uint128 = query_pending_mars_to_be_claimed(
         &deps.querier,
         incentives_address.to_string(),
         env.contract.address.to_string(),
@@ -653,7 +648,7 @@ pub fn handle_claim_rewards_and_unlock_position(
     let xmars_balance =
         cw20_get_balance(&deps.querier, xmars_address, env.contract.address.clone())?;
 
-    if !xmars_unclaimed.is_zero() {
+    if !mars_unclaimed.is_zero() {
         let claim_xmars_msg = build_claim_xmars_rewards(incentives_address)?;
         response = response
             .add_message(claim_xmars_msg)
@@ -794,7 +789,7 @@ pub fn update_state_on_claim(
 /// @params forceful_unlock : Boolean value indicating is the unlock is forceful or not
 pub fn try_dissolve_position(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     user: Addr,
     duration: u64,
     forceful_unlock: bool,
@@ -841,7 +836,7 @@ pub fn try_dissolve_position(
             funds: vec![],
             msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
                 owner: user.to_string(),
-                recipient: _env.contract.address.to_string(),
+                recipient: env.contract.address.to_string(),
                 amount: lockup_info.lockdrop_reward,
             })?,
         }));
@@ -858,10 +853,12 @@ pub fn try_dissolve_position(
     USER_INFO.save(deps.storage, &user, &user_info)?;
     LOCKUP_INFO.remove(deps.storage, lockup_id.as_bytes());
 
-    Ok(Response::new().add_attributes(vec![
-        ("action", "lockdrop::Callback::DissolvePosition"),
-        ("ma_ust_transferred", maust_to_withdraw.to_string().as_str()),
-    ]))
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
+            ("action", "lockdrop::Callback::DissolvePosition"),
+            ("ma_ust_transferred", maust_to_withdraw.to_string().as_str()),
+        ]))
 }
 
 //----------------------------------------------------------------------------------------
@@ -899,7 +896,7 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
         total_mars_delegated: state.total_mars_delegated,
         are_claims_allowed: state.are_claims_allowed,
         total_deposits_weight: state.total_deposits_weight,
-        xmars_per_maust_share: state.xmars_per_maust_share,
+        xmars_rewards_index: state.xmars_rewards_index,
     })
 }
 
@@ -1163,7 +1160,7 @@ fn update_xmars_rewards_index(state: &mut State, xmars_accured: Uint128) {
     }
     let xmars_rewards_index_increment =
         Decimal::from_ratio(xmars_accured, state.total_maust_locked);
-    state.xmars_per_maust_share = state.xmars_per_maust_share + xmars_rewards_index_increment;
+    state.xmars_rewards_index = state.xmars_rewards_index + xmars_rewards_index_increment;
 }
 
 /// @dev Accrue MARS reward for the user by updating the user reward index and and returns the pending rewards (xMars) to be claimed by the user
@@ -1173,9 +1170,9 @@ fn compute_user_accrued_reward(state: &State, user_info: &mut UserInfo) -> Uint1
     if state.final_ust_locked == Uint128::zero() {
         return Uint128::zero();
     }
-    let pending_xmars = (user_info.total_maust_share * state.xmars_per_maust_share)
+    let pending_xmars = (user_info.total_maust_share * state.xmars_rewards_index)
         - (user_info.total_maust_share * user_info.reward_index);
-    user_info.reward_index = state.xmars_per_maust_share;
+    user_info.reward_index = state.xmars_rewards_index;
     pending_xmars
 }
 
@@ -1201,7 +1198,7 @@ fn calculate_ma_ust_share(
 /// @dev Helper function. Queries pending xMars to be claimed from the incentives contract
 /// @params incentives_address : Incentives contract address
 /// @params contract_addr : Address for which pending xmars is to be queried
-pub fn query_pending_xmars_to_be_claimed(
+pub fn query_pending_mars_to_be_claimed(
     querier: &QuerierWrapper,
     incentives_address: String,
     contract_addr: String,
