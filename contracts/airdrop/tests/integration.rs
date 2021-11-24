@@ -30,7 +30,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
     let mars_token_code_id = app.store_code(mars_token_contract);
 
     let msg = cw20_base::msg::InstantiateMsg {
-        name: String::from("Astro token"),
+        name: String::from("MARS token"),
         symbol: String::from("MARS"),
         decimals: 6,
         initial_balances: vec![],

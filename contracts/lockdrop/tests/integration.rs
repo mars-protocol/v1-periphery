@@ -52,8 +52,8 @@ fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
     mars_token_instance
 }
 
-// Instantiate Red Bank Contract
-fn instantiate_red_bank(app: &mut App, owner: Addr) -> Addr {
+// Instantiate Red Bank Contract { return (mars_address_provider_instance, red_bank_incentives_instance, red_bank_xmars_instance) }
+fn instantiate_red_bank(app: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
     // RED BANK :: Address provider
     let mars_address_provider = Box::new(ContractWrapper::new(
         mars_address_provider::contract::execute,
@@ -92,10 +92,12 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> Addr {
             &mars_core::staking::msg::InstantiateMsg {
                 config: mars_core::staking::msg::CreateOrUpdateConfig {
                     owner: Some(owner.clone().to_string()),
-                 address_provider_address: Some(mars_address_provider_instance.clone().to_string()),
-                     astroport_factory_address: None,
-                     astroport_max_spread: None,
-                     cooldown_duration: None,
+                    address_provider_address: Some(
+                        mars_address_provider_instance.clone().to_string(),
+                    ),
+                    astroport_factory_address: None,
+                    astroport_max_spread: None,
+                    cooldown_duration: None,
                 },
             },
             &[],
@@ -103,7 +105,6 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> Addr {
             None,
         )
         .unwrap();
-
 
     // RED BANK :: Incentives Contract
     let red_bank_incentives = Box::new(ContractWrapper::new(
@@ -158,19 +159,12 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> Addr {
         )
         .unwrap();
 
-
-
-// let msg = cw20_base::msg::InstantiateMsg {
-//     name: String::from("MARS token"),
-//     symbol: String::from("MARS"),
-//     decimals: 6,
-//     initial_balances: vec![],
-//     mint: Some(cw20::MinterResponse {
-//         minter: owner.to_string(),
-//         cap: None,
-//     }),
-//     marketing: None,
-// };
+    return (
+        mars_address_provider_instance,
+        red_bank_incentives_instance,
+        red_bank_xmars_instance,
+    );
+}
 
 // Instantiate AUCTION Contract
 fn instantiate_auction_contract(
@@ -266,23 +260,61 @@ fn instantiate_lockdrop_contract(
 }
 
 // Initiates Lockdrop Contract with properly configured Config
-fn init_all_contracts(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, InstantiateMsg) {
-    let mars_token_instance = instantiate_mars_token(app, owner.clone());
+// fn init_all_contracts(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, InstantiateMsg) {
+//     let mars_token_instance = instantiate_mars_token(app, owner.clone());
 
-    let (lp_staking_instance, staking_token_instance, lp_staking_instantiate_msg) =
-        instantiate_lp_staking_contract(app, owner.clone(), mars_token_instance.clone());
+//     let (lp_staking_instance, staking_token_instance, lp_staking_instantiate_msg) =
+//         instantiate_lp_staking_contract(app, owner.clone(), mars_token_instance.clone());
 
-    return (
-        mars_token_instance,
-        lp_staking_instance,
-        staking_token_instance,
-        lp_staking_instantiate_msg,
-    );
-}
+//     return (
+//         mars_token_instance,
+//         lp_staking_instance,
+//         staking_token_instance,
+//         lp_staking_instantiate_msg,
+//     );
+// }
 
 #[test]
 fn test_proper_initialization() {
     let owner = Addr::unchecked("contract_owner");
+
+
+    let lockdrop_contract = Box::new(ContractWrapper::new(
+        mars_lockdrop::contract::execute,
+        mars_lockdrop::contract::instantiate,
+        mars_lockdrop::contract::query,
+    ));
+
+    let lockdrop_code_id = app.store_code(lockdrop_contract);
+
+    let lockdrop_instantiate_msg = mars_periphery::lockdrop::InstantiateMsg {
+        owner: owner.clone().to_string(),
+        address_provider: Some(address_provider.to_string()),
+        auction_contract_address: Some(auction_contract_address.to_string()),
+        ma_ust_token: Some(ma_ust_token.to_string()),
+        init_timestamp: 1_000_00,
+        deposit_window: 100_000_00,
+        withdrawal_window: 5_000_00,
+        min_duration: 1,
+        max_duration: 5,
+        seconds_per_week: 7 * 86400 as u64,
+        weekly_multiplier: 9u64,
+        weekly_divider: 100u64,
+        lockdrop_incentives: Uint128::from(1000000000000u64),
+    };
+
+    // Init contract
+    let lockdrop_instance = app
+        .instantiate_contract(
+            lockdrop_code_id,
+            owner.clone(),
+            &lockdrop_instantiate_msg,
+            &[],
+            "auction",
+            None,
+        )
+        .unwrap();
+    (lockdrop_instance, lockdrop_instantiate_msg)
 
     let mut app = mock_app();
     let (
