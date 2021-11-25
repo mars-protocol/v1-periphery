@@ -1078,7 +1078,6 @@ dependencies = [
 name = "mars-airdrop"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -1144,12 +1143,11 @@ dependencies = [
 name = "mars-lockdrop"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw20 0.9.1",
- "cw20-base 0.8.1",
+ "cw20-base 0.9.1",
  "mars-address-provider",
  "mars-auction",
  "mars-core",

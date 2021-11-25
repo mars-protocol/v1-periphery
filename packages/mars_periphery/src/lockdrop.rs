@@ -43,20 +43,6 @@ pub struct UpdateConfigMsg {
     pub ma_ust_token: Option<String>,
     /// Bootstrap Auction contract address
     pub auction_contract_address: Option<String>,
-    /// Timestamp till when deposits can be made
-    pub init_timestamp: Option<u64>,
-    /// Number of seconds for which lockup deposits will be accepted
-    pub deposit_window: Option<u64>,
-    /// Number of seconds for which lockup withdrawals will be allowed
-    pub withdrawal_window: Option<u64>,
-    /// Min. no. of days allowed for lockup
-    pub min_duration: Option<u64>,
-    /// Max. no. of days allowed for lockup
-    pub max_duration: Option<u64>,
-    /// Lockdrop Reward multiplier
-    pub weekly_multiplier: Option<Decimal>,
-    /// Total MARS lockdrop incentives to be distributed among the users
-    pub lockdrop_incentives: Option<Uint128>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

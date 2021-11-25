@@ -1,4 +1,3 @@
-use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, Addr, Timestamp, Uint128};
 use mars_periphery::airdrop::{
