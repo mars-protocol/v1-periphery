@@ -53,15 +53,11 @@ pub fn instantiate(
         return Err(StdError::generic_err("Invalid Lockup durations"));
     }
 
-    let config = Config {
+    let mut config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
-        address_provider: option_string_to_addr(deps.api, msg.address_provider, zero_address())?,
-        ma_ust_token: option_string_to_addr(deps.api, msg.ma_ust_token, zero_address())?,
-        auction_contract_address: option_string_to_addr(
-            deps.api,
-            msg.auction_contract_address,
-            zero_address(),
-        )?,
+        address_provider: None,
+        ma_ust_token: None,
+        auction_contract_address: None,
         init_timestamp: msg.init_timestamp,
         deposit_window: msg.deposit_window,
         withdrawal_window: msg.withdrawal_window,
@@ -72,6 +68,13 @@ pub fn instantiate(
         weekly_divider: msg.weekly_divider,
         lockdrop_incentives: msg.lockdrop_incentives,
     };
+
+    if msg.address_provider.is_some() {
+        config.address_provider = Some(deps.api.addr_validate(&msg.address_provider.unwrap())?);
+    }
+    if msg.ma_ust_token.is_some() {
+        config.ma_ust_token = Some(deps.api.addr_validate(&msg.ma_ust_token.unwrap())?);
+    }
 
     let state = State {
         final_ust_locked: Uint128::zero(),
@@ -177,19 +180,24 @@ pub fn update_config(
     }
 
     // UPDATE :: ADDRESSES IF PROVIDED
-    config.address_provider = option_string_to_addr(
-        deps.api,
-        new_config.address_provider,
-        config.address_provider,
-    )?;
-    config.ma_ust_token =
-        option_string_to_addr(deps.api, new_config.ma_ust_token, config.ma_ust_token)?;
-    config.auction_contract_address = option_string_to_addr(
-        deps.api,
-        new_config.auction_contract_address,
-        config.auction_contract_address,
-    )?;
-    config.owner = option_string_to_addr(deps.api, new_config.owner, config.owner)?;
+    if new_config.address_provider.is_some() {
+        config.address_provider = Some(
+            deps.api
+                .addr_validate(&new_config.address_provider.unwrap())?,
+        );
+    }
+    if new_config.ma_ust_token.is_some() {
+        config.ma_ust_token = Some(deps.api.addr_validate(&new_config.ma_ust_token.unwrap())?);
+    }
+    if new_config.auction_contract_address.is_some() {
+        config.auction_contract_address = Some(
+            deps.api
+                .addr_validate(&new_config.auction_contract_address.unwrap())?,
+        );
+    }
+    if new_config.owner.is_some() {
+        config.owner = deps.api.addr_validate(&new_config.owner.unwrap())?;
+    }
 
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new().add_attribute("action", "lockdrop::ExecuteMsg::UpdateConfig"))
@@ -363,8 +371,13 @@ pub fn handle_enable_claims(deps: DepsMut, info: MessageInfo) -> StdResult<Respo
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
+    // CHECK :: AUction contract should be set
+    if config.auction_contract_address.is_none() {
+        return Err(StdError::generic_err("Auction address in lockdrop not set"));
+    }
+
     // CHECK :: ONLY AUCTION CONTRACT CAN CALL THIS FUNCTION
-    if info.sender != config.auction_contract_address {
+    if info.sender != config.auction_contract_address.unwrap() {
         return Err(StdError::generic_err("Unauthorized"));
     }
 
@@ -388,6 +401,16 @@ pub fn try_deposit_in_red_bank(deps: DepsMut, env: Env, info: MessageInfo) -> St
         return Err(StdError::generic_err("Unauthorized"));
     }
 
+    // CHECK :: Address provider should be set
+    if config.address_provider.is_none() {
+        return Err(StdError::generic_err("Address provider not set"));
+    }
+
+    // CHECK :: maUST address should be set
+    if config.ma_ust_token.is_none() {
+        return Err(StdError::generic_err("maUST not set"));
+    }
+
     // CHECK :: Lockdrop deposit window should be closed
     if env.block.time.seconds() < config.init_timestamp
         || is_deposit_open(env.block.time.seconds(), &config)
@@ -405,12 +428,12 @@ pub fn try_deposit_in_red_bank(deps: DepsMut, env: Env, info: MessageInfo) -> St
     // FETCH CURRENT BALANCES (UST / maUST), PREPARE DEPOSIT MSG
     let red_bank = query_address(
         &deps.querier,
-        config.address_provider,
+        config.address_provider.unwrap(),
         MarsContract::RedBank,
     )?;
     let ma_ust_balance = cw20_get_balance(
         &deps.querier,
-        config.ma_ust_token,
+        config.ma_ust_token.unwrap(),
         env.contract.address.clone(),
     )?;
 
@@ -464,6 +487,16 @@ pub fn handle_deposit_mars_to_auction(
     // CHECK :: Can users withdraw their MARS tokens ? -> if so, then delegation is no longer allowed
     if state.are_claims_allowed {
         return Err(StdError::generic_err("Auction deposits no longer possible"));
+    }
+
+    // CHECK :: Address provider should be set
+    if config.address_provider.is_none() {
+        return Err(StdError::generic_err("Address provider not set"));
+    }
+
+    // CHECK :: Auction contract address should be set
+    if config.auction_contract_address.is_none() {
+        return Err(StdError::generic_err("Auction contract address not set"));
     }
 
     let mut user_info = USER_INFO
@@ -521,13 +554,13 @@ pub fn handle_deposit_mars_to_auction(
 
     let mars_token_address = query_address(
         &deps.querier,
-        config.address_provider,
+        config.address_provider.unwrap(),
         MarsContract::MarsToken,
     )?;
 
     // COSMOS_MSG ::Delegate MARS to the LP Bootstrapping via Auction contract
     let delegate_msg = build_send_cw20_token_msg(
-        config.auction_contract_address.to_string(),
+        config.auction_contract_address.unwrap().to_string(),
         mars_token_address.to_string(),
         amount,
         to_binary(&AuctionCw20HookMsg::DepositMarsTokens {
@@ -554,6 +587,12 @@ pub fn handle_claim_rewards_and_unlock_position(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
+
+    // CHECK :: Address provider should be set
+    if config.address_provider.is_none() {
+        return Err(StdError::generic_err("Address provider not set"));
+    }
+
     let user_address = info.sender;
     let mut user_info = USER_INFO
         .may_load(deps.storage, &user_address)?
@@ -633,7 +672,7 @@ pub fn handle_claim_rewards_and_unlock_position(
     let mars_contracts = vec![MarsContract::Incentives, MarsContract::XMarsToken];
     let mut addresses_query = query_addresses(
         &deps.querier.clone(),
-        config.address_provider,
+        config.address_provider.unwrap(),
         mars_contracts,
     )?;
     let xmars_address = addresses_query.pop().unwrap();
@@ -691,8 +730,11 @@ pub fn update_state_on_red_bank_deposit(
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
-    let cur_ma_ust_balance =
-        cw20_get_balance(&deps.querier, config.ma_ust_token, env.contract.address)?;
+    let cur_ma_ust_balance = cw20_get_balance(
+        &deps.querier,
+        config.ma_ust_token.unwrap(),
+        env.contract.address,
+    )?;
     let m_ust_minted = cur_ma_ust_balance - prev_ma_ust_balance;
 
     // STATE :: UPDATE --> SAVE
@@ -725,8 +767,11 @@ pub fn update_state_on_claim(
 
     // QUERY:: xMars and Mars Contract addresses
     let mars_contracts = vec![MarsContract::MarsToken, MarsContract::XMarsToken];
-    let mut addresses_query =
-        query_addresses(&deps.querier, config.address_provider, mars_contracts)?;
+    let mut addresses_query = query_addresses(
+        &deps.querier,
+        config.address_provider.unwrap(),
+        mars_contracts,
+    )?;
     let xmars_address = addresses_query.pop().unwrap();
     let mars_address = addresses_query.pop().unwrap();
 
@@ -827,7 +872,7 @@ pub fn try_dissolve_position(
         // QUERY:: Mars Contract addresses
         let mars_token_address = query_address(
             &deps.querier,
-            config.address_provider,
+            config.address_provider.unwrap(),
             MarsContract::MarsToken,
         )?;
         // COSMOS MSG :: Transfer MARS from user to itself
@@ -844,7 +889,7 @@ pub fn try_dissolve_position(
 
     let maust_transfer_msg = build_transfer_cw20_token_msg(
         user.clone(),
-        config.ma_ust_token.to_string(),
+        config.ma_ust_token.unwrap().to_string(),
         maust_to_withdraw,
     )?;
     cosmos_msgs.push(maust_transfer_msg);
@@ -871,9 +916,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
     Ok(ConfigResponse {
         owner: config.owner.to_string(),
-        address_provider: config.address_provider.to_string(),
-        ma_ust_token: config.ma_ust_token.to_string(),
-        auction_contract_address: config.auction_contract_address.to_string(),
+        address_provider: config.address_provider,
+        ma_ust_token: config.ma_ust_token,
+        auction_contract_address: config.auction_contract_address,
         init_timestamp: config.init_timestamp,
         deposit_window: config.deposit_window,
         withdrawal_window: config.withdrawal_window,
@@ -936,26 +981,33 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
         }
     }
 
+    let mut pending_xmars_to_claim = Uint128::zero();
+
     // QUERY:: Contract addresses
-    let mars_contracts = vec![MarsContract::Incentives];
-    let mut addresses_query =
-        query_addresses(&deps.querier, config.address_provider, mars_contracts)?;
-    let incentives_address = addresses_query.pop().unwrap();
+    if config.address_provider.is_some() {
+        let mars_contracts = vec![MarsContract::Incentives];
+        let mut addresses_query = query_addresses(
+            &deps.querier,
+            config.address_provider.unwrap(),
+            mars_contracts,
+        )?;
+        let incentives_address = addresses_query.pop().unwrap();
 
-    // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
-    let xmars_accured: Uint128 = deps
-        .querier
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: incentives_address.to_string(),
-            msg: to_binary(&UserUnclaimedRewards {
-                user_address: env.contract.address.to_string(),
-            })
-            .unwrap(),
-        }))
-        .unwrap();
+        // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
+        let xmars_accured: Uint128 = deps
+            .querier
+            .query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: incentives_address.to_string(),
+                msg: to_binary(&UserUnclaimedRewards {
+                    user_address: env.contract.address.to_string(),
+                })
+                .unwrap(),
+            }))
+            .unwrap();
 
-    update_xmars_rewards_index(&mut state, xmars_accured);
-    let pending_xmars_to_claim = compute_user_accrued_reward(&state, &mut user_info);
+        update_xmars_rewards_index(&mut state, xmars_accured);
+        pending_xmars_to_claim = compute_user_accrued_reward(&state, &mut user_info);
+    }
 
     Ok(UserInfoResponse {
         total_ust_locked: user_info.total_ust_locked,
@@ -1020,13 +1072,17 @@ fn is_deposit_open(current_timestamp: u64, config: &Config) -> bool {
 
 /// @dev Returns true if withdrawals are allowed
 fn is_withdraw_open(current_timestamp: u64, config: &Config) -> bool {
-    let withdrawals_opened_till = config.init_timestamp + config.withdrawal_window;
+    let withdrawals_opened_till =
+        config.init_timestamp + config.deposit_window + config.withdrawal_window;
     (current_timestamp >= config.init_timestamp) && (withdrawals_opened_till >= current_timestamp)
 }
 
 /// @dev Returns the timestamp when the lockup will get unlocked
 fn calculate_unlock_timestamp(config: &Config, duration: u64) -> u64 {
-    config.init_timestamp + config.deposit_window + (duration * config.seconds_per_week)
+    config.init_timestamp
+        + config.deposit_window
+        + config.withdrawal_window
+        + (duration * config.seconds_per_week)
 }
 
 // /// @dev Returns true if the user_info stuct's lockup_positions vector contains the lockup_id

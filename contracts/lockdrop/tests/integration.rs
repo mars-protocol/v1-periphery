@@ -195,7 +195,7 @@ fn instantiate_auction_contract(
         mars_vesting_duration: 7776000u64,
         lp_tokens_vesting_duration: 7776000u64,
         init_timestamp: 1_000_00,
-        deposit_window: 100_000_00,
+        deposit_window: 10_000_00,
         withdrawal_window: 5_000_00,
     };
 
@@ -217,9 +217,8 @@ fn instantiate_auction_contract(
 fn instantiate_lockdrop_contract(
     app: &mut App,
     owner: Addr,
-    address_provider: Addr,
-    auction_contract_address: Addr,
-    ma_ust_token: Addr,
+    address_provider: Option<Addr>,
+    ma_ust_token: Option<Addr>,
 ) -> (Addr, InstantiateMsg) {
     let lockdrop_contract = Box::new(ContractWrapper::new(
         mars_lockdrop::contract::execute,
@@ -234,11 +233,10 @@ fn instantiate_lockdrop_contract(
         b.time = Timestamp::from_seconds(10_000_00)
     });
 
-    let lockdrop_instantiate_msg = mars_periphery::lockdrop::InstantiateMsg {
+    let mut lockdrop_instantiate_msg = mars_periphery::lockdrop::InstantiateMsg {
         owner: owner.clone().to_string(),
-        address_provider: Some(address_provider.to_string()),
-        auction_contract_address: Some(auction_contract_address.to_string()),
-        ma_ust_token: Some(ma_ust_token.to_string()),
+        address_provider: None,
+        ma_ust_token: None,
         init_timestamp: 10_000_01,
         deposit_window: 5_000_00,
         withdrawal_window: 2_000_00,
@@ -249,6 +247,12 @@ fn instantiate_lockdrop_contract(
         weekly_divider: 100u64,
         lockdrop_incentives: Uint128::from(1000000000000u64),
     };
+    if address_provider.is_some() {
+        lockdrop_instantiate_msg.address_provider = Some(address_provider.unwrap().to_string());
+    }
+    if ma_ust_token.is_some() {
+        lockdrop_instantiate_msg.ma_ust_token = Some(ma_ust_token.unwrap().to_string());
+    }
 
     // Init contract
     let lockdrop_instance = app
@@ -287,9 +291,8 @@ fn test_proper_initialization() {
     let (lockdrop_instance, init_msg) = instantiate_lockdrop_contract(
         &mut app,
         owner,
-        Addr::unchecked("address_provider"),
-        Addr::unchecked("auction_contract_address"),
-        Addr::unchecked("ma_ust_token"),
+        Some(Addr::unchecked("address_provider")),
+        Some(Addr::unchecked("ma_ust_token")),
     );
 
     let resp: ConfigResponse = app
@@ -299,12 +302,15 @@ fn test_proper_initialization() {
 
     // Check config
     assert_eq!(init_msg.owner, resp.owner);
-    assert_eq!(init_msg.address_provider.unwrap(), resp.address_provider);
-    assert_eq!(init_msg.ma_ust_token.unwrap(), resp.ma_ust_token);
     assert_eq!(
-        init_msg.auction_contract_address.unwrap(),
-        resp.auction_contract_address
+        Some(Addr::unchecked(init_msg.address_provider.unwrap())),
+        resp.address_provider
     );
+    assert_eq!(
+        Some(Addr::unchecked(init_msg.ma_ust_token.unwrap())),
+        resp.ma_ust_token
+    );
+    assert_eq!(None, resp.auction_contract_address);
     assert_eq!(init_msg.init_timestamp, resp.init_timestamp);
     assert_eq!(init_msg.deposit_window, resp.deposit_window);
     assert_eq!(init_msg.withdrawal_window, resp.withdrawal_window);
@@ -338,9 +344,8 @@ fn update_config() {
     let (lockdrop_instance, _) = instantiate_lockdrop_contract(
         &mut app,
         owner.clone(),
-        Addr::unchecked("address_provider"),
-        Addr::unchecked("auction_contract_address"),
-        Addr::unchecked("ma_ust_token"),
+        Some(Addr::unchecked("address_provider")),
+        Some(Addr::unchecked("ma_ust_token")),
     );
 
     let update_config = UpdateConfigMsg {
@@ -387,11 +392,17 @@ fn update_config() {
 
     // Check config and make sure all fields are updated
     assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!("new_address_provider".to_string(), resp.address_provider);
-    assert_eq!("new_ma_ust_token".to_string(), resp.ma_ust_token);
     assert_eq!(
-        "new_auction_contract".to_string(),
-        resp.auction_contract_address
+        Addr::unchecked("new_address_provider".to_string()),
+        resp.address_provider.unwrap()
+    );
+    assert_eq!(
+        Addr::unchecked("new_ma_ust_token".to_string()),
+        resp.ma_ust_token.unwrap()
+    );
+    assert_eq!(
+        Addr::unchecked("new_auction_contract".to_string()),
+        resp.auction_contract_address.unwrap()
     );
 }
 
@@ -399,16 +410,11 @@ fn update_config() {
 fn test_deposit_ust() {
     let mut app = mock_app();
     let owner = Addr::unchecked("contract_owner");
-    let (lockdrop_instance, _) = instantiate_lockdrop_contract(
-        &mut app,
-        owner.clone(),
-        Addr::unchecked("address_provider"),
-        Addr::unchecked("auction_contract_address"),
-        Addr::unchecked("ma_ust_token"),
-    );
+    let (lockdrop_instance, _) = instantiate_lockdrop_contract(&mut app, owner.clone(), None, None);
 
     let user1_address = Addr::unchecked("user1");
     let user2_address = Addr::unchecked("user2");
+
     // Set user balances
     app.init_bank_balance(
         &user1_address.clone(),
@@ -579,357 +585,402 @@ fn test_deposit_ust() {
     // ***
     // *** Test #1 :: Successfully deposit UST  ***
     // ***
-    // deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-    // let mut deposit_s = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_msg.clone(),
-    // )
-    // .unwrap();
-    // assert_eq!(
-    //     deposit_s.attributes,
-    //     vec![
-    //         attr("action", "lockdrop::ExecuteMsg::LockUST"),
-    //         attr("user", "depositor"),
-    //         attr("duration", "3"),
-    //         attr("ust_deposited", "10000")
-    //     ]
-    // );
-    // // let's verify the Lockdrop
-    // let mut lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
-    // assert_eq!(3u64, lockdrop_.duration);
-    // assert_eq!(Uint128::from(10000u64), lockdrop_.ust_locked);
-    // assert_eq!(Uint128::zero(), lockdrop_.maust_balance);
-    // assert_eq!(Uint128::from(21432423343u64), lockdrop_.lockdrop_reward);
-    // assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
-    // // let's verify the User
-    // let mut user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-    // assert_eq!(Uint128::from(10000u64), user_.total_ust_locked);
-    // assert_eq!(Uint128::zero(), user_.total_maust_locked);
-    // assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
-    // assert_eq!(false, user_.is_lockdrop_claimed);
-    // assert_eq!(Decimal::zero(), user_.reward_index);
-    // assert_eq!(Uint128::zero(), user_.pending_xmars);
-    // // let's verify the state
-    // let mut state_ = query_state(deps.as_ref()).unwrap();
-    // assert_eq!(Uint128::zero(), state_.final_ust_locked);
-    // assert_eq!(Uint128::zero(), state_.final_maust_locked);
-    // assert_eq!(Uint128::from(10000u64), state_.total_ust_locked);
-    // assert_eq!(Uint128::zero(), state_.total_maust_locked);
-    // assert_eq!(Uint128::from(2700u64), state_.total_deposits_weight);
 
-    // // ***
-    // // *** Test #2 :: Successfully deposit UST  ***
-    // // ***
-    // info = cosmwasm_std::testing::mock_info("depositor", &[coin(100u128, "uusd")]);
-    // deposit_s = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_msg.clone(),
-    // )
-    // .unwrap();
-    // assert_eq!(
-    //     deposit_s.attributes,
-    //     vec![
-    //         attr("action", "lockdrop::ExecuteMsg::LockUST"),
-    //         attr("user", "depositor"),
-    //         attr("duration", "3"),
-    //         attr("ust_deposited", "100")
-    //     ]
-    // );
-    // // let's verify the Lockdrop
-    // lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
-    // assert_eq!(3u64, lockdrop_.duration);
-    // assert_eq!(Uint128::from(10100u64), lockdrop_.ust_locked);
-    // assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
-    // // let's verify the User
-    // user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-    // assert_eq!(Uint128::from(10100u64), user_.total_ust_locked);
-    // assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
-    // // let's verify the state
-    // state_ = query_state(deps.as_ref()).unwrap();
-    // assert_eq!(Uint128::from(10100u64), state_.total_ust_locked);
-    // assert_eq!(Uint128::from(2727u64), state_.total_deposits_weight);
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(10000u128),
+        }],
+    )
+    .unwrap();
 
-    // // ***
-    // // *** Test #3 :: Successfully deposit UST (new lockup)  ***
-    // // ***
-    // deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-    // info = cosmwasm_std::testing::mock_info("depositor", &[coin(5432u128, "uusd")]);
-    // deposit_s = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_msg.clone(),
-    // )
-    // .unwrap();
-    // assert_eq!(
-    //     deposit_s.attributes,
-    //     vec![
-    //         attr("action", "lockdrop::ExecuteMsg::LockUST"),
-    //         attr("user", "depositor"),
-    //         attr("duration", "5"),
-    //         attr("ust_deposited", "5432")
-    //     ]
-    // );
-    // // let's verify the Lockdrop
-    // lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
-    // assert_eq!(5u64, lockdrop_.duration);
-    // assert_eq!(Uint128::from(5432u64), lockdrop_.ust_locked);
-    // assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
-    // // let's verify the User
-    // user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-    // assert_eq!(Uint128::from(15532u64), user_.total_ust_locked);
-    // assert_eq!(
-    //     vec!["depositor3".to_string(), "depositor5".to_string()],
-    //     user_.lockup_position_ids
-    // );
-    // // let's verify the state
-    // state_ = query_state(deps.as_ref()).unwrap();
-    // assert_eq!(Uint128::from(15532u64), state_.total_ust_locked);
-    // assert_eq!(Uint128::from(5171u64), state_.total_deposits_weight);
+    // let's verify the Lockdrop
+    let mut lockdrop_resp: LockUpInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::LockUpInfo {
+                address: user1_address.clone().to_string(),
+                duration: 5u64,
+            },
+        )
+        .unwrap();
+    assert_eq!(5u64, lockdrop_resp.duration);
+    assert_eq!(Uint128::from(10000u64), lockdrop_resp.ust_locked);
+    assert_eq!(Uint128::zero(), lockdrop_resp.maust_balance);
+    assert_eq!(
+        Uint128::from(1000000000000u64),
+        lockdrop_resp.lockdrop_reward
+    );
+    assert_eq!(4724001u64, lockdrop_resp.unlock_timestamp);
+
+    // let's verify the User
+    let mut user_resp: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(10000u64), user_resp.total_ust_locked);
+    assert_eq!(Uint128::zero(), user_resp.total_maust_share);
+    assert_eq!(vec!["user15".to_string()], user_resp.lockup_position_ids);
+    assert_eq!(
+        Uint128::from(1000000000000u64),
+        user_resp.total_mars_incentives
+    );
+    assert_eq!(Uint128::zero(), user_resp.delegated_mars_incentives);
+    assert_eq!(false, user_resp.is_lockdrop_claimed);
+    assert_eq!(Decimal::zero(), user_resp.reward_index);
+    assert_eq!(Uint128::zero(), user_resp.total_xmars_claimed);
+    assert_eq!(Uint128::zero(), user_resp.pending_xmars_to_claim);
+
+    // let's verify the state
+    let mut state_resp: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(Uint128::zero(), state_resp.final_ust_locked);
+    assert_eq!(Uint128::zero(), state_resp.final_maust_locked);
+    assert_eq!(Uint128::from(10000u64), state_resp.total_ust_locked);
+    assert_eq!(Uint128::zero(), state_resp.total_maust_locked);
+    assert_eq!(Uint128::from(13600u64), state_resp.total_deposits_weight);
+
+    // ***
+    // *** Test #2 :: Successfully deposit UST  ***
+    // ***
+
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 15u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(10000u128),
+        }],
+    )
+    .unwrap();
+
+    // let's verify the Lockdrop
+    lockdrop_resp = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::LockUpInfo {
+                address: user1_address.clone().to_string(),
+                duration: 15u64,
+            },
+        )
+        .unwrap();
+    assert_eq!(15u64, lockdrop_resp.duration);
+    assert_eq!(Uint128::from(10000u64), lockdrop_resp.ust_locked);
+    assert_eq!(Uint128::zero(), lockdrop_resp.maust_balance);
+    assert_eq!(
+        Uint128::from(624309392265u64),
+        lockdrop_resp.lockdrop_reward
+    );
+    assert_eq!(10772001u64, lockdrop_resp.unlock_timestamp);
+
+    // let's verify the User
+    user_resp = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(20000u64), user_resp.total_ust_locked);
+    assert_eq!(Uint128::zero(), user_resp.total_maust_share);
+    assert_eq!(
+        vec!["user15".to_string(), "user115".to_string()],
+        user_resp.lockup_position_ids
+    );
+    assert_eq!(
+        Uint128::from(999999999999u64),
+        user_resp.total_mars_incentives
+    );
+
+    // let's verify the state
+    state_resp = app
+        .wrap()
+        .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(Uint128::zero(), state_resp.final_ust_locked);
+    assert_eq!(Uint128::zero(), state_resp.final_maust_locked);
+    assert_eq!(Uint128::from(20000u64), state_resp.total_ust_locked);
+    assert_eq!(Uint128::zero(), state_resp.total_maust_locked);
+    assert_eq!(Uint128::from(36200u64), state_resp.total_deposits_weight);
 }
 
-//     #[test]
-//     fn test_withdraw_ust() {
-//         let mut deps = th_setup(&[]);
-//         let deposit_amount = 1000000u128;
-//         let info = cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
-//         deps.querier
-//             .set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64));
-//         // Set tax data
-//         deps.querier.set_native_tax(
-//             Decimal::from_ratio(1u128, 100u128),
-//             &[(String::from("uusd"), Uint128::new(100u128))],
-//         );
+#[test]
+fn test_withdraw_ust() {
+    let mut app = mock_app();
+    let (_, _, auction_instance, _, _) = init_auction_astro_contracts(&mut app);
+    let user1_address = Addr::unchecked("user1");
+    let user2_address = Addr::unchecked("user2");
+    let user3_address = Addr::unchecked("user3");
 
-//         // ***** Setup *****
+    // Set user balances
+    app.init_bank_balance(
+        &user1_address.clone(),
+        vec![Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(20000000u128),
+        }],
+    )
+    .unwrap();
+    app.init_bank_balance(
+        &user2_address.clone(),
+        vec![Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(20000000u128),
+        }],
+    )
+    .unwrap();
+    app.init_bank_balance(
+        &user3_address.clone(),
+        vec![Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(20000000u128),
+        }],
+    )
+    .unwrap();
 
-//         let mut env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_000_000_15),
-//             ..Default::default()
-//         });
-//         // Create a lockdrop position for testing
-//         let mut deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-//         let mut deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "3"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
-//         deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-//         deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
+    // deposit UST Msg
+    let deposit_ust_msg = &ExecuteMsg::DepositUst {};
+    // let coins = [Coin {
+    //     denom: "uusd".to_string(),
+    //     amount: Uint128::from(10000u128),
+    // }];
 
-//         // ***
-//         // *** Test :: Error "Withdrawals not allowed" Reason :: Withdrawal attempt after the window is closed ***
-//         // ***
-//         env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(10_00_720_11),
-//             ..Default::default()
-//         });
-//         let mut withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint128::from(100u64),
-//             duration: 5u64,
-//         };
-//         let mut withdrawal_f = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             withdrawal_msg.clone(),
-//         );
-//         assert_generic_error_message(withdrawal_f, "Withdrawals not allowed");
+    // // open claim period for successful deposit
+    // app.update_block(|b| {
+    //     b.height += 17280;
+    //     b.time = Timestamp::from_seconds(1_000_01)
+    // });
 
-//         // ***
-//         // *** Test :: Error "Lockup doesn't exist" Reason :: Invalid lockup ***
-//         // ***
-//         env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(10_00_120_10),
-//             ..Default::default()
-//         });
-//         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint128::from(100u64),
-//             duration: 4u64,
-//         };
-//         withdrawal_f = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             withdrawal_msg.clone(),
-//         );
-//         assert_generic_error_message(withdrawal_f, "Lockup doesn't exist");
+    // // ######    SUCCESS :: UST Successfully deposited     ######
+    // app.execute_contract(
+    //     user1_address.clone(),
+    //     auction_instance.clone(),
+    //     &deposit_ust_msg,
+    //     &coins,
+    // )
+    // .unwrap();
+    // app.execute_contract(
+    //     user2_address.clone(),
+    //     auction_instance.clone(),
+    //     &deposit_ust_msg,
+    //     &coins,
+    // )
+    // .unwrap();
+    // app.execute_contract(
+    //     user3_address.clone(),
+    //     auction_instance.clone(),
+    //     &deposit_ust_msg,
+    //     &coins,
+    // )
+    // .unwrap();
 
-//         // ***
-//         // *** Test :: Error "Invalid withdrawal request" Reason :: Invalid amount ***
-//         // ***
-//         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint128::from(100000000u64),
-//             duration: 5u64,
-//         };
-//         withdrawal_f = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             withdrawal_msg.clone(),
-//         );
-//         assert_generic_error_message(withdrawal_f, "Invalid withdrawal request");
+    // // ######    SUCCESS :: UST Successfully withdrawn (when withdrawals allowed)     ######
+    // app.execute_contract(
+    //     user1_address.clone(),
+    //     auction_instance.clone(),
+    //     &ExecuteMsg::WithdrawUst {
+    //         amount: Uint128::from(10000u64),
+    //     },
+    //     &[],
+    // )
+    // .unwrap();
+    // // Check state response
+    // let mut state_resp: StateResponse = app
+    //     .wrap()
+    //     .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+    //     .unwrap();
+    // assert_eq!(Uint128::from(20000u64), state_resp.total_ust_delegated);
 
-//         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint128::from(0u64),
-//             duration: 5u64,
-//         };
-//         withdrawal_f = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             withdrawal_msg.clone(),
-//         );
-//         assert_generic_error_message(withdrawal_f, "Invalid withdrawal request");
+    // // Check user response
+    // let mut user_resp: UserInfoResponse = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         &auction_instance,
+    //         &QueryMsg::UserInfo {
+    //             address: user1_address.to_string(),
+    //         },
+    //     )
+    //     .unwrap();
+    // assert_eq!(Uint128::from(0u64), user_resp.ust_delegated);
 
-//         // ***
-//         // *** Test #1 :: Successfully withdraw UST  ***
-//         // ***
-//         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint128::from(42u64),
-//             duration: 5u64,
-//         };
-//         let mut withdrawal_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             withdrawal_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             withdrawal_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::WithdrawUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//                 attr("ust_withdrawn", "42")
-//             ]
-//         );
-//         // let's verify the Lockdrop
-//         let mut lockdrop_ =
-//             query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
-//         assert_eq!(5u64, lockdrop_.duration);
-//         assert_eq!(Uint128::from(999958u64), lockdrop_.ust_locked);
-//         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
-//         // let's verify the User
-//         let mut user_ =
-//             query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint128::from(1999958u64), user_.total_ust_locked);
-//         assert_eq!(
-//             vec!["depositor3".to_string(), "depositor5".to_string()],
-//             user_.lockup_position_ids
-//         );
-//         // let's verify the state
-//         let mut state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint128::from(1999958u64), state_.total_ust_locked);
-//         assert_eq!(Uint128::from(719982u64), state_.total_deposits_weight);
+    // app.execute_contract(
+    //     user1_address.clone(),
+    //     auction_instance.clone(),
+    //     &deposit_ust_msg,
+    //     &coins,
+    // )
+    // .unwrap();
 
-//         // ***
-//         // *** Test #2 :: Successfully withdraw UST  ***
-//         // ***
-//         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint128::from(999958u64),
-//             duration: 5u64,
-//         };
-//         withdrawal_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             withdrawal_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             withdrawal_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::WithdrawUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//                 attr("ust_withdrawn", "999958")
-//             ]
-//         );
-//         // let's verify the Lockdrop
-//         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
-//         assert_eq!(5u64, lockdrop_.duration);
-//         assert_eq!(Uint128::from(0u64), lockdrop_.ust_locked);
-//         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
-//         // let's verify the User
-//         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint128::from(1000000u64), user_.total_ust_locked);
-//         assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
-//         // let's verify the state
-//         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint128::from(1000000u64), state_.total_ust_locked);
-//         assert_eq!(Uint128::from(270001u64), state_.total_deposits_weight);
+    // // close deposit window. Max 50% withdrawals allowed now
+    // app.update_block(|b| {
+    //     b.height += 17280;
+    //     b.time = Timestamp::from_seconds(10100001)
+    // });
 
-//         // ***
-//         // *** Test #3 :: Successfully withdraw UST  ***
-//         // ***
-//         withdrawal_msg = ExecuteMsg::WithdrawUst {
-//             amount: Uint128::from(1000u64),
-//             duration: 3u64,
-//         };
-//         withdrawal_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             withdrawal_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             withdrawal_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::WithdrawUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "3"),
-//                 attr("ust_withdrawn", "1000")
-//             ]
-//         );
-//         // let's verify the Lockdrop
-//         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
-//         assert_eq!(3u64, lockdrop_.duration);
-//         assert_eq!(Uint128::from(999000u64), lockdrop_.ust_locked);
-//         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
-//         // let's verify the User
-//         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint128::from(999000u64), user_.total_ust_locked);
-//         assert_eq!(vec!["depositor3".to_string()], user_.lockup_position_ids);
-//         // let's verify the state
-//         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint128::from(999000u64), state_.total_ust_locked);
-//         assert_eq!(Uint128::from(269731u64), state_.total_deposits_weight);
-//     }
+    // // ######    ERROR :: Amount exceeds maximum allowed withdrawal limit of {}   ######
+
+    // let mut err = app
+    //     .execute_contract(
+    //         user1_address.clone(),
+    //         auction_instance.clone(),
+    //         &ExecuteMsg::WithdrawUst {
+    //             amount: Uint128::from(10000u64),
+    //         },
+    //         &[],
+    //     )
+    //     .unwrap_err();
+    // assert_eq!(
+    //     err.to_string(),
+    //     "Generic error: Amount exceeds maximum allowed withdrawal limit of 0.5"
+    // );
+
+    // // ######    SUCCESS :: Withdraw 50% successfully   ######
+
+    // app.execute_contract(
+    //     user1_address.clone(),
+    //     auction_instance.clone(),
+    //     &ExecuteMsg::WithdrawUst {
+    //         amount: Uint128::from(5000u64),
+    //     },
+    //     &[],
+    // )
+    // .unwrap();
+    // // Check state response
+    // state_resp = app
+    //     .wrap()
+    //     .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+    //     .unwrap();
+    // assert_eq!(Uint128::from(25000u64), state_resp.total_ust_delegated);
+
+    // // Check user response
+    // user_resp = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         &auction_instance,
+    //         &QueryMsg::UserInfo {
+    //             address: user1_address.to_string(),
+    //         },
+    //     )
+    //     .unwrap();
+    // assert_eq!(Uint128::from(5000u64), user_resp.ust_delegated);
+
+    // // ######    ERROR :: Max 1 withdrawal allowed during current window   ######
+
+    // err = app
+    //     .execute_contract(
+    //         user1_address.clone(),
+    //         auction_instance.clone(),
+    //         &ExecuteMsg::WithdrawUst {
+    //             amount: Uint128::from(10u64),
+    //         },
+    //         &[],
+    //     )
+    //     .unwrap_err();
+    // assert_eq!(err.to_string(), "Generic error: Max 1 withdrawal allowed");
+
+    // // 50% of withdrawal window over. Max withdrawal % decreasing linearly now
+    // app.update_block(|b| {
+    //     b.height += 17280;
+    //     b.time = Timestamp::from_seconds(10351001)
+    // });
+
+    // // ######    ERROR :: Amount exceeds maximum allowed withdrawal limit of {}   ######
+
+    // let mut err = app
+    //     .execute_contract(
+    //         user2_address.clone(),
+    //         auction_instance.clone(),
+    //         &ExecuteMsg::WithdrawUst {
+    //             amount: Uint128::from(10000u64),
+    //         },
+    //         &[],
+    //     )
+    //     .unwrap_err();
+    // assert_eq!(
+    //     err.to_string(),
+    //     "Generic error: Amount exceeds maximum allowed withdrawal limit of 0.497998"
+    // );
+
+    // // ######    SUCCESS :: Withdraw some UST successfully   ######
+
+    // app.execute_contract(
+    //     user2_address.clone(),
+    //     auction_instance.clone(),
+    //     &ExecuteMsg::WithdrawUst {
+    //         amount: Uint128::from(2000u64),
+    //     },
+    //     &[],
+    // )
+    // .unwrap();
+    // // Check state response
+    // state_resp = app
+    //     .wrap()
+    //     .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+    //     .unwrap();
+    // assert_eq!(Uint128::from(23000u64), state_resp.total_ust_delegated);
+
+    // // Check user response
+    // user_resp = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         &auction_instance,
+    //         &QueryMsg::UserInfo {
+    //             address: user2_address.to_string(),
+    //         },
+    //     )
+    //     .unwrap();
+    // assert_eq!(Uint128::from(8000u64), user_resp.ust_delegated);
+
+    // // ######    ERROR :: Max 1 withdrawal allowed during current window   ######
+
+    // err = app
+    //     .execute_contract(
+    //         user2_address.clone(),
+    //         auction_instance.clone(),
+    //         &ExecuteMsg::WithdrawUst {
+    //             amount: Uint128::from(10u64),
+    //         },
+    //         &[],
+    //     )
+    //     .unwrap_err();
+    // assert_eq!(err.to_string(), "Generic error: Max 1 withdrawal allowed");
+
+    // // finish deposit period for deposit failure
+    // app.update_block(|b| {
+    //     b.height += 17280;
+    //     b.time = Timestamp::from_seconds(10611001)
+    // });
+
+    // err = app
+    //     .execute_contract(
+    //         user3_address.clone(),
+    //         auction_instance.clone(),
+    //         &ExecuteMsg::WithdrawUst {
+    //             amount: Uint128::from(10u64),
+    //         },
+    //         &[],
+    //     )
+    //     .unwrap_err();
+    // assert_eq!(
+    //     err.to_string(),
+    //     "Generic error: Amount exceeds maximum allowed withdrawal limit of 0"
+    // );
+}
 
 //     #[test]
 //     fn test_deposit_ust_in_red_bank() {
