@@ -88,6 +88,7 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, 
 
     let ma_token_contract_code_id = app.store_code(ma_token_contract);
 
+    // RED BANK :: Money market contract
     let money_market_contract = Box::new(ContractWrapper::new(
         mars_red_bank::contract::execute,
         mars_red_bank::contract::instantiate,
