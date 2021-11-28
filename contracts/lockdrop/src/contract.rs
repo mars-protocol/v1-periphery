@@ -324,6 +324,11 @@ pub fn try_withdraw_ust(
 
     // Update withdrawal flag after the deposit window
     if env.block.time.seconds() >= config.init_timestamp + config.deposit_window {
+        // CHECK :: Max 1 withdrawal allowed
+        if lockup_info.withdrawal_flag {
+            return Err(StdError::generic_err("Max 1 withdrawal allowed"));
+        }
+
         lockup_info.withdrawal_flag = true;
     }
 

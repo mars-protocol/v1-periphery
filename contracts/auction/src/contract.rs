@@ -234,7 +234,7 @@ pub fn handle_deposit_mars_tokens(
 ) -> Result<Response, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // CHECK :: Lockdrop deposit window open
+    // CHECK :: deposit window open
     if !is_deposit_open(env.block.time.seconds(), &config) {
         return Err(StdError::generic_err("Deposit window closed"));
     }
