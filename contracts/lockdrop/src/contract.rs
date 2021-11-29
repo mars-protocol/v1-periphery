@@ -6,7 +6,6 @@ use cosmwasm_std::{
 
 use mars_core::address_provider::helpers::{query_address, query_addresses};
 use mars_core::address_provider::MarsContract;
-use mars_core::helpers::{option_string_to_addr, zero_address};
 use mars_core::incentives::msg::QueryMsg::UserUnclaimedRewards;
 use mars_core::tax::deduct_tax;
 use mars_periphery::auction::Cw20HookMsg as AuctionCw20HookMsg;

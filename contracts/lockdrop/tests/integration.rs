@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128, Uint64};
+use cosmwasm_std::{attr, Addr, Coin, Decimal, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as CW20ExecuteMsg;
 use mars_periphery::lockdrop::{
-    CallbackMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg,
-    StateResponse, UpdateConfigMsg, UserInfoResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg, StateResponse,
+    UpdateConfigMsg, UserInfoResponse,
 };
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -1662,7 +1662,7 @@ fn test_deposit_ust_in_red_bank() {
     assert_eq!(Decimal::zero(), state_resp_after.xmars_rewards_index);
 
     // maUST balance
-    let maUST_balance: BalanceResponse = app
+    let ma_ust_balance: BalanceResponse = app
         .wrap()
         .query_wasm_smart(
             &ma_ust_market.ma_token_address.clone().to_string(),
@@ -1671,7 +1671,7 @@ fn test_deposit_ust_in_red_bank() {
             },
         )
         .unwrap();
-    assert_eq!(state_resp_after.final_maust_locked, maUST_balance.balance);
+    assert_eq!(state_resp_after.final_maust_locked, ma_ust_balance.balance);
 
     // Check user response
     let user_resp: UserInfoResponse = app
