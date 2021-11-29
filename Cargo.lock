@@ -1098,6 +1098,10 @@ name = "mars-auction"
 version = "1.0.0"
 dependencies = [
  "astroport",
+ "astroport-generator",
+ "astroport-pair",
+ "astroport-token",
+ "astroport-vesting",
  "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1105,10 +1109,13 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw20 0.8.1",
  "cw20-base 0.8.1",
+ "mars-airdrop",
  "mars-core",
+ "mars-lockdrop",
  "mars-periphery",
  "schemars",
  "serde",
+ "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
 ]
 
 [[package]]

@@ -67,7 +67,6 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
         evm_merkle_roots: Some(vec!["evm_merkle_roots".to_string()]),
         from_timestamp: Some(1_000_00),
         to_timestamp: 100_000_00,
-        auction_contract_address: String::from("auction_contract_address"),
         total_airdrop_size: Uint128::new(100_000_000_000),
     };
 
@@ -138,10 +137,7 @@ fn proper_initialization() {
 
     // Check config
     assert_eq!(init_msg.mars_token_address, resp.mars_token_address);
-    assert_eq!(
-        init_msg.auction_contract_address,
-        resp.auction_contract_address
-    );
+    assert_eq!(None, resp.auction_contract_address);
     assert_eq!(init_msg.owner.unwrap(), resp.owner);
     assert_eq!(
         init_msg.terra_merkle_roots.unwrap(),
@@ -592,11 +588,27 @@ fn test_claim_by_terra_user() {
         .unwrap_err();
     assert_eq!(claim_f.to_string(), "Generic error: Already claimed");
 
+    // Update Config :: should be a success
+    app.execute_contract(
+        Addr::unchecked(init_msg.owner.clone().unwrap()),
+        airdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            owner: None,
+            auction_contract_address: Some("auction_contract_instance".to_string()),
+            terra_merkle_roots: None,
+            evm_merkle_roots: None,
+            from_timestamp: None,
+            to_timestamp: None,
+        },
+        &[],
+    )
+    .unwrap();
+
     // Enable MARS Withdrawals
     enable_claims(
         &mut app,
         Addr::unchecked(airdrop_instance.clone()),
-        Addr::unchecked(init_msg.auction_contract_address),
+        Addr::unchecked("auction_contract_instance".to_string()),
     );
 
     // ################################
@@ -1202,11 +1214,27 @@ fn test_claim_by_evm_user_claims_enabled() {
         b.time = Timestamp::from_seconds(1_000_05)
     });
 
+    // Update Config :: should be a success
+    app.execute_contract(
+        Addr::unchecked(init_msg.owner.clone().unwrap()),
+        airdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            owner: None,
+            auction_contract_address: Some("auction_contract_instance".to_string()),
+            terra_merkle_roots: None,
+            evm_merkle_roots: None,
+            from_timestamp: None,
+            to_timestamp: None,
+        },
+        &[],
+    )
+    .unwrap();
+
     // Enable MARS Withdrawals
     enable_claims(
         &mut app,
         Addr::unchecked(airdrop_instance.clone()),
-        Addr::unchecked(init_msg.auction_contract_address),
+        Addr::unchecked("auction_contract_instance".to_string()),
     );
 
     // ################################
@@ -1329,6 +1357,22 @@ fn test_enable_claims() {
     let mut app = mock_app();
     let (airdrop_instance, _, init_msg) = init_contracts(&mut app);
 
+    // Update Config :: should be a success
+    app.execute_contract(
+        Addr::unchecked(init_msg.owner.clone().unwrap()),
+        airdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            owner: None,
+            auction_contract_address: Some("auction_contract_instance".to_string()),
+            terra_merkle_roots: None,
+            evm_merkle_roots: None,
+            from_timestamp: None,
+            to_timestamp: None,
+        },
+        &[],
+    )
+    .unwrap();
+
     let msg = ExecuteMsg::EnableClaims {};
 
     // ###### Should give "Unauthorized" Error ######
@@ -1346,7 +1390,7 @@ fn test_enable_claims() {
     // ###### Should successfully enable claims ######
 
     app.execute_contract(
-        Addr::unchecked(init_msg.auction_contract_address.clone()),
+        Addr::unchecked("auction_contract_instance".to_string()),
         airdrop_instance.clone(),
         &msg,
         &[],
@@ -1363,7 +1407,7 @@ fn test_enable_claims() {
 
     resp_f = app
         .execute_contract(
-            Addr::unchecked(init_msg.auction_contract_address.clone()),
+            Addr::unchecked("auction_contract_instance".to_string()),
             airdrop_instance.clone(),
             &msg,
             &[],
@@ -1657,11 +1701,27 @@ fn test_withdraw_airdrop_rewards() {
     // ENABLE CLAIMS ::
     // #################
 
+    // Update Config :: should be a success
+    app.execute_contract(
+        Addr::unchecked(init_msg.owner.clone().unwrap()),
+        airdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            owner: None,
+            auction_contract_address: Some("auction_contract_instance".to_string()),
+            terra_merkle_roots: None,
+            evm_merkle_roots: None,
+            from_timestamp: None,
+            to_timestamp: None,
+        },
+        &[],
+    )
+    .unwrap();
+
     // Enable MARS Withdrawals
     enable_claims(
         &mut app,
         Addr::unchecked(airdrop_instance.clone()),
-        Addr::unchecked(init_msg.auction_contract_address),
+        Addr::unchecked("auction_contract_instance".to_string()),
     );
 
     // Should be a success

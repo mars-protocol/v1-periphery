@@ -1,4 +1,4 @@
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,6 @@ pub struct InstantiateMsg {
     pub evm_merkle_roots: Option<Vec<String>>,
     pub from_timestamp: Option<u64>,
     pub to_timestamp: u64,
-    pub auction_contract_address: String,
     pub total_airdrop_size: Uint128,
 }
 
@@ -83,7 +82,7 @@ pub struct ConfigResponse {
     pub evm_merkle_roots: Vec<String>,
     pub from_timestamp: u64,
     pub to_timestamp: u64,
-    pub auction_contract_address: String,
+    pub auction_contract_address: Option<Addr>,
     pub are_claims_allowed: bool,
 }
 

@@ -50,7 +50,7 @@ pub fn instantiate(
         evm_merkle_roots: msg.evm_merkle_roots.unwrap_or_default(),
         from_timestamp,
         to_timestamp: msg.to_timestamp,
-        auction_contract_address: deps.api.addr_validate(&msg.auction_contract_address)?,
+        auction_contract_address: None,
         are_claims_enabled: false,
     };
 
@@ -173,7 +173,7 @@ pub fn handle_update_config(
     }
 
     if let Some(auction_contract_address) = auction_contract_address {
-        config.auction_contract_address = deps.api.addr_validate(&auction_contract_address)?;
+        config.auction_contract_address = Some(deps.api.addr_validate(&auction_contract_address)?);
     }
 
     if let Some(terra_merkle_roots) = terra_merkle_roots {
@@ -206,8 +206,12 @@ pub fn handle_update_config(
 pub fn handle_enable_claims(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
     let mut config = CONFIG.load(deps.storage)?;
 
+    if config.auction_contract_address.is_none() {
+        return Err(StdError::generic_err("Auction not set"));
+    }
+
     // CHECK :: ONLY AUCTION CONTRACT CAN CALL THIS FUNCTION
-    if info.sender != config.auction_contract_address {
+    if info.sender != config.auction_contract_address.clone().unwrap() {
         return Err(StdError::generic_err("Unauthorized"));
     }
 
@@ -420,6 +424,11 @@ pub fn handle_delegate_mars_to_bootstrap_auction(
         return Err(StdError::generic_err("LP bootstrap auction has concluded"));
     }
 
+    // CHECK :: Auction contract not set
+    if config.auction_contract_address.is_none() {
+        return Err(StdError::generic_err("Auction not set"));
+    }
+
     let mut state = STATE.load(deps.storage)?;
     let mut user_info = USERS.load(deps.storage, &info.sender)?;
 
@@ -442,7 +451,7 @@ pub fn handle_delegate_mars_to_bootstrap_auction(
     })?;
 
     let delegate_msg = build_send_cw20_token_msg(
-        config.auction_contract_address.to_string(),
+        config.auction_contract_address.unwrap().to_string(),
         config.mars_token_address.to_string(),
         amount_to_delegate,
         msg,
@@ -576,7 +585,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         evm_merkle_roots: config.evm_merkle_roots,
         from_timestamp: config.from_timestamp,
         to_timestamp: config.to_timestamp,
-        auction_contract_address: config.auction_contract_address.to_string(),
+        auction_contract_address: config.auction_contract_address,
         are_claims_allowed: config.are_claims_enabled,
     })
 }
