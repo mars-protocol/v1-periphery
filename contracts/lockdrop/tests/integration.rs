@@ -1872,882 +1872,454 @@ fn test_enable_claims() {
     assert_eq!(err.to_string(), "Generic error: Already allowed");
 }
 
-//     #[test]
-//     fn test_try_claim() {
-//         let mut deps = th_setup(&[]);
-//         let deposit_amount = 1000000u128;
-//         let mut info =
-//             cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
-//         // Set tax data
-//         deps.querier.set_native_tax(
-//             Decimal::from_ratio(1u128, 100u128),
-//             &[(String::from("uusd"), Uint128::new(100u128))],
-//         );
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
+#[test]
+fn test_claim_rewards_and_unlock() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("contract_owner");
+    let (lockdrop_instance, _) = instantiate_lockdrop_contract(&mut app, owner.clone(), None, None);
 
-//         // ***** Setup *****
+    // ******* Initialize Address Provider & Auction  *******
 
-//         let mut env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_000_000_15),
-//             ..Default::default()
-//         });
-//         // Create a lockdrop position for testing
-//         let mut deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-//         let mut deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "3"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
-//         deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-//         deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
+    let (
+        address_provider_instance,
+        red_bank_instance,
+        incentives_instance,
+        xmars_token_instance,
+        mars_token_instance,
+    ) = instantiate_red_bank(&mut app, owner.clone());
+    let (auction_instance, _) = instantiate_auction_contract(
+        &mut app,
+        owner.clone(),
+        Addr::unchecked("mars_token"),
+        Addr::unchecked("airdrop_instance"),
+        lockdrop_instance.clone(),
+    );
 
-//         // ***
-//         // *** Test :: Error "Claim not allowed" ***
-//         // ***
-//         env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_001_000_09),
-//             ..Default::default()
-//         });
-//         let claim_rewards_msg = ExecuteMsg::ClaimRewards {};
-//         let mut claim_rewards_response_f = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             claim_rewards_msg.clone(),
-//         );
-//         assert_generic_error_message(claim_rewards_response_f, "Claim not allowed");
+    // mint MARS for to Lockdrop Contract
+    mint_some_mars(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(100_000_000_000),
+        lockdrop_instance.clone().to_string(),
+    );
 
-//         env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_001_000_09),
-//             ..Default::default()
-//         });
-//         claim_rewards_response_f = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             claim_rewards_msg.clone(),
-//         );
-//         assert_generic_error_message(claim_rewards_response_f, "Claim not allowed");
+    let user1_address = Addr::unchecked("user1");
+    let user2_address = Addr::unchecked("user2");
+    let user3_address = Addr::unchecked("user3");
 
-//         // ***
-//         // *** Test :: Error "No lockup to claim rewards for" ***
-//         // ***
-//         env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_001_001_09),
-//             ..Default::default()
-//         });
-//         info = mock_info("not_depositor");
-//         claim_rewards_response_f = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             claim_rewards_msg.clone(),
-//         );
-//         assert_generic_error_message(claim_rewards_response_f, "No lockup to claim rewards for");
+    // Set user balances
+    app.init_bank_balance(
+        &user1_address.clone(),
+        vec![Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(51000000000u128),
+        }],
+    )
+    .unwrap();
+    app.init_bank_balance(
+        &user2_address.clone(),
+        vec![Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(51000000000u128),
+        }],
+    )
+    .unwrap();
+    app.init_bank_balance(
+        &user3_address.clone(),
+        vec![Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(51000000000u128),
+        }],
+    )
+    .unwrap();
 
-//         // ***
-//         // *** Test #1 :: Successfully Claim Rewards ***
-//         // ***
-//         deps.querier
-//             .set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(100u64));
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("xmars_token".to_string()),
-//             &[(Addr::unchecked(MOCK_CONTRACT_ADDR), Uint128::new(0u128))],
-//         );
-//         info = mock_info("depositor");
-//         let mut claim_rewards_response_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             claim_rewards_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             claim_rewards_response_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::ClaimRewards"),
-//                 attr("unclaimed_xMars", "100")
-//             ]
-//         );
-//         assert_eq!(
-//             claim_rewards_response_s.messages,
-//             vec![
-//                 SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: "incentives".to_string(),
-//                     msg: to_binary(&mars_core::incentives::msg::ExecuteMsg::ClaimRewards {})
-//                         .unwrap(),
-//                     funds: vec![]
-//                 })),
-//                 SubMsg::new(
-//                     CallbackMsg::UpdateStateOnClaim {
-//                         user: Addr::unchecked("depositor".to_string()),
-//                         prev_xmars_balance: Uint128::from(0u64)
-//                     }
-//                     .to_cosmos_msg(&env.clone().contract.address)
-//                     .unwrap()
-//                 ),
-//             ]
-//         );
+    // for successful deposit
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(10_000_03)
+    });
 
-//         // ***
-//         // *** Test #2 :: Successfully Claim Rewards (doesn't claim XMars as no rewards to claim) ***
-//         // ***
-//         deps.querier
-//             .set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64));
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("xmars_token".to_string()),
-//             &[(Addr::unchecked(MOCK_CONTRACT_ADDR), Uint128::new(58460u128))],
-//         );
-//         claim_rewards_response_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             claim_rewards_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             claim_rewards_response_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::ClaimRewards"),
-//                 attr("unclaimed_xMars", "0")
-//             ]
-//         );
-//         assert_eq!(
-//             claim_rewards_response_s.messages,
-//             vec![SubMsg::new(
-//                 CallbackMsg::UpdateStateOnClaim {
-//                     user: Addr::unchecked("depositor".to_string()),
-//                     prev_xmars_balance: Uint128::from(58460u64)
-//                 }
-//                 .to_cosmos_msg(&env.clone().contract.address)
-//                 .unwrap()
-//             ),]
-//         );
-//     }
+    // ######    SUCCESS :: UST Successfully deposited     ######
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(10000u128),
+        }],
+    )
+    .unwrap();
 
-//     #[test]
-//     fn test_update_state_on_claim() {
-//         let mut deps = th_setup(&[]);
-//         let deposit_amount = 1000000u128;
-//         let mut info =
-//             cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
-//         deps.querier
-//             .set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64));
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
-//         // Set tax data
-//         deps.querier.set_native_tax(
-//             Decimal::from_ratio(1u128, 100u128),
-//             &[(String::from("uusd"), Uint128::new(100u128))],
-//         );
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 15u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(10000u128),
+        }],
+    )
+    .unwrap();
 
-//         // ***** Setup *****
+    app.execute_contract(
+        user2_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 35u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(1000000u128),
+        }],
+    )
+    .unwrap();
 
-//         let env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_000_000_15),
-//             ..Default::default()
-//         });
-//         // Create some lockdrop positions for testing
-//         let mut deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-//         let mut deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "3"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
-//         deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-//         deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
+    app.execute_contract(
+        user2_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 25u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(1000000u128),
+        }],
+    )
+    .unwrap();
 
-//         info = cosmwasm_std::testing::mock_info("depositor2", &[coin(6450000u128, "uusd")]);
-//         deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-//         deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor2"),
-//                 attr("duration", "3"),
-//                 attr("ust_deposited", "6450000")
-//             ]
-//         );
-//         deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-//         deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor2"),
-//                 attr("duration", "5"),
-//                 attr("ust_deposited", "6450000")
-//             ]
-//         );
+    app.execute_contract(
+        user3_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(1000000u128),
+        }],
+    )
+    .unwrap();
 
-//         // *** Successfully updates the state post deposit in Red Bank ***
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("ma_ust_token".to_string()),
-//             &[(
-//                 Addr::unchecked(MOCK_CONTRACT_ADDR),
-//                 Uint128::new(197000u128),
-//             )],
-//         );
-//         info = mock_info(&env.clone().contract.address.to_string());
-//         let callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnRedBankDeposit {
-//             prev_ma_ust_balance: Uint128::from(0u64),
-//         });
-//         let redbank_callback_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             redbank_callback_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::CallbackMsg::RedBankDeposit"),
-//                 attr("maUST_minted", "197000")
-//             ]
-//         );
+    app.execute_contract(
+        user3_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 15u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(10000000u128),
+        }],
+    )
+    .unwrap();
 
-//         // let's verify the state
-//         let mut state_ = query_state(deps.as_ref()).unwrap();
-//         // final : tracks Total UST deposited / Total MA-UST Minted
-//         assert_eq!(Uint128::from(14900000u64), state_.final_ust_locked);
-//         assert_eq!(Uint128::from(197000u64), state_.final_maust_locked);
-//         // Total : tracks UST / MA-UST Available with the lockdrop contract
-//         assert_eq!(Uint128::zero(), state_.total_ust_locked);
-//         assert_eq!(Uint128::from(197000u64), state_.total_maust_locked);
-//         // global_reward_index, total_deposits_weight :: Used for lockdrop / X-Mars distribution
-//         assert_eq!(Decimal::zero(), state_.global_reward_index);
-//         assert_eq!(Uint128::from(5364000u64), state_.total_deposits_weight);
+    // ***
+    // *** Test :: Error " Address provider not set" ***
+    // ***
 
-//         // ***
-//         // *** Test #1 :: Successfully updates state on Reward claim (Claims both MARS and XMARS) ***
-//         // ***
+    let err = app
+        .execute_contract(
+            user1_address.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::ClaimRewardsAndUnlock {
+                lockup_to_unlock_duration: 0u64,
+                forceful_unlock: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Address provider not set");
 
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("xmars_token".to_string()),
-//             &[(Addr::unchecked(MOCK_CONTRACT_ADDR), Uint128::new(58460u128))],
-//         );
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("mars_token".to_string()),
-//             &[(
-//                 Addr::unchecked(MOCK_CONTRACT_ADDR),
-//                 Uint128::new(54568460u128),
-//             )],
-//         );
+    // *** Update Configuration ***
 
-//         info = mock_info(&env.clone().contract.address.to_string());
-//         let mut callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnClaim {
-//             user: Addr::unchecked("depositor".to_string()),
-//             prev_xmars_balance: Uint128::from(100u64),
-//         });
-//         let mut redbank_callback_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             redbank_callback_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::CallbackMsg::ClaimRewards"),
-//                 attr("total_xmars_claimed", "58360"),
-//                 attr("user", "depositor"),
-//                 attr("mars_claimed", "2876835347"),
-//                 attr("xmars_claimed", "7833")
-//             ]
-//         );
-//         assert_eq!(
-//             redbank_callback_s.messages,
-//             vec![
-//                 SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: "mars_token".to_string(),
-//                     msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-//                         recipient: "depositor".to_string(),
-//                         amount: Uint128::from(2876835347u128),
-//                     })
-//                     .unwrap(),
-//                     funds: vec![]
-//                 })),
-//                 SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: "xmars_token".to_string(),
-//                     msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-//                         recipient: "depositor".to_string(),
-//                         amount: Uint128::from(7833u128),
-//                     })
-//                     .unwrap(),
-//                     funds: vec![]
-//                 })),
-//             ]
-//         );
-//         // let's verify the state
-//         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint128::zero(), state_.total_ust_locked);
-//         assert_eq!(
-//             Decimal::from_ratio(58360u64, 197000u64),
-//             state_.global_reward_index
-//         );
-//         // let's verify the User
-//         let mut user_ =
-//             query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint128::from(2000000u64), user_.total_ust_locked);
-//         assert_eq!(Uint128::from(26442u64), user_.total_maust_locked);
-//         assert_eq!(true, user_.is_lockdrop_claimed);
-//         assert_eq!(
-//             Decimal::from_ratio(58360u64, 197000u64),
-//             user_.reward_index
-//         );
-//         assert_eq!(Uint128::zero(), user_.pending_xmars);
-//         assert_eq!(
-//             vec!["depositor3".to_string(), "depositor5".to_string()],
-//             user_.lockup_position_ids
-//         );
-//         // // let's verify user's lockup #1
-//         let mut lockdrop_ =
-//             query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
-//         assert_eq!(Uint128::from(1000000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint128::from(13221u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint128::from(1078813255u64), lockdrop_.lockdrop_reward);
-//         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
-//         // // let's verify user's lockup #1
-//         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
-//         assert_eq!(Uint128::from(1000000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint128::from(13221u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint128::from(1798022092u64), lockdrop_.lockdrop_reward);
-//         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
+    // Query maUST Money-market info
+    let ma_ust_market: mars_core::red_bank::Market = app
+        .wrap()
+        .query_wasm_smart(
+            &red_bank_instance,
+            &mars_core::red_bank::msg::QueryMsg::Market {
+                asset: mars_core::asset::Asset::Native {
+                    denom: "uusd".to_string(),
+                },
+            },
+        )
+        .unwrap();
 
-//         // ***
-//         // *** Test #2 :: Successfully updates state on Reward claim (Claims only XMARS) ***
-//         // ***
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("xmars_token".to_string()),
-//             &[(
-//                 Addr::unchecked(MOCK_CONTRACT_ADDR),
-//                 Uint128::new(43534460u128),
-//             )],
-//         );
-//         callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnClaim {
-//             user: Addr::unchecked("depositor".to_string()),
-//             prev_xmars_balance: Uint128::from(56430u64),
-//         });
-//         redbank_callback_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             redbank_callback_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::CallbackMsg::ClaimRewards"),
-//                 attr("total_xmars_claimed", "43478030"),
-//                 attr("user", "depositor"),
-//                 attr("mars_claimed", "0"),
-//                 attr("xmars_claimed", "5835767")
-//             ]
-//         );
-//         assert_eq!(
-//             redbank_callback_s.messages,
-//             vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                 contract_addr: "xmars_token".to_string(),
-//                 msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-//                     recipient: "depositor".to_string(),
-//                     amount: Uint128::from(5835767u128),
-//                 })
-//                 .unwrap(),
-//                 funds: vec![]
-//             })),]
-//         );
-//         // let's verify the User
-//         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(true, user_.is_lockdrop_claimed);
-//         assert_eq!(Uint128::zero(), user_.pending_xmars);
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.clone().to_string()),
+                ma_ust_token: Some(ma_ust_market.ma_token_address.clone().to_string()),
+                auction_contract_address: Some(auction_instance.clone().to_string()),
+            },
+        },
+        &[],
+    )
+    .unwrap();
 
-//         // ***
-//         // *** Test #3 :: Successfully updates state on Reward claim (Claims MARS and XMARS for 2nd depositor) ***
-//         // ***
-//         callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnClaim {
-//             user: Addr::unchecked("depositor2".to_string()),
-//             prev_xmars_balance: Uint128::from(0u64),
-//         });
-//         redbank_callback_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             redbank_callback_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::CallbackMsg::ClaimRewards"),
-//                 attr("total_xmars_claimed", "43534460"),
-//                 attr("user", "depositor2"),
-//                 attr("mars_claimed", "18555587994"),
-//                 attr("xmars_claimed", "75383466")
-//             ]
-//         );
-//         assert_eq!(
-//             redbank_callback_s.messages,
-//             vec![
-//                 SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: "mars_token".to_string(),
-//                     msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-//                         recipient: "depositor2".to_string(),
-//                         amount: Uint128::from(18555587994u128),
-//                     })
-//                     .unwrap(),
-//                     funds: vec![]
-//                 })),
-//                 SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: "xmars_token".to_string(),
-//                     msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-//                         recipient: "depositor2".to_string(),
-//                         amount: Uint128::from(75383466u128),
-//                     })
-//                     .unwrap(),
-//                     funds: vec![]
-//                 })),
-//             ]
-//         );
-//         // let's verify the User
-//         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor2".to_string()).unwrap();
-//         assert_eq!(Uint128::from(12900000u64), user_.total_ust_locked);
-//         assert_eq!(Uint128::from(170557u64), user_.total_maust_locked);
-//         assert_eq!(true, user_.is_lockdrop_claimed);
-//         assert_eq!(Uint128::zero(), user_.pending_xmars);
-//         assert_eq!(
-//             vec!["depositor23".to_string(), "depositor25".to_string()],
-//             user_.lockup_position_ids
-//         );
-//         // // let's verify user's lockup #1
-//         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor23".to_string()).unwrap();
-//         assert_eq!(Uint128::from(6450000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint128::from(85278u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint128::from(6958345498u64), lockdrop_.lockdrop_reward);
-//         assert_eq!(101914410u64, lockdrop_.unlock_timestamp);
-//         // // let's verify user's lockup #1
-//         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor25".to_string()).unwrap();
-//         assert_eq!(Uint128::from(6450000u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint128::from(85278u64), lockdrop_.maust_balance);
-//         assert_eq!(Uint128::from(11597242496u64), lockdrop_.lockdrop_reward);
-//         assert_eq!(103124010u64, lockdrop_.unlock_timestamp);
-//     }
+    // ***
+    // *** Test :: Error "Invalid lockup" ***
+    // ***
 
-//     #[test]
-//     fn test_try_unlock_position() {
-//         let mut deps = th_setup(&[]);
-//         let deposit_amount = 1000000u128;
-//         let mut info =
-//             cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
-//         // Set tax data
-//         deps.querier.set_native_tax(
-//             Decimal::from_ratio(1u128, 100u128),
-//             &[(String::from("uusd"), Uint128::new(100u128))],
-//         );
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
+    let err = app
+        .execute_contract(
+            user1_address.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::ClaimRewardsAndUnlock {
+                lockup_to_unlock_duration: 3u64,
+                forceful_unlock: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Invalid lockup");
 
-//         // ***** Setup *****
+    // ***
+    // *** Test :: Error "Invalid lockup" ***
+    // ***
 
-//         let mut env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_000_000_15),
-//             ..Default::default()
-//         });
+    let err = app
+        .execute_contract(
+            user1_address.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::ClaimRewardsAndUnlock {
+                lockup_to_unlock_duration: 5u64,
+                forceful_unlock: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: 3723998 seconds to Unlock");
 
-//         // Create a lockdrop position for testing
-//         let mut deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-//         let mut deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "3"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
-//         deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-//         deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
+    // ***
+    // *** Test :: Error "No lockup to claim rewards for" ***
+    // ***
 
-//         // *** Successfully updates the state post deposit in Red Bank ***
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("ma_ust_token".to_string()),
-//             &[(
-//                 Addr::unchecked(MOCK_CONTRACT_ADDR),
-//                 Uint128::new(19700000u128),
-//             )],
-//         );
-//         info = mock_info(&env.clone().contract.address.to_string());
-//         let callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnRedBankDeposit {
-//             prev_ma_ust_balance: Uint128::from(0u64),
-//         });
-//         execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_msg.clone(),
-//         )
-//         .unwrap();
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_user".to_string()),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::ClaimRewardsAndUnlock {
+                lockup_to_unlock_duration: 0u64,
+                forceful_unlock: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: No lockup to claim rewards for"
+    );
 
-//         // ***
-//         // *** Test :: Error "Invalid lockup" ***
-//         // ***
-//         let mut unlock_msg = ExecuteMsg::Unlock { duration: 4u64 };
-//         let mut unlock_f = execute(deps.as_mut(), env.clone(), info.clone(), unlock_msg.clone());
-//         assert_generic_error_message(unlock_f, "Invalid lockup");
+    // ***
+    // *** Test :: Error "Claim not allowed" ***
+    // ***
 
-//         // ***
-//         // *** Test :: Error "{} seconds to Unlock" ***
-//         // ***
-//         info = mock_info("depositor");
-//         env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_000_040_95),
-//             ..Default::default()
-//         });
-//         unlock_msg = ExecuteMsg::Unlock { duration: 3u64 };
-//         unlock_f = execute(deps.as_mut(), env.clone(), info.clone(), unlock_msg.clone());
-//         assert_generic_error_message(unlock_f, "1910315 seconds to Unlock");
+    let err = app
+        .execute_contract(
+            user1_address.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::ClaimRewardsAndUnlock {
+                lockup_to_unlock_duration: 0u64,
+                forceful_unlock: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Claim not allowed");
 
-//         // ***
-//         // *** Test :: Should unlock successfully ***
-//         // ***
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
-//         deps.querier
-//             .set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(8706700u64));
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("xmars_token".to_string()),
-//             &[(
-//                 Addr::unchecked(MOCK_CONTRACT_ADDR),
-//                 Uint128::new(19700000u128),
-//             )],
-//         );
-//         env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_020_040_95),
-//             ..Default::default()
-//         });
-//         let unlock_s =
-//             execute(deps.as_mut(), env.clone(), info.clone(), unlock_msg.clone()).unwrap();
-//         assert_eq!(
-//             unlock_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::UnlockPosition"),
-//                 attr("owner", "depositor"),
-//                 attr("duration", "3"),
-//                 attr("maUST_unlocked", "9850000")
-//             ]
-//         );
-//         assert_eq!(
-//             unlock_s.messages,
-//             vec![
-//                 SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: "incentives".to_string(),
-//                     msg: to_binary(&mars_core::incentives::msg::ExecuteMsg::ClaimRewards {})
-//                         .unwrap(),
-//                     funds: vec![]
-//                 })),
-//                 SubMsg::new(
-//                     CallbackMsg::UpdateStateOnClaim {
-//                         user: Addr::unchecked("depositor".to_string()),
-//                         prev_xmars_balance: Uint128::from(19700000u64)
-//                     }
-//                     .to_cosmos_msg(&env.clone().contract.address)
-//                     .unwrap()
-//                 ),
-//                 SubMsg::new(
-//                     CallbackMsg::DissolvePosition {
-//                         user: Addr::unchecked("depositor".to_string()),
-//                         duration: 3u64
-//                     }
-//                     .to_cosmos_msg(&env.clone().contract.address)
-//                     .unwrap()
-//                 ),
-//                 SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: "ma_ust_token".to_string(),
-//                     msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-//                         recipient: "depositor".to_string(),
-//                         amount: Uint128::from(9850000u128),
-//                     })
-//                     .unwrap(),
-//                     funds: vec![]
-//                 })),
-//             ]
-//         );
-//     }
+    // Enable claims
+    app.execute_contract(
+        auction_instance.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::EnableClaims {},
+        &[],
+    )
+    .unwrap();
 
-//     #[test]
-//     fn test_try_dissolve_position() {
-//         let mut deps = th_setup(&[]);
-//         let deposit_amount = 1000000u128;
-//         let mut info =
-//             cosmwasm_std::testing::mock_info("depositor", &[coin(deposit_amount, "uusd")]);
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
-//         // Set tax data
-//         deps.querier.set_native_tax(
-//             Decimal::from_ratio(1u128, 100u128),
-//             &[(String::from("uusd"), Uint128::new(100u128))],
-//         );
-//         deps.querier
-//             .set_incentives_address(Addr::unchecked("incentives".to_string()));
+    // ######    SUCCESS :: MARS Lockdrop rewards successfully claimed      ######
 
-//         // ***** Setup *****
+    // Check user response
+    let user_resp_before: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        Uint128::from(1159654281u64),
+        user_resp_before.total_mars_incentives
+    );
 
-//         let env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_000_000_15),
-//             ..Default::default()
-//         });
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::ClaimRewardsAndUnlock {
+            lockup_to_unlock_duration: 0u64,
+            forceful_unlock: false,
+        },
+        &[],
+    )
+    .unwrap();
 
-//         // Create a lockdrop position for testing
-//         let mut deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-//         let mut deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "3"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
-//         deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-//         deposit_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             deposit_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             deposit_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::ExecuteMsg::LockUST"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//                 attr("ust_deposited", "1000000")
-//             ]
-//         );
+    // Check user response
+    let user_resp_after: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        user_resp_after.total_mars_incentives,
+        user_resp_before.total_mars_incentives
+    );
+    assert_eq!(true, user_resp_after.is_lockdrop_claimed);
+    assert_eq!(
+        user_resp_before.pending_xmars_to_claim,
+        user_resp_after.pending_xmars_to_claim
+    );
+    assert_eq!(Uint128::zero(), user_resp_after.pending_xmars_to_claim);
 
-//         // *** Successfully updates the state post deposit in Red Bank ***
-//         deps.querier.set_cw20_balances(
-//             Addr::unchecked("ma_ust_token".to_string()),
-//             &[(
-//                 Addr::unchecked(MOCK_CONTRACT_ADDR),
-//                 Uint128::new(19700000u128),
-//             )],
-//         );
-//         info = mock_info(&env.clone().contract.address.to_string());
-//         let callback_msg = ExecuteMsg::Callback(CallbackMsg::UpdateStateOnRedBankDeposit {
-//             prev_ma_ust_balance: Uint128::from(0u64),
-//         });
-//         execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_msg.clone(),
-//         )
-//         .unwrap();
+    let user1_mars_balance: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user1_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        user_resp_before.total_mars_incentives,
+        user1_mars_balance.balance
+    );
 
-//         // ***
-//         // *** Test #1 :: Should successfully dissolve the position ***
-//         // ***
-//         let mut callback_dissolve_msg = ExecuteMsg::Callback(CallbackMsg::DissolvePosition {
-//             user: Addr::unchecked("depositor".to_string()),
-//             duration: 3u64,
-//         });
-//         let mut dissolve_position_callback_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_dissolve_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             dissolve_position_callback_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::Callback::DissolvePosition"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "3"),
-//             ]
-//         );
-//         // let's verify the state
-//         let mut state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint128::from(2000000u64), state_.final_ust_locked);
-//         assert_eq!(Uint128::from(19700000u64), state_.final_maust_locked);
-//         assert_eq!(Uint128::from(9850000u64), state_.total_maust_locked);
-//         assert_eq!(Uint128::from(720000u64), state_.total_deposits_weight);
-//         // let's verify the User
-//         deps.querier
-//             .set_unclaimed_rewards("cosmos2contract".to_string(), Uint128::from(0u64));
-//         let mut user_ =
-//             query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint128::from(1000000u64), user_.total_ust_locked);
-//         assert_eq!(Uint128::from(9850000u64), user_.total_maust_locked);
-//         assert_eq!(vec!["depositor5".to_string()], user_.lockup_position_ids);
-//         // let's verify user's lockup #1 (which is dissolved)
-//         let mut lockdrop_ =
-//             query_lockup_info_with_id(deps.as_ref(), "depositor3".to_string()).unwrap();
-//         assert_eq!(Uint128::from(0u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint128::from(0u64), lockdrop_.maust_balance);
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(17_000_03)
+    });
 
-//         // ***
-//         // *** Test #2 :: Should successfully dissolve the position ***
-//         // ***
-//         callback_dissolve_msg = ExecuteMsg::Callback(CallbackMsg::DissolvePosition {
-//             user: Addr::unchecked("depositor".to_string()),
-//             duration: 5u64,
-//         });
-//         dissolve_position_callback_s = execute(
-//             deps.as_mut(),
-//             env.clone(),
-//             info.clone(),
-//             callback_dissolve_msg.clone(),
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             dissolve_position_callback_s.attributes,
-//             vec![
-//                 attr("action", "lockdrop::Callback::DissolvePosition"),
-//                 attr("user", "depositor"),
-//                 attr("duration", "5"),
-//             ]
-//         );
-//         // let's verify the state
-//         state_ = query_state(deps.as_ref()).unwrap();
-//         assert_eq!(Uint128::from(2000000u64), state_.final_ust_locked);
-//         assert_eq!(Uint128::from(19700000u64), state_.final_maust_locked);
-//         assert_eq!(Uint128::from(0u64), state_.total_maust_locked);
-//         assert_eq!(Uint128::from(720000u64), state_.total_deposits_weight);
-//         // let's verify the User
-//         user_ = query_user_info(deps.as_ref(), env.clone(), "depositor".to_string()).unwrap();
-//         assert_eq!(Uint128::from(0u64), user_.total_ust_locked);
-//         assert_eq!(Uint128::from(0u64), user_.total_maust_locked);
-//         // let's verify user's lockup #1 (which is dissolved)
-//         lockdrop_ = query_lockup_info_with_id(deps.as_ref(), "depositor5".to_string()).unwrap();
-//         assert_eq!(Uint128::from(0u64), lockdrop_.ust_locked);
-//         assert_eq!(Uint128::from(0u64), lockdrop_.maust_balance);
-//     }
+    // mint MARS for to Incentives Contract
+    mint_some_mars(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(100_000_000_000),
+        incentives_instance.clone().to_string(),
+    );
 
-//     fn th_setup(contract_balances: &[Coin]) -> OwnedDeps<MockStorage, MockApi, MarsMockQuerier> {
-//         let mut deps = mock_dependencies(contract_balances);
-//         let info = mock_info("owner");
-//         let env = mock_env(MockEnvParams {
-//             block_time: Timestamp::from_seconds(1_000_000_00),
-//             ..Default::default()
-//         });
-//         // Config with valid base params
-//         let base_config = InstantiateMsg {
-//             owner: "owner".to_string(),
-//             address_provider: Some("address_provider".to_string()),
-//             ma_ust_token: Some("ma_ust_token".to_string()),
-//             init_timestamp: 1_000_000_10,
-//             deposit_window: 100000u64,
-//             withdrawal_window: 72000u64,
-//             min_duration: 3u64,
-//             max_duration: 9u64,
-//             seconds_per_week: 7 * 86400 as u64,
-//             denom: Some("uusd".to_string()),
-//             weekly_multiplier: Some(Decimal::from_ratio(9u64, 100u64)),
-//             lockdrop_incentives: Some(Uint128::from(21432423343u64)),
-//         };
-//         instantiate(deps.as_mut(), env, info, base_config).unwrap();
-//         deps
-//     }
-// }
+    // Set Incentives
+    app.execute_contract(
+        owner.clone(),
+        incentives_instance.clone(),
+        &mars_core::incentives::msg::ExecuteMsg::SetAssetIncentive {
+            ma_token_address: ma_ust_market.ma_token_address.clone().to_string(),
+            emission_per_second: Uint128::from(10000000u64),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(17_000_93)
+    });
+
+    // Check user response
+    let user_resp_before: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::zero(), user_resp_before.pending_xmars_to_claim);
+
+    // Deposit directly in Red Bank
+    app.execute_contract(
+        user1_address.clone(),
+        red_bank_instance.clone(),
+        &mars_core::red_bank::msg::ExecuteMsg::DepositNative {
+            denom: "uusd".to_string(),
+        },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(1000u128),
+        }],
+    )
+    .unwrap();
+
+    let xmars_pending: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &incentives_instance.clone().to_string(),
+            &mars_core::incentives::msg::QueryMsg::UserUnclaimedRewards {
+                user_address: lockdrop_instance.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::zero(), xmars_pending);
+
+    // // Check state response
+    // let state_resp_after: StateResponse = app
+    //     .wrap()
+    //     .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
+    //     .unwrap();
+    // assert_eq!(
+    //     state_resp_before.total_ust_locked,
+    //     state_resp_after.final_ust_locked
+    // );
+    // assert_eq!(
+    //     Uint128::from(20000000000u64),
+    //     state_resp_after.final_maust_locked
+    // );
+    // assert_eq!(
+    //     state_resp_after.final_ust_locked,
+    //     state_resp_before.total_ust_locked
+    // );
+    // assert_eq!(
+    //     state_resp_after.final_maust_locked,
+    //     state_resp_after.total_maust_locked
+    // );
+    // assert_eq!(Uint128::from(0u64), state_resp_after.total_mars_delegated);
+    // assert_eq!(false, state_resp_after.are_claims_allowed);
+    // assert_eq!(
+    //     Uint128::from(36200u64),
+    //     state_resp_after.total_deposits_weight
+    // );
+    // assert_eq!(Decimal::zero(), state_resp_after.xmars_rewards_index);
+
+    // // maUST balance
+    // let maUST_balance: BalanceResponse = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         &ma_ust_market.ma_token_address.clone().to_string(),
+    //         &Cw20QueryMsg::Balance {
+    //             address: lockdrop_instance.clone().to_string(),
+    //         },
+    //     )
+    //     .unwrap();
+    // assert_eq!(state_resp_after.final_maust_locked, maUST_balance.balance);
+
+    // // Check user response
+    // let user_resp: UserInfoResponse = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         &lockdrop_instance,
+    //         &QueryMsg::UserInfo {
+    //             address: user1_address.to_string(),
+    //         },
+    //     )
+    //     .unwrap();
+    // assert_eq!(Uint128::from(20000000000u64), user_resp.total_maust_share);
+    // assert_eq!(Uint128::from(20000u64), user_resp.total_ust_locked);
+    // assert_eq!(
+    //     Uint128::from(999999999999u128),
+    //     user_resp.total_mars_incentives
+    // );
+}

@@ -710,7 +710,7 @@ pub fn handle_claim_rewards_and_unlock_position(
     // CALLBACK MSG :: DISSOLVE LOCKUP POSITION
     if lockup_to_unlock_duration > 0u64 {
         let callback_dissolve_position_msg = CallbackMsg::DissolvePosition {
-            user: user_address,
+            user: user_address.clone(),
             duration: lockup_to_unlock_duration,
             forceful_unlock,
         }
@@ -718,6 +718,7 @@ pub fn handle_claim_rewards_and_unlock_position(
         response = response.add_message(callback_dissolve_position_msg);
     }
 
+    USER_INFO.save(deps.storage, &user_address, &user_info)?;
     Ok(response)
 }
 
