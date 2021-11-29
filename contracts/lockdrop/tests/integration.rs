@@ -112,7 +112,7 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, 
                 },
             },
             &[],
-            String::from("address_provider"),
+            String::from("money_market_contract"),
             None,
         )
         .unwrap();
@@ -229,65 +229,65 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, 
     .unwrap();
 
     // Initialize UST Money market pool
-    // app.execute_contract(
-    //     owner.clone(),
-    //     money_market_contract_instance.clone(),
-    //     &mars_core::red_bank::msg::ExecuteMsg::InitAsset {
-    //         asset: mars_core::asset::Asset::Native {
-    //             denom: "uusd".to_string(),
-    //         },
-    //         asset_params: mars_core::red_bank::msg::InitOrUpdateAssetParams {
-    //             initial_borrow_rate: Some(
-    //                 mars_core::math::decimal::Decimal::from_str(&"0.2".to_string()).unwrap(),
-    //             ),
-    //             reserve_factor: Some(
-    //                 mars_core::math::decimal::Decimal::from_str(&"0.2".to_string()).unwrap(),
-    //             ),
-    //             max_loan_to_value: Some(
-    //                 mars_core::math::decimal::Decimal::from_str(&"0.75".to_string()).unwrap(),
-    //             ),
-    //             liquidation_threshold: Some(
-    //                 mars_core::math::decimal::Decimal::from_str(&"0.85".to_string()).unwrap(),
-    //             ),
-    //             liquidation_bonus: Some(
-    //                 mars_core::math::decimal::Decimal::from_str(&"0.1".to_string()).unwrap(),
-    //             ),
-    //             interest_rate_model_params: Some(
-    //                 mars_core::red_bank::interest_rate_models::InterestRateModelParams::Dynamic(
-    //                     mars_core::red_bank::interest_rate_models::DynamicInterestRateModelParams {
-    //                         min_borrow_rate: mars_core::math::decimal::Decimal::from_str(
-    //                             &"0.0".to_string(),
-    //                         )
-    //                         .unwrap(),
-    //                         max_borrow_rate: mars_core::math::decimal::Decimal::from_str(
-    //                             &"2.0".to_string(),
-    //                         )
-    //                         .unwrap(),
-    //                         optimal_utilization_rate: mars_core::math::decimal::Decimal::from_str(
-    //                             &"0.7".to_string(),
-    //                         )
-    //                         .unwrap(),
-    //                         kp_1: mars_core::math::decimal::Decimal::from_str(&"0.02".to_string())
-    //                             .unwrap(),
-    //                         kp_2: mars_core::math::decimal::Decimal::from_str(&"0.05".to_string())
-    //                             .unwrap(),
-    //                         kp_augmentation_threshold: mars_core::math::decimal::Decimal::from_str(
-    //                             &"0.15".to_string(),
-    //                         )
-    //                         .unwrap(),
-    //                         update_threshold_txs: 5u32,
-    //                         update_threshold_seconds: 600u64,
-    //                     },
-    //                 ),
-    //             ),
-    //             active: Some(true),
-    //             deposit_enabled: Some(true),
-    //             borrow_enabled: Some(true),
-    //         },
-    //     },
-    //     &[],
-    // )
-    // .unwrap();
+    app.execute_contract(
+        owner.clone(),
+        money_market_contract_instance.clone(),
+        &mars_core::red_bank::msg::ExecuteMsg::InitAsset {
+            asset: mars_core::asset::Asset::Native {
+                denom: "uusd".to_string(),
+            },
+            asset_params: mars_core::red_bank::msg::InitOrUpdateAssetParams {
+                initial_borrow_rate: Some(
+                    mars_core::math::decimal::Decimal::from_str(&"0.2".to_string()).unwrap(),
+                ),
+                reserve_factor: Some(
+                    mars_core::math::decimal::Decimal::from_str(&"0.2".to_string()).unwrap(),
+                ),
+                max_loan_to_value: Some(
+                    mars_core::math::decimal::Decimal::from_str(&"0.75".to_string()).unwrap(),
+                ),
+                liquidation_threshold: Some(
+                    mars_core::math::decimal::Decimal::from_str(&"0.85".to_string()).unwrap(),
+                ),
+                liquidation_bonus: Some(
+                    mars_core::math::decimal::Decimal::from_str(&"0.1".to_string()).unwrap(),
+                ),
+                interest_rate_model_params: Some(
+                    mars_core::red_bank::interest_rate_models::InterestRateModelParams::Dynamic(
+                        mars_core::red_bank::interest_rate_models::DynamicInterestRateModelParams {
+                            min_borrow_rate: mars_core::math::decimal::Decimal::from_str(
+                                &"0.0".to_string(),
+                            )
+                            .unwrap(),
+                            max_borrow_rate: mars_core::math::decimal::Decimal::from_str(
+                                &"2.0".to_string(),
+                            )
+                            .unwrap(),
+                            optimal_utilization_rate: mars_core::math::decimal::Decimal::from_str(
+                                &"0.7".to_string(),
+                            )
+                            .unwrap(),
+                            kp_1: mars_core::math::decimal::Decimal::from_str(&"0.02".to_string())
+                                .unwrap(),
+                            kp_2: mars_core::math::decimal::Decimal::from_str(&"0.05".to_string())
+                                .unwrap(),
+                            kp_augmentation_threshold: mars_core::math::decimal::Decimal::from_str(
+                                &"0.15".to_string(),
+                            )
+                            .unwrap(),
+                            update_threshold_txs: 5u32,
+                            update_threshold_seconds: 600u64,
+                        },
+                    ),
+                ),
+                active: Some(true),
+                deposit_enabled: Some(true),
+                borrow_enabled: Some(true),
+            },
+        },
+        &[],
+    )
+    .unwrap();
 
     return (
         mars_address_provider_instance,
@@ -1451,6 +1451,270 @@ fn test_deposit_ust_in_red_bank() {
 
     let (address_provider_instance, red_bank_instance, _, _, mars_token_instance) =
         instantiate_red_bank(&mut app, owner.clone());
+    let (_, _) = instantiate_auction_contract(
+        &mut app,
+        owner.clone(),
+        Addr::unchecked("mars_token"),
+        Addr::unchecked("airdrop_instance"),
+        lockdrop_instance.clone(),
+    );
+
+    // mint MARS for to Lockdrop Contract
+    mint_some_mars(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(100_000_000_000),
+        lockdrop_instance.clone().to_string(),
+    );
+
+    let user1_address = Addr::unchecked("user1");
+
+    // Set user balances
+    app.init_bank_balance(
+        &user1_address.clone(),
+        vec![Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(20000000u128),
+        }],
+    )
+    .unwrap();
+
+    // for successful deposit
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(10_000_03)
+    });
+
+    // ######    SUCCESS :: UST Successfully deposited     ######
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(10000u128),
+        }],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 15u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(10000u128),
+        }],
+    )
+    .unwrap();
+
+    // ***
+    // *** Test :: Error " Only Owner can call this function" ***
+    // ***
+
+    let err = app
+        .execute_contract(
+            user1_address.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::DepositUstInRedBank {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // ***
+    // *** Test :: Error " Address provider not set" ***
+    // ***
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::DepositUstInRedBank {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Address provider not set");
+
+    // ***
+    // *** Test :: Error " maUST address should be set" ***
+    // ***
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.clone().to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::DepositUstInRedBank {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: maUST not set");
+
+    // ***
+    // *** Test :: Error " maUST address should be set" ***
+    // ***
+
+    // Query maUST Money-market info
+    let ma_ust_market: mars_core::red_bank::Market = app
+        .wrap()
+        .query_wasm_smart(
+            &red_bank_instance,
+            &mars_core::red_bank::msg::QueryMsg::Market {
+                asset: mars_core::asset::Asset::Native {
+                    denom: "uusd".to_string(),
+                },
+            },
+        )
+        .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: None,
+                ma_ust_token: Some(ma_ust_market.ma_token_address.clone().to_string()),
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::DepositUstInRedBank {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Lockdrop deposits haven't concluded yet"
+    );
+
+    // ######    SUCCESSFULLY DEPOSITED IN RED BANK ######
+
+    // Check state response
+    let state_resp_before: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
+        .unwrap();
+
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(17_000_03)
+    });
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUstInRedBank {},
+        &[],
+    )
+    .unwrap();
+
+    // Check state response
+    let state_resp_after: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(
+        state_resp_before.total_ust_locked,
+        state_resp_after.final_ust_locked
+    );
+    assert_eq!(
+        Uint128::from(20000000000u64),
+        state_resp_after.final_maust_locked
+    );
+    assert_eq!(
+        state_resp_after.final_ust_locked,
+        state_resp_before.total_ust_locked
+    );
+    assert_eq!(
+        state_resp_after.final_maust_locked,
+        state_resp_after.total_maust_locked
+    );
+    assert_eq!(Uint128::from(0u64), state_resp_after.total_mars_delegated);
+    assert_eq!(false, state_resp_after.are_claims_allowed);
+    assert_eq!(
+        Uint128::from(36200u64),
+        state_resp_after.total_deposits_weight
+    );
+    assert_eq!(Decimal::zero(), state_resp_after.xmars_rewards_index);
+
+    // maUST balance
+    let maUST_balance: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &ma_ust_market.ma_token_address.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: lockdrop_instance.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(state_resp_after.final_maust_locked, maUST_balance.balance);
+
+    // Check user response
+    let user_resp: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(20000000000u64), user_resp.total_maust_share);
+    assert_eq!(Uint128::from(20000u64), user_resp.total_ust_locked);
+    assert_eq!(
+        Uint128::from(999999999999u128),
+        user_resp.total_mars_incentives
+    );
+
+    // ***
+    // *** Test :: Error " Already deposited" ***
+    // ***
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::DepositUstInRedBank {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Already deposited");
+}
+
+#[test]
+fn test_enable_claims() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("contract_owner");
+    let (lockdrop_instance, _) = instantiate_lockdrop_contract(&mut app, owner.clone(), None, None);
+
+    // ******* Initialize Address Provider & Auction  *******
+
+    let (address_provider_instance, red_bank_instance, _, _, mars_token_instance) =
+        instantiate_red_bank(&mut app, owner.clone());
     let (auction_instance, _) = instantiate_auction_contract(
         &mut app,
         owner.clone(),
@@ -1509,167 +1773,103 @@ fn test_deposit_ust_in_red_bank() {
     )
     .unwrap();
 
-    // InitAsset {
-    //     asset,
-    //     asset_params,
-    // }
+    // Query maUST Money-market info
+    let ma_ust_market: mars_core::red_bank::Market = app
+        .wrap()
+        .query_wasm_smart(
+            &red_bank_instance,
+            &mars_core::red_bank::msg::QueryMsg::Market {
+                asset: mars_core::asset::Asset::Native {
+                    denom: "uusd".to_string(),
+                },
+            },
+        )
+        .unwrap();
 
-    // // ***** Setup *****
+    // ***
+    // *** Test :: Error "Auction address in lockdrop not set" ***
+    // ***
 
-    // let mut env = mock_env(MockEnvParams {
-    //     block_time: Timestamp::from_seconds(1_000_000_15),
-    //     ..Default::default()
-    // });
-    // // Create a lockdrop position for testing
-    // let mut deposit_msg = ExecuteMsg::DepositUst { duration: 3u64 };
-    // let mut deposit_s = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_msg.clone(),
-    // )
-    // .unwrap();
-    // assert_eq!(
-    //     deposit_s.attributes,
-    //     vec![
-    //         attr("action", "lockdrop::ExecuteMsg::LockUST"),
-    //         attr("user", "depositor"),
-    //         attr("duration", "3"),
-    //         attr("ust_deposited", "1000000")
-    //     ]
-    // );
-    // deposit_msg = ExecuteMsg::DepositUst { duration: 5u64 };
-    // deposit_s = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_msg.clone(),
-    // )
-    // .unwrap();
-    // assert_eq!(
-    //     deposit_s.attributes,
-    //     vec![
-    //         attr("action", "lockdrop::ExecuteMsg::LockUST"),
-    //         attr("user", "depositor"),
-    //         attr("duration", "5"),
-    //         attr("ust_deposited", "1000000")
-    //     ]
-    // );
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_auction".to_string()),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::EnableClaims {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Auction address in lockdrop not set"
+    );
 
-    // // ***
-    // // *** Test :: Error "Unauthorized" ***
-    // // ***
-    // let deposit_in_redbank_msg = ExecuteMsg::DepositUstInRedBank {};
-    // let deposit_in_redbank_response_f = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_in_redbank_msg.clone(),
-    // );
-    // assert_generic_error_message(deposit_in_redbank_response_f, "Unauthorized");
+    // Set address provider and other addresses
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.clone().to_string()),
+                ma_ust_token: Some(ma_ust_market.ma_token_address.clone().to_string()),
+                auction_contract_address: Some(auction_instance.clone().to_string()),
+            },
+        },
+        &[],
+    )
+    .unwrap();
 
-    // // ***
-    // // *** Test :: Error "Lockdrop deposits haven't concluded yet" ***
-    // // ***
-    // info = mock_info("owner");
-    // let mut deposit_in_redbank_response_f = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_in_redbank_msg.clone(),
-    // );
-    // assert_generic_error_message(
-    //     deposit_in_redbank_response_f,
-    //     "Lockdrop deposits haven't concluded yet",
-    // );
+    // ***
+    // *** Test :: Error " Only Auction contract can call this function" ***
+    // ***
 
-    // env = mock_env(MockEnvParams {
-    //     block_time: Timestamp::from_seconds(1_000_000_09),
-    //     ..Default::default()
-    // });
-    // deposit_in_redbank_response_f = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_in_redbank_msg.clone(),
-    // );
-    // assert_generic_error_message(
-    //     deposit_in_redbank_response_f,
-    //     "Lockdrop deposits haven't concluded yet",
-    // );
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_auction".to_string()),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::EnableClaims {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
 
-    // env = mock_env(MockEnvParams {
-    //     block_time: Timestamp::from_seconds(1_001_000_09),
-    //     ..Default::default()
-    // });
-    // deposit_in_redbank_response_f = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_in_redbank_msg.clone(),
-    // );
-    // assert_generic_error_message(
-    //     deposit_in_redbank_response_f,
-    //     "Lockdrop deposits haven't concluded yet",
-    // );
+    // ######    SUCCESSFULLY ENABLED CLAIMS ######
 
-    // // ***
-    // // *** Successfully deposited ***
-    // // ***
-    // env = mock_env(MockEnvParams {
-    //     block_time: Timestamp::from_seconds(1_001_000_11),
-    //     ..Default::default()
-    // });
-    // deps.querier.set_cw20_balances(
-    //     Addr::unchecked("ma_ust_token".to_string()),
-    //     &[(Addr::unchecked(MOCK_CONTRACT_ADDR), Uint128::new(0u128))],
-    // );
-    // let deposit_in_redbank_response_s = execute(
-    //     deps.as_mut(),
-    //     env.clone(),
-    //     info.clone(),
-    //     deposit_in_redbank_msg.clone(),
-    // )
-    // .unwrap();
-    // assert_eq!(
-    //     deposit_in_redbank_response_s.attributes,
-    //     vec![
-    //         attr("action", "lockdrop::ExecuteMsg::DepositInRedBank"),
-    //         attr("ust_deposited_in_red_bank", "2000000"),
-    //         attr("timestamp", "100100011")
-    //     ]
-    // );
-    // assert_eq!(
-    //     deposit_in_redbank_response_s.messages,
-    //     vec![
-    //         SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-    //             contract_addr: "red_bank".to_string(),
-    //             msg: to_binary(&mars_core::red_bank::msg::ExecuteMsg::DepositNative {
-    //                 denom: "uusd".to_string(),
-    //             })
-    //             .unwrap(),
-    //             funds: vec![Coin {
-    //                 denom: "uusd".to_string(),
-    //                 amount: Uint128::from(1999900u128),
-    //             }]
-    //         })),
-    //         SubMsg::new(
-    //             CallbackMsg::UpdateStateOnRedBankDeposit {
-    //                 prev_ma_ust_balance: Uint128::from(0u64)
-    //             }
-    //             .to_cosmos_msg(&env.clone().contract.address)
-    //             .unwrap()
-    //         ),
-    //     ]
-    // );
-    // // let's verify the state
-    // let state_ = query_state(deps.as_ref()).unwrap();
-    // assert_eq!(Uint128::zero(), state_.final_ust_locked);
-    // assert_eq!(Uint128::zero(), state_.final_maust_locked);
-    // assert_eq!(Uint128::from(2000000u64), state_.total_ust_locked);
-    // assert_eq!(Uint128::zero(), state_.total_maust_locked);
-    // assert_eq!(Decimal::zero(), state_.global_reward_index);
-    // assert_eq!(Uint128::from(720000u64), state_.total_deposits_weight);
+    // Check state response
+    let state_resp_before: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(false, state_resp_before.are_claims_allowed);
+
+    app.execute_contract(
+        auction_instance.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::EnableClaims {},
+        &[],
+    )
+    .unwrap();
+
+    // Check state response
+    let state_resp_after: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(true, state_resp_after.are_claims_allowed);
+
+    // ***
+    // *** Test :: Error " Already allowed" ***
+    // ***
+
+    let err = app
+        .execute_contract(
+            auction_instance.clone(),
+            lockdrop_instance.clone(),
+            &ExecuteMsg::EnableClaims {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Already allowed");
 }
 
 //     #[test]

@@ -404,7 +404,7 @@ pub fn execute_init_asset(
                         incentives_address: incentives_address.into(),
                     })?,
                     funds: vec![],
-                    label: String::from(""),
+                    label: String::from("maToken"),
                 }));
             Ok(res)
         }
