@@ -189,7 +189,7 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, 
                 decimals: 6,
                 initial_balances: vec![],
                 mint: Some(cw20::MinterResponse {
-                    minter: owner.to_string(),
+                    minter: mars_staking_instance.to_string(),
                     cap: None,
                 }),
                 marketing: None,
@@ -1900,7 +1900,7 @@ fn test_claim_rewards_and_unlock() {
         &mut app,
         owner.clone(),
         mars_token_instance.clone(),
-        Uint128::new(100_000_000_000),
+        Uint128::new(1000000000000),
         lockdrop_instance.clone().to_string(),
     );
 
@@ -1999,7 +1999,7 @@ fn test_claim_rewards_and_unlock() {
     app.execute_contract(
         user3_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 15u64 },
+        &ExecuteMsg::DepositUst { duration: 35u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000000u128),
@@ -2147,7 +2147,7 @@ fn test_claim_rewards_and_unlock() {
         )
         .unwrap();
     assert_eq!(
-        Uint128::from(1159654281u64),
+        Uint128::from(735530170u64),
         user_resp_before.total_mars_incentives
     );
 
@@ -2197,6 +2197,8 @@ fn test_claim_rewards_and_unlock() {
         user1_mars_balance.balance
     );
 
+    // ######    SUCCESS :: MARS Lockdrop rewards (+ xMARS) successfully claimed (After UST is deposited in Red Bank)     ######
+
     app.update_block(|b| {
         b.height += 17280;
         b.time = Timestamp::from_seconds(17_000_03)
@@ -2207,7 +2209,7 @@ fn test_claim_rewards_and_unlock() {
         &mut app,
         owner.clone(),
         mars_token_instance.clone(),
-        Uint128::new(100_000_000_000),
+        Uint128::new(351199080000000),
         incentives_instance.clone().to_string(),
     );
 
@@ -2222,6 +2224,51 @@ fn test_claim_rewards_and_unlock() {
         &[],
     )
     .unwrap();
+
+    // Deposit UST in Red Bank
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUstInRedBank {},
+        &[],
+    )
+    .unwrap();
+
+    // Check incentives
+    let asset_incentive_response: mars_core::incentives::AssetIncentiveResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &incentives_instance,
+            &mars_core::incentives::msg::QueryMsg::AssetIncentive {
+                ma_token_address: ma_ust_market.ma_token_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        Uint128::from(10000000u64),
+        asset_incentive_response
+            .asset_incentive
+            .clone()
+            .unwrap()
+            .emission_per_second
+    );
+    assert_eq!(
+        mars_core::math::decimal::Decimal::zero(),
+        asset_incentive_response
+            .asset_incentive
+            .clone()
+            .unwrap()
+            .index
+    );
+    assert_eq!(
+        1700003u64,
+        asset_incentive_response
+            .asset_incentive
+            .clone()
+            .unwrap()
+            .last_updated
+    );
 
     app.update_block(|b| {
         b.height += 17280;
@@ -2238,22 +2285,12 @@ fn test_claim_rewards_and_unlock() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::zero(), user_resp_before.pending_xmars_to_claim);
+    assert_eq!(
+        Uint128::from(1382488u64),
+        user_resp_before.pending_xmars_to_claim
+    );
 
-    // Deposit directly in Red Bank
-    app.execute_contract(
-        user1_address.clone(),
-        red_bank_instance.clone(),
-        &mars_core::red_bank::msg::ExecuteMsg::DepositNative {
-            denom: "uusd".to_string(),
-        },
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::new(1000u128),
-        }],
-    )
-    .unwrap();
-
+    // xMars to be claimed (Lockdrop)
     let xmars_pending: Uint128 = app
         .wrap()
         .query_wasm_smart(
@@ -2263,63 +2300,387 @@ fn test_claim_rewards_and_unlock() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::zero(), xmars_pending);
+    assert_eq!(Uint128::from(899999999u64), xmars_pending);
 
-    // // Check state response
-    // let state_resp_after: StateResponse = app
-    //     .wrap()
-    //     .query_wasm_smart(&lockdrop_instance, &QueryMsg::State {})
-    //     .unwrap();
-    // assert_eq!(
-    //     state_resp_before.total_ust_locked,
-    //     state_resp_after.final_ust_locked
-    // );
-    // assert_eq!(
-    //     Uint128::from(20000000000u64),
-    //     state_resp_after.final_maust_locked
-    // );
-    // assert_eq!(
-    //     state_resp_after.final_ust_locked,
-    //     state_resp_before.total_ust_locked
-    // );
-    // assert_eq!(
-    //     state_resp_after.final_maust_locked,
-    //     state_resp_after.total_maust_locked
-    // );
-    // assert_eq!(Uint128::from(0u64), state_resp_after.total_mars_delegated);
-    // assert_eq!(false, state_resp_after.are_claims_allowed);
-    // assert_eq!(
-    //     Uint128::from(36200u64),
-    //     state_resp_after.total_deposits_weight
-    // );
-    // assert_eq!(Decimal::zero(), state_resp_after.xmars_rewards_index);
+    // Check user response : before
+    let user_resp_before: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        Uint128::from(1382488u64),
+        user_resp_before.pending_xmars_to_claim
+    );
 
-    // // maUST balance
-    // let maUST_balance: BalanceResponse = app
-    //     .wrap()
-    //     .query_wasm_smart(
-    //         &ma_ust_market.ma_token_address.clone().to_string(),
-    //         &Cw20QueryMsg::Balance {
-    //             address: lockdrop_instance.clone().to_string(),
-    //         },
-    //     )
-    //     .unwrap();
-    // assert_eq!(state_resp_after.final_maust_locked, maUST_balance.balance);
+    // Check user's MARS Balance
+    let user1_mars_balance_before: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user1_address.clone().to_string(),
+            },
+        )
+        .unwrap();
 
-    // // Check user response
-    // let user_resp: UserInfoResponse = app
-    //     .wrap()
-    //     .query_wasm_smart(
-    //         &lockdrop_instance,
-    //         &QueryMsg::UserInfo {
-    //             address: user1_address.to_string(),
-    //         },
-    //     )
-    //     .unwrap();
-    // assert_eq!(Uint128::from(20000000000u64), user_resp.total_maust_share);
-    // assert_eq!(Uint128::from(20000u64), user_resp.total_ust_locked);
-    // assert_eq!(
-    //     Uint128::from(999999999999u128),
-    //     user_resp.total_mars_incentives
-    // );
+    // claim rewards : xMars (Mars already claimed)
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::ClaimRewardsAndUnlock {
+            lockup_to_unlock_duration: 0u64,
+            forceful_unlock: false,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check user response : after
+    let user_resp_after: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(0u64), user_resp_after.pending_xmars_to_claim);
+
+    // Check user's xMARS Balance
+    let user1_xmars_balance: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &xmars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user1_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        user_resp_before.pending_xmars_to_claim,
+        user1_xmars_balance.balance
+    );
+
+    // Check lockdrop contract's xMARS Balance
+    let lockdrop_xmars_balance: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &xmars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: lockdrop_instance.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        xmars_pending,
+        lockdrop_xmars_balance.balance + user_resp_before.pending_xmars_to_claim
+    );
+
+    // Check user's MARS Balance
+    let user1_mars_balance_after: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user1_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        user1_mars_balance_before.balance,
+        user1_mars_balance_after.balance
+    );
+
+    // ######    SUCCESS :: Unlock Position : Claim MARS Lockdrop rewards (+ xMARS) successfully   ######
+
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(16820001)
+    });
+
+    // Check user response : before
+    let user_resp_before: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user2_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        Uint128::from(23225803379404u64),
+        user_resp_before.pending_xmars_to_claim
+    );
+    assert_eq!(
+        Uint128::from(146699663931u64),
+        user_resp_before.total_mars_incentives
+    );
+    assert_eq!(false, user_resp_before.is_lockdrop_claimed);
+
+    // Check user's MARS Balance
+    let user2_mars_balance_before: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user2_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+
+    // Check user's xMARS Balance
+    let user2_xmars_balance_before: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user2_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+
+    // Check lockup
+    let lockup_before: LockUpInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance.clone().to_string(),
+            &QueryMsg::LockUpInfo {
+                address: user2_address.clone().to_string(),
+                duration: 25u64,
+            },
+        )
+        .unwrap();
+
+    // claim rewards & Unlock Position : xMars
+    app.execute_contract(
+        user2_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::ClaimRewardsAndUnlock {
+            lockup_to_unlock_duration: 25u64,
+            forceful_unlock: false,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check user response : after
+    let user_resp_after: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user2_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(0u64), user_resp_after.pending_xmars_to_claim);
+    assert_eq!(true, user_resp_after.is_lockdrop_claimed);
+    assert_eq!(
+        vec!["user235".to_string()],
+        user_resp_after.lockup_position_ids
+    );
+
+    // Check user's xMARS Balance
+    let user2_xmars_balance_after: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &xmars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user2_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    let user2_mars_balance_after: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user2_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        user2_xmars_balance_before.balance + user_resp_before.pending_xmars_to_claim,
+        user2_xmars_balance_after.balance
+    );
+    assert_eq!(
+        user2_mars_balance_before.balance + user_resp_before.total_mars_incentives,
+        user2_mars_balance_after.balance
+    );
+
+    // Check lockup
+    let lockup_after: LockUpInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance.clone().to_string(),
+            &QueryMsg::LockUpInfo {
+                address: user2_address.clone().to_string(),
+                duration: 25u64,
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::zero(), lockup_after.ust_locked);
+    assert_eq!(Uint128::zero(), lockup_after.maust_balance);
+
+    let user2_ma_token_balance_after: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &ma_ust_market.ma_token_address.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user2_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        lockup_before.maust_balance,
+        user2_ma_token_balance_after.balance
+    );
+
+    // ######    SUCCESS :: Forcefully Unlock Position : Claim MARS Lockdrop rewards (+ xMARS) successfully   ######
+
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(16820003)
+    });
+
+    // mint MARS for to User-3 Contract
+    mint_some_mars(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(100_000_000_000),
+        user3_address.clone().to_string(),
+    );
+    // Check user response : before
+    let user_resp_before: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user3_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        Uint128::from(127741935483858u64),
+        user_resp_before.pending_xmars_to_claim
+    );
+    assert_eq!(
+        Uint128::from(852564805896u64),
+        user_resp_before.total_mars_incentives
+    );
+    assert_eq!(false, user_resp_before.is_lockdrop_claimed);
+
+    // Check user's MARS Balance
+    let user3_mars_balance_before: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user3_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+
+    // Check user's xMARS Balance
+    let user3_xmars_balance_before: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &xmars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user3_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+
+    // Check lockup
+    let lockup_before: LockUpInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance.clone().to_string(),
+            &QueryMsg::LockUpInfo {
+                address: user3_address.clone().to_string(),
+                duration: 35u64,
+            },
+        )
+        .unwrap();
+
+    // Increase allowance
+    app.execute_contract(
+        user3_address.clone(),
+        mars_token_instance.clone(),
+        &CW20ExecuteMsg::IncreaseAllowance {
+            spender: lockdrop_instance.clone().to_string(),
+            amount: Uint128::from(1000000000000000000u64),
+            expires: None,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // claim rewards & Forcefully Unlock Position
+    app.execute_contract(
+        user3_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::ClaimRewardsAndUnlock {
+            lockup_to_unlock_duration: 35u64,
+            forceful_unlock: true,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check user response : after
+    let user_resp_after: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user3_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(0u64), user_resp_after.pending_xmars_to_claim);
+    assert_eq!(true, user_resp_after.is_lockdrop_claimed);
+    assert_eq!(
+        vec!["user35".to_string()],
+        user_resp_after.lockup_position_ids
+    );
+
+    // Check user's xMARS Balance
+    let user3_xmars_balance_after: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &xmars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user3_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    let user3_mars_balance_after: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &mars_token_instance.clone().to_string(),
+            &Cw20QueryMsg::Balance {
+                address: user3_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        user3_xmars_balance_before.balance + user_resp_before.pending_xmars_to_claim,
+        user3_xmars_balance_after.balance
+    );
+    assert_eq!(
+        user3_mars_balance_before.balance + user_resp_before.total_mars_incentives
+            - lockup_before.lockdrop_reward,
+        user3_mars_balance_after.balance
+    );
 }

@@ -1205,6 +1205,9 @@ fn calculate_mars_incentives_for_lockup(
 /// @params duration : Number of weeks
 /// @config : Config with weekly multiplier and divider
 fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> Uint128 {
+    if duration < 1u64 {
+        return Uint128::zero();
+    }
     let lock_weight = Decimal::one()
         + Decimal::from_ratio(
             (duration - 1) * config.weekly_multiplier,
