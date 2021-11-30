@@ -106,6 +106,8 @@ pub struct ConfigResponse {
     pub mars_lp_staking_contract: Option<Addr>,
     pub generator_contract: String,
     pub mars_rewards: Uint128,
+    pub mars_vesting_duration: u64,
+    pub lp_tokens_vesting_duration: u64,
     pub init_timestamp: u64,
     pub deposit_window: u64,
     pub withdrawal_window: u64,

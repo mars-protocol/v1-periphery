@@ -1109,6 +1109,7 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw20 0.8.1",
  "cw20-base 0.8.1",
+ "mars-address-provider",
  "mars-airdrop",
  "mars-core",
  "mars-lockdrop",

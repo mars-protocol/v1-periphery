@@ -206,11 +206,9 @@ pub fn handle_update_config(
         config.lp_token_address = Some(pair_info.liquidity_token);
     }
 
-    config.mars_lp_staking_contract = Some(option_string_to_addr(
-        deps.api,
-        new_config.mars_lp_staking_contract,
-        config.clone().mars_lp_staking_contract.unwrap(),
-    )?);
+    if let Some(mars_lp_staking_contract) = new_config.mars_lp_staking_contract {
+        config.mars_lp_staking_contract = Some(deps.api.addr_validate(&mars_lp_staking_contract)?);
+    }
 
     config.generator_contract = option_string_to_addr(
         deps.api,
@@ -282,10 +280,17 @@ pub fn handle_deposit_ust(
         return Err(StdError::generic_err("Trying to deposit several coins"));
     }
 
+    // Only UST accepted and amount > 0
     let native_token = info.funds.first().unwrap();
     if native_token.denom != *UUSD_DENOM {
         return Err(StdError::generic_err(
             "Only UST among native tokens accepted",
+        ));
+    }
+
+    if native_token.amount.is_zero() {
+        return Err(StdError::generic_err(
+            "Deposit amount must be greater than 0",
         ));
     }
 
@@ -899,7 +904,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
         owner: config.owner.to_string(),
         mars_token_address: config.mars_token_address.to_string(),
-        astro_token_address: config.mars_token_address.to_string(),
+        astro_token_address: config.astro_token_address.to_string(),
         airdrop_contract_address: config.airdrop_contract_address.to_string(),
         lockdrop_contract_address: config.lockdrop_contract_address.to_string(),
         astroport_lp_pool: config.astroport_lp_pool,
@@ -907,6 +912,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         mars_lp_staking_contract: config.mars_lp_staking_contract,
         generator_contract: config.generator_contract.to_string(),
         mars_rewards: config.mars_rewards,
+        mars_vesting_duration: config.mars_vesting_duration,
+        lp_tokens_vesting_duration: config.lp_tokens_vesting_duration,
         init_timestamp: config.init_timestamp,
         deposit_window: config.deposit_window,
         withdrawal_window: config.withdrawal_window,
@@ -1034,23 +1041,31 @@ fn calculate_user_lp_share(state: &State, user_info: &UserInfo) -> Uint128 {
 }
 
 /// @dev Calculates MARS tokens receivable by a user for participating (providing UST & MARS) in the bootstraping phase of the MARS-UST Pool
-/// Formula - MARS per LP share = total MARS Incentives / Total LP shares minted
-/// user's LP receivable = user's LP share * MARS per LP share
+/// Formula -
+/// user's MARS share %  = user's MARS deposits / Total MARS deposited
+/// user's UST share %  = user's UST deposits / Total UST deposited
+/// user's Auction Reward  = ( user's MARS share % + user's UST share % ) / 2 * Total Auction Incentives
 /// @param total_mars_rewards : Total MARS tokens to be distributed as auction participation reward
 fn calculate_auction_reward_for_user(
     state: &State,
     user_info: &UserInfo,
     total_mars_rewards: Uint128,
 ) -> Uint128 {
-    if user_info.total_auction_incentives > Uint128::zero()
-        || state.total_mars_deposited == Uint128::zero()
-        || state.total_ust_deposited == Uint128::zero()
-    {
-        return Uint128::zero();
+    let mut user_mars_shares_percent = Decimal::zero();
+    let mut user_ust_shares_percent = Decimal::zero();
+
+    if user_info.mars_deposited > Uint128::zero() {
+        user_mars_shares_percent =
+            Decimal::from_ratio(user_info.mars_deposited, state.total_mars_deposited);
     }
 
-    let mars_per_lp_share = Decimal::from_ratio(total_mars_rewards, state.lp_shares_minted);
-    mars_per_lp_share * user_info.lp_shares
+    if user_info.ust_deposited > Uint128::zero() {
+        user_ust_shares_percent =
+            Decimal::from_ratio(user_info.ust_deposited, state.total_ust_deposited);
+    }
+    let user_total_share_percent = user_mars_shares_percent + user_ust_shares_percent;
+
+    user_total_share_percent.div(Uint128::from(2u64)) * total_mars_rewards
 }
 
 /// @dev Returns LP Balance that a user can withdraw based on the vesting schedule
