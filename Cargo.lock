@@ -26,8 +26,8 @@ checksum = "61604a8f862e1d5c3229fdd78f8b02c68dcf73a4c4b05fd636d12240aaa242c1"
 [[package]]
 name = "astroport"
 version = "2.4.0"
+source = "git+https://github.com/astroport-fi/astroport.git?branch=master#0743c710f177d546b34296fe3c08b621711cf612"
 dependencies = [
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw20 0.8.1",
  "schemars",
@@ -37,36 +37,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-factory"
-version = "0.0.0"
-dependencies = [
- "astroport",
- "astroport-pair",
- "astroport-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw2 0.8.1",
- "schemars",
- "serde",
- "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
- "thiserror",
-]
-
-[[package]]
 name = "astroport-generator"
 version = "0.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git?branch=master#0743c710f177d546b34296fe3c08b621711cf612"
 dependencies = [
  "astroport",
- "astroport-token",
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2 0.8.1",
  "cw20 0.8.1",
  "schemars",
  "serde",
- "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
  "thiserror",
 ]
 
@@ -90,7 +71,6 @@ name = "astroport-pair"
 version = "0.0.0"
 dependencies = [
  "astroport",
- "astroport-factory",
  "astroport-token",
  "cosmwasm-bignumber",
  "cosmwasm-schema",
@@ -101,6 +81,7 @@ dependencies = [
  "cw2 0.8.1",
  "cw20 0.8.1",
  "integer-sqrt",
+ "protobuf",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -125,9 +106,9 @@ dependencies = [
 [[package]]
 name = "astroport-vesting"
 version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git?branch=master#0743c710f177d546b34296fe3c08b621711cf612"
 dependencies = [
  "astroport",
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2 0.8.1",
@@ -513,16 +494,6 @@ dependencies = [
 [[package]]
 name = "cw-storage-plus"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#b3991b9b109accf445fec086ce9792b197be6ca4"
-dependencies = [
- "cosmwasm-std",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "cw-storage-plus"
-version = "0.8.0"
 source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "cosmwasm-std",
@@ -550,17 +521,6 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
-]
-
-[[package]]
-name = "cw0"
-version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#b3991b9b109accf445fec086ce9792b197be6ca4"
-dependencies = [
- "cosmwasm-std",
- "schemars",
- "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -1121,7 +1081,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha3",
- "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "terra-multi-test",
 ]
 
 [[package]]
@@ -1150,7 +1110,7 @@ dependencies = [
  "mars-periphery",
  "schemars",
  "serde",
- "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "terra-multi-test",
 ]
 
 [[package]]
@@ -1201,7 +1161,7 @@ dependencies = [
  "mars-xmars-token",
  "schemars",
  "serde",
- "terra-multi-test 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "terra-multi-test",
  "thiserror",
 ]
 
@@ -1472,6 +1432,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "protobuf"
+version = "2.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
+dependencies = [
+ "bytes",
 ]
 
 [[package]]
@@ -1912,31 +1881,13 @@ dependencies = [
 [[package]]
 name = "terra-multi-test"
 version = "0.8.0"
-source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#b3991b9b109accf445fec086ce9792b197be6ca4"
-dependencies = [
- "anyhow",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
- "cw0 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git?branch=main)",
- "itertools",
- "prost",
- "schemars",
- "serde",
- "terra-mocks",
- "thiserror",
-]
-
-[[package]]
-name = "terra-multi-test"
-version = "0.8.0"
 source = "git+https://github.com/astroport-fi/terra-plus.git#edab04fe04412eb55cde5b79132043a8c49c5df5"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
- "cw0 0.8.0 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "itertools",
  "prost",
  "schemars",

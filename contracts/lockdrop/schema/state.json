@@ -10,7 +10,7 @@
     "total_mars_delegated",
     "total_maust_locked",
     "total_ust_locked",
-    "xmars_per_maust_share"
+    "xmars_rewards_index"
   ],
   "properties": {
     "are_claims_allowed": {
@@ -65,7 +65,7 @@
         }
       ]
     },
-    "xmars_per_maust_share": {
+    "xmars_rewards_index": {
       "description": "Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user",
       "allOf": [
         {

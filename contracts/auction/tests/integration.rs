@@ -162,6 +162,7 @@ fn instantiate_astro_and_generator_and_vesting(
     let generator_code_id = app.store_code(generator_contract);
 
     let init_msg = astroport::generator::InstantiateMsg {
+        owner: owner.clone().to_string(),
         allowed_reward_proxies: vec![],
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),

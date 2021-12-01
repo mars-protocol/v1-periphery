@@ -177,7 +177,7 @@ fn provide_liquidity_msg(uusd_amount: Uint128, uluna_amount: Uint128) -> (Execut
             },
         ],
         slippage_tolerance: None,
-        auto_stack: None,
+        auto_stake: None,
     };
 
     let coins = [
@@ -367,7 +367,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             },
         ],
         slippage_tolerance: None,
-        auto_stack: None,
+        auto_stake: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])

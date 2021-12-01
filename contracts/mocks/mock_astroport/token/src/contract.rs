@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, WasmMsg,
+    entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 
 use cw2::set_contract_version;
@@ -8,6 +8,7 @@ use cw20_base::msg::{ExecuteMsg, QueryMsg};
 use cw20_base::state::{MinterData, TokenInfo, TOKEN_INFO};
 use cw20_base::ContractError;
 
+use astroport::asset::addr_validate_to_lower;
 use astroport::token::{InstantiateMsg, MigrateMsg};
 
 // version info for migration info
@@ -38,7 +39,7 @@ pub fn instantiate(
 
     let mint = match msg.mint {
         Some(m) => Some(MinterData {
-            minter: deps.api.addr_validate(&m.minter)?,
+            minter: addr_validate_to_lower(deps.api, &m.minter)?,
             cap: m.cap,
         }),
         None => None,
@@ -55,15 +56,7 @@ pub fn instantiate(
 
     TOKEN_INFO.save(deps.storage, &data)?;
 
-    if let Some(hook) = msg.init_hook {
-        Ok(Response::new().add_message(WasmMsg::Execute {
-            contract_addr: hook.contract_addr,
-            msg: hook.msg,
-            funds: vec![],
-        }))
-    } else {
-        Ok(Response::default())
-    }
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

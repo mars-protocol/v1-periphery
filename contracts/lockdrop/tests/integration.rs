@@ -236,6 +236,7 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, 
             asset: mars_core::asset::Asset::Native {
                 denom: "uusd".to_string(),
             },
+            asset_symbol: Some("uusd".to_string()),
             asset_params: mars_core::red_bank::msg::InitOrUpdateAssetParams {
                 initial_borrow_rate: Some(
                     mars_core::math::decimal::Decimal::from_str(&"0.2".to_string()).unwrap(),

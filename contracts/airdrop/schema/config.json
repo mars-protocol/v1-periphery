@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "are_claims_enabled",
-    "auction_contract_address",
     "evm_merkle_roots",
     "from_timestamp",
     "mars_token_address",
@@ -19,9 +18,12 @@
     },
     "auction_contract_address": {
       "description": "Boostrap auction contract address",
-      "allOf": [
+      "anyOf": [
         {
           "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
         }
       ]
     },

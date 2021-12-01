@@ -24,7 +24,7 @@ use astroport::asset::{Asset, AssetInfo};
 use astroport::generator::{PendingTokenResponse, QueryMsg as GenQueryMsg};
 
 use crate::state::{Config, State, UserInfo, CONFIG, STATE, USERS};
-use cw20::Cw20ReceiveMsg;
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 const UUSD_DENOM: &str = "uusd";
 
@@ -1333,10 +1333,14 @@ pub fn build_claim_rewards_from_mars_staking_contract_msg(
 /// @param amount : LP tokens to stake
 pub fn build_stake_with_generator_msg(config: Config, amount: Uint128) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.generator_contract.to_string(),
-        msg: to_binary(&astroport::generator::ExecuteMsg::Deposit {
-            lp_token: config.lp_token_address.expect("LP Token address not set"),
-            amount,
+        contract_addr: config
+            .lp_token_address
+            .expect("LP Token address not set")
+            .to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Send {
+            contract: config.generator_contract.to_string(),
+            msg: to_binary(&astroport::generator::Cw20HookMsg::Deposit {})?,
+            amount: amount,
         })?,
         funds: vec![],
     }))
@@ -1395,7 +1399,8 @@ fn build_provide_liquidity_to_lp_pool_msg(
         msg: to_binary(&astroport::pair::ExecuteMsg::ProvideLiquidity {
             assets: [ust, mars],
             slippage_tolerance,
-            auto_stack: Some(false),
+            auto_stake: Some(false),
+            receiver: None,
         })?,
     }))
 }

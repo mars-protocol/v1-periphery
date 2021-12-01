@@ -22,13 +22,6 @@
         "null"
       ]
     },
-    "auction_contract_address": {
-      "description": "Bootstrap Auction contract address",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "deposit_window": {
       "description": "Number of seconds for which lockup deposits will be accepted",
       "type": "integer",

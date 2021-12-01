@@ -34,7 +34,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport =  { path = "../../packages/astroport" }
+astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "master"}
 mars-core =  { path = "../../packages/mars-core" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
@@ -53,11 +53,11 @@ terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
 # needed for intergration testing
 generator-proxy-to-mars = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "generator-proxy-to-mars"}
 astroport-generator-proxy = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "astroport-generator-proxy"}
+astroport-vesting = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-vesting"}
+astroport-generator = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-generator"}
 mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
 mars-lp-staking =    { path = "../lp_staking" }
 astroport-pair =  { path = "../mocks/mock_astroport/pair" }
 astroport-token =  { path = "../mocks/mock_astroport/token" }
-astroport-vesting = {path = "../mocks/mock_astroport/vesting"}
-astroport-generator = {path = "../mocks/mock_astroport/generator"}
 mars-airdrop =  { path = "../airdrop" }
 mars-lockdrop =  { path = "../lockdrop" }
