@@ -1340,7 +1340,7 @@ pub fn build_stake_with_generator_msg(config: Config, amount: Uint128) -> StdRes
         msg: to_binary(&Cw20ExecuteMsg::Send {
             contract: config.generator_contract.to_string(),
             msg: to_binary(&astroport::generator::Cw20HookMsg::Deposit {})?,
-            amount: amount,
+            amount,
         })?,
         funds: vec![],
     }))
