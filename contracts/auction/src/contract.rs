@@ -338,8 +338,8 @@ pub fn handle_withdraw_ust(
 
     if amount > max_withdrawal_allowed {
         return Err(StdError::generic_err(format!(
-            "Amount exceeds maximum allowed withdrawal limit of {}",
-            max_withdrawal_percent
+            "Amount exceeds maximum allowed withdrawal limit of {} uusd",
+            max_withdrawal_allowed
         )));
     }
 
@@ -507,6 +507,11 @@ pub fn handle_stake_lp_tokens(
                     lp_shares_balance.to_string(),
                 );
             are_being_unstaked = true;
+        }
+
+        // Check if LP Staking contract is set
+        if config.mars_lp_staking_contract.is_none() {
+            return Err(StdError::generic_err("LP Staking not set"));
         }
 
         // :: Add stake LP Tokens to the MARS LP Staking contract msg

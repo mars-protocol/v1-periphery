@@ -71,6 +71,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-generator-proxy"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=main#e0166185623896717997def6c49c522e18f27a75"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cw20 0.8.1",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terraswap",
+ "uint",
+]
+
+[[package]]
 name = "astroport-pair"
 version = "0.0.0"
 dependencies = [
@@ -846,6 +861,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "generator-proxy-to-mars"
+version = "0.0.0"
+source = "git+https://github.com/astroport-fi/astro-generator-proxy-contracts.git?branch=main#e0166185623896717997def6c49c522e18f27a75"
+dependencies = [
+ "astroport-generator-proxy",
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2 0.8.1",
+ "cw20 0.8.1",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1099,6 +1130,7 @@ version = "1.0.0"
 dependencies = [
  "astroport",
  "astroport-generator",
+ "astroport-generator-proxy",
  "astroport-pair",
  "astroport-token",
  "astroport-vesting",
@@ -1109,10 +1141,12 @@ dependencies = [
  "cw-storage-plus 0.8.1",
  "cw20 0.8.1",
  "cw20-base 0.8.1",
+ "generator-proxy-to-mars",
  "mars-address-provider",
  "mars-airdrop",
  "mars-core",
  "mars-lockdrop",
+ "mars-lp-staking",
  "mars-periphery",
  "schemars",
  "serde",
