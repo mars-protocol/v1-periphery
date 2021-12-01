@@ -1,3 +1,7 @@
+use astroport::vesting::{
+    Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
+    VestingSchedule, VestingSchedulePoint,
+};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128, Uint64};
 use cw20::Cw20ExecuteMsg;
@@ -50,20 +54,14 @@ fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
     .unwrap()
 }
 
-// Mints some MARS to "to" recipient
-fn mint_some_mars(
-    app: &mut App,
-    owner: Addr,
-    mars_token_instance: Addr,
-    amount: Uint128,
-    to: String,
-) {
+// Mints some TOKENS to "to" recipient
+fn mint_some_tokens(app: &mut App, owner: Addr, token_instance: Addr, amount: Uint128, to: String) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: to.clone(),
         amount: amount,
     };
     let res = app
-        .execute_contract(owner.clone(), mars_token_instance.clone(), &msg, &[])
+        .execute_contract(owner.clone(), token_instance.clone(), &msg, &[])
         .unwrap();
     assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
     assert_eq!(res.events[1].attributes[2], attr("to", to));
@@ -74,49 +72,20 @@ fn mint_some_mars(
 fn instantiate_astro_and_generator_and_vesting(
     mut app: &mut App,
     owner: Addr,
+    astro_token_instance: Addr,
 ) -> (Addr, Addr, Addr) {
-    let astro_token_contract = Box::new(ContractWrapper::new(
-        cw20_base::contract::execute,
-        cw20_base::contract::instantiate,
-        cw20_base::contract::query,
-    ));
-
-    let astro_token_code_id = app.store_code(astro_token_contract);
-
-    let msg = cw20_base::msg::InstantiateMsg {
-        name: String::from("Astroport token"),
-        symbol: String::from("ASTRO"),
-        decimals: 6,
-        initial_balances: vec![],
-        mint: Some(cw20::MinterResponse {
-            minter: owner.clone().to_string(),
-            cap: None,
-        }),
-        marketing: None,
-    };
-
-    let astro_token_instance = app
-        .instantiate_contract(
-            astro_token_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ASTRO"),
-            None,
-        )
-        .unwrap();
-
     // Vesting
     let vesting_contract = Box::new(ContractWrapper::new(
         astroport_vesting::contract::execute,
         astroport_vesting::contract::instantiate,
         astroport_vesting::contract::query,
     ));
+    // let owner = Addr::unchecked(owner.clone());
     let vesting_code_id = app.store_code(vesting_contract);
 
-    let init_msg = astroport::vesting::InstantiateMsg {
+    let init_msg = VestingInstantiateMsg {
         owner: owner.to_string(),
-        token_addr: astro_token_instance.clone().to_string(),
+        token_addr: astro_token_instance.to_string(),
     };
 
     let vesting_instance = app
@@ -130,24 +99,13 @@ fn instantiate_astro_and_generator_and_vesting(
         )
         .unwrap();
 
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         owner.clone(),
         astro_token_instance.clone(),
-        Uint128::new(900_000_000_000),
+        Uint128::from(1_000_000_000_000000u64),
         owner.to_string(),
     );
-    app.execute_contract(
-        owner.clone(),
-        astro_token_instance.clone(),
-        &Cw20ExecuteMsg::IncreaseAllowance {
-            spender: vesting_instance.clone().to_string(),
-            amount: Uint128::new(900_000_000_000),
-            expires: None,
-        },
-        &[],
-    )
-    .unwrap();
 
     // Generator
     let generator_contract = Box::new(
@@ -162,12 +120,12 @@ fn instantiate_astro_and_generator_and_vesting(
     let generator_code_id = app.store_code(generator_contract);
 
     let init_msg = astroport::generator::InstantiateMsg {
-        owner: owner.clone().to_string(),
+        owner: owner.to_string(),
         allowed_reward_proxies: vec![],
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
-        tokens_per_block: Uint128::from(0u128),
-        vesting_contract: vesting_instance.clone().to_string(),
+        tokens_per_block: Uint128::new(10_000000),
+        vesting_contract: vesting_instance.to_string(),
     };
 
     let generator_instance = app
@@ -181,48 +139,31 @@ fn instantiate_astro_and_generator_and_vesting(
         )
         .unwrap();
 
-    let tokens_per_block = Uint128::new(10_000000);
-
-    let msg = astroport::generator::ExecuteMsg::SetTokensPerBlock {
-        amount: tokens_per_block,
-    };
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = astroport::generator::QueryMsg::Config {};
-    let res: astroport::generator::ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &msg)
-        .unwrap();
-    assert_eq!(res.tokens_per_block, tokens_per_block);
-
     // vesting to generator:
+
     let current_block = app.block_info();
-    let amount = Uint128::new(630720000000);
 
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: vesting_instance.clone().to_string(),
-        amount,
-        expires: None,
-    };
+    let amount = Uint128::new(63072000_000000);
 
-    app.execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = astroport::vesting::ExecuteMsg::RegisterVestingAccounts {
-        vesting_accounts: vec![astroport::vesting::VestingAccount {
-            address: generator_instance.to_string(),
-            schedules: vec![astroport::vesting::VestingSchedule {
-                start_point: astroport::vesting::VestingSchedulePoint {
-                    time: current_block.time,
-                    amount,
-                },
-                end_point: None,
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: generator_instance.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: current_block.time,
+                        amount,
+                    },
+                    end_point: None,
+                }],
             }],
-        }],
+        })
+        .unwrap(),
+        amount,
     };
 
-    app.execute_contract(owner.clone(), vesting_instance.clone(), &msg, &[])
+    app.execute_contract(owner, astro_token_instance.clone(), &msg, &[])
         .unwrap();
 
     (astro_token_instance, generator_instance, vesting_instance)
@@ -313,7 +254,7 @@ fn instantiate_airdrop_lockdrop_contracts(
         .unwrap();
 
     // MARS to airdrop contract
-    mint_some_mars(
+    mint_some_tokens(
         app,
         owner.clone(),
         mars_token_instance.clone(),
@@ -419,7 +360,7 @@ fn instantiate_airdrop_lockdrop_contracts(
     .unwrap();
 
     // Send MARS to Lockdrop
-    mint_some_mars(
+    mint_some_tokens(
         app,
         owner.clone(),
         mars_token_instance.clone(),
@@ -445,8 +386,42 @@ fn init_auction_mars_contracts(app: &mut App) -> (Addr, Addr, Addr, Addr, Addr, 
     let (airdrop_instance, lockdrop_instance) =
         instantiate_airdrop_lockdrop_contracts(app, owner.clone(), mars_token_instance.clone());
 
-    let (astro_token_instance, generator_instance, _) =
-        instantiate_astro_and_generator_and_vesting(app, owner.clone());
+    let astro_token_contract = Box::new(ContractWrapper::new(
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
+    ));
+
+    let astro_token_code_id = app.store_code(astro_token_contract);
+
+    let msg = cw20_base::msg::InstantiateMsg {
+        name: String::from("astroport token"),
+        symbol: String::from("ASTRO"),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: Some(cw20::MinterResponse {
+            minter: owner.clone().to_string(),
+            cap: None,
+        }),
+        marketing: None,
+    };
+
+    let astro_token_instance = app
+        .instantiate_contract(
+            astro_token_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("astro"),
+            None,
+        )
+        .unwrap();
+
+    let (astro_token_instance, generator_instance, _) = instantiate_astro_and_generator_and_vesting(
+        app,
+        owner.clone(),
+        astro_token_instance.clone(),
+    );
 
     // Instantiate Auction Contract
     let (auction_instance, auction_instantiate_msg) = instantiate_auction_contract(
@@ -503,51 +478,83 @@ fn init_auction_mars_contracts(app: &mut App) -> (Addr, Addr, Addr, Addr, Addr, 
 
 // Initiates Astroport Pair for MARS-UST Pool
 fn instantiate_pair(app: &mut App, owner: Addr, mars_token_instance: Addr) -> (Addr, Addr) {
+    let factory_contract = Box::new(
+        ContractWrapper::new(
+            astroport_factory::contract::execute,
+            astroport_factory::contract::instantiate,
+            astroport_factory::contract::query,
+        )
+        .with_reply(astroport_factory::contract::reply),
+    );
+
     let lp_token_contract = Box::new(ContractWrapper::new(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
         astroport_token::contract::query,
     ));
 
-    let pair_contract = Box::new(ContractWrapper::new(
-        astroport_pair::contract::execute,
-        astroport_pair::contract::instantiate,
-        astroport_pair::contract::query,
-    ));
+    let pair_contract = Box::new(
+        ContractWrapper::new(
+            astroport_pair::contract::execute,
+            astroport_pair::contract::instantiate,
+            astroport_pair::contract::query,
+        )
+        .with_reply(astroport_pair::contract::reply),
+    );
 
+    let factory_code_id = app.store_code(factory_contract);
     let lp_token_code_id = app.store_code(lp_token_contract);
     let pair_code_id = app.store_code(pair_contract);
 
-    let msg = astroport::pair::InstantiateMsg {
-        asset_infos: [
-            astroport::asset::AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            astroport::asset::AssetInfo::Token {
-                contract_addr: mars_token_instance,
-            },
-        ],
-        token_code_id: lp_token_code_id,
-        init_hook: None,
-        factory_addr: Addr::unchecked("factory"),
+    let pair_configs = vec![astroport::factory::PairConfig {
+        code_id: pair_code_id,
         pair_type: astroport::factory::PairType::Xyk {},
+        total_fee_bps: 100,
+        maker_fee_bps: 10,
+        is_disabled: None,
+    }];
+
+    let msg = astroport::factory::InstantiateMsg {
+        pair_configs: pair_configs.clone(),
+        token_code_id: lp_token_code_id,
+        fee_address: None,
+        owner: owner.to_string(),
+        generator_address: String::from("generator"),
     };
 
-    let pair_instance = app
-        .instantiate_contract(
-            pair_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("PAIR"),
-            None,
-        )
+    let factory_instance = app
+        .instantiate_contract(factory_code_id, owner.clone(), &msg, &[], "factory", None)
+        .unwrap();
+
+    let asset_infos = [
+        astroport::asset::AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+        astroport::asset::AssetInfo::Token {
+            contract_addr: mars_token_instance.clone(),
+        },
+    ];
+
+    let msg = astroport::factory::ExecuteMsg::CreatePair {
+        asset_infos: asset_infos.clone(),
+        pair_type: astroport::factory::PairType::Xyk {},
+        init_params: None,
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
         .unwrap();
 
     let resp: astroport::asset::PairInfo = app
         .wrap()
-        .query_wasm_smart(&pair_instance, &astroport::pair::QueryMsg::Pair {})
+        .query_wasm_smart(
+            &factory_instance.clone(),
+            &astroport::factory::QueryMsg::Pair {
+                asset_infos: asset_infos.clone(),
+            },
+        )
         .unwrap();
+
+    let pair_instance = resp.contract_addr;
     let lp_token_instance = resp.liquidity_token;
 
     (pair_instance, lp_token_instance)
@@ -784,7 +791,7 @@ fn test_delegate_mars_tokens_from_airdrop() {
         init_auction_mars_contracts(&mut app);
 
     // mint MARS for to Wrong Airdrop Contract
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -964,7 +971,7 @@ fn test_delegate_mars_tokens_from_lockdrop() {
         init_auction_mars_contracts(&mut app);
 
     // mint MARS for to Lockdrop Contract
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -973,7 +980,7 @@ fn test_delegate_mars_tokens_from_lockdrop() {
     );
 
     // mint MARS for to Wrong Lockdrop Contract
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -1673,7 +1680,7 @@ fn test_add_liquidity_to_astroport_pool() {
     .unwrap();
 
     // mint MARS to Lockdrop Contract
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -1853,7 +1860,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
     .unwrap();
 
     // mint MARS to Lockdrop Contract
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -1862,7 +1869,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
     );
 
     // mint MARS to Auction Contract
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -1900,7 +1907,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         .unwrap();
 
     // MARS to LP Staking contract
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -2299,7 +2306,6 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         alloc_point: Uint64::from(10u64),
         reward_proxy: Some(generator_proxy_to_mars_instance.clone().to_string()),
         lp_token: lp_token_instance.clone(),
-        with_update: true,
     };
     app.execute_contract(
         Addr::unchecked(auction_init_msg.owner.clone()),
