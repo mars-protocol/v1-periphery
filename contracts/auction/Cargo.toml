@@ -50,18 +50,19 @@ cosmwasm-bignumber = "2.2.0"
 cosmwasm-schema = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
+
 # needed for intergration testing
 generator-proxy-to-mars = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "generator-proxy-to-mars"}
 astroport-generator-proxy = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "astroport-generator-proxy"}
 # astroport-vesting = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-vesting"}
 astroport-generator = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-generator"}
-mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
-mars-lp-staking =    { path = "../lp_staking" }
 astroport-factory =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-factory"}
 astroport-pair =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-pair"}
-# astroport-pair =  { path = "../mocks/mock_astroport/pair" }
 astroport-token =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-token"}
-#  { path = "../mocks/mock_astroport/token" }
+
 astroport-vesting =  { path = "../mocks/mock_astroport/vesting" }
+mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
+
 mars-airdrop =  { path = "../airdrop" }
 mars-lockdrop =  { path = "../lockdrop" }
+mars-lp-staking =    { path = "../lp_staking" }
