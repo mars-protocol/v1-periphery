@@ -40,9 +40,11 @@ pub struct Config {
     pub lp_tokens_vesting_duration: u64,
     /// Timestamp since which MARS / UST deposits will be allowed
     pub init_timestamp: u64,
-    /// Number of seconds post init_timestamp during which deposits / withdrawals will be allowed
-    pub deposit_window: u64,
-    /// Number of seconds post deposit_window completion during which only withdrawals are allowed
+    /// Number of seconds post init_timestamp during which UST deposits / withdrawals will be allowed
+    pub ust_deposit_window: u64,
+    /// Number of seconds post init_timestamp during which MARS delegations (via lockdrop / airdrop) will be allowed
+    pub mars_deposit_window: u64,
+    /// Number of seconds post ust_deposit_window completion during which only partial UST withdrawals are allowed
     pub withdrawal_window: u64,
 }
 
