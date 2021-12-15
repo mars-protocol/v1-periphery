@@ -503,7 +503,7 @@ fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResu
     Ok(())
 }
 
-/// @dev Helper function to build `CosmosMsg` to send cw20 tokens to a recepient address
+/// @dev Helper function to build `CosmosMsg` to send cw20 tokens to a recipient address
 fn build_send_cw20_token_msg(
     recipient: Addr,
     token_contract_address: Addr,

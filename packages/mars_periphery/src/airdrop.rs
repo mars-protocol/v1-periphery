@@ -34,7 +34,7 @@ pub enum ExecuteMsg {
         root_index: u32,
     },
     /// Allows users to delegate their MARS tokens to the LP Bootstrap auction contract
-    DelegateAstroToBootstrapAuction {
+    DelegateMarsToBootstrapAuction {
         amount_to_delegate: Uint128,
     },
     /// Allows users to withdraw their MARS tokens
@@ -49,7 +49,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    IncreaseAstroIncentives {},
+    IncreaseMarsIncentives {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

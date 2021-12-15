@@ -61,7 +61,7 @@
       "minimum": 0.0
     },
     "total_mars_deposited": {
-      "description": "Total MARS tokens delegated to the contract by lockdrop participants / airdrop recepients",
+      "description": "Total MARS tokens delegated to the contract by lockdrop participants / airdrop recipients",
       "allOf": [
         {
           "$ref": "#/definitions/Uint128"

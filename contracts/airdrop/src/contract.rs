@@ -97,7 +97,7 @@ pub fn execute(
             merkle_proof,
             root_index,
         } => handle_claim(deps, env, info, claim_amount, merkle_proof, root_index),
-        ExecuteMsg::DelegateAstroToBootstrapAuction { amount_to_delegate } => {
+        ExecuteMsg::DelegateMarsToBootstrapAuction { amount_to_delegate } => {
             handle_delegate_mars_to_bootstrap_auction(deps, env, info, amount_to_delegate)
         }
         ExecuteMsg::EnableClaims {} => handle_enable_claims(deps, info),
@@ -126,7 +126,7 @@ pub fn receive_cw20(
     }
 
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::IncreaseAstroIncentives {} => {
+        Cw20HookMsg::IncreaseMarsIncentives {} => {
             handle_increase_mars_incentives(deps, cw20_msg.amount)
         }
     }
@@ -391,7 +391,7 @@ pub fn handle_delegate_mars_to_bootstrap_auction(
         .add_attributes(vec![
             attr(
                 "action",
-                "Airdrop::ExecuteMsg::DelegateAstroToBootstrapAuction",
+                "Airdrop::ExecuteMsg::DelegateMarsToBootstrapAuction",
             ),
             attr("user", info.sender.to_string()),
             attr("amount_delegated", amount_to_delegate),

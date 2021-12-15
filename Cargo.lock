@@ -304,24 +304,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-multi-test"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecca04ea07d99e8cb7031c58ec5a7d8f581d597621353f1ecbee9e2829169d27"
-dependencies = [
- "anyhow",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 0.8.1",
- "cw0 0.8.1",
- "itertools",
- "prost",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "cw-storage-plus"
 version = "0.8.0"
 source = "git+https://github.com/astroport-fi/terra-plus.git?branch=main#53a3ad8ccd3fce2e68f2e4f884dd9ccbfa23eec6"
@@ -716,6 +698,8 @@ dependencies = [
 name = "mars-airdrop"
 version = "1.0.0"
 dependencies = [
+ "astroport",
+ "astroport-pair",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -816,7 +800,6 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-multi-test",
  "cw-storage-plus 0.8.1",
  "cw20 0.8.1",
  "cw20-base 0.8.1",

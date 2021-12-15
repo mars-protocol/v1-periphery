@@ -51,7 +51,7 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct State {
-    /// Total MARS tokens delegated to the contract by lockdrop participants / airdrop recepients
+    /// Total MARS tokens delegated to the contract by lockdrop participants / airdrop recipients
     pub total_mars_deposited: Uint128,
     /// Total UST deposited in the contract
     pub total_ust_deposited: Uint128,

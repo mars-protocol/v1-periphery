@@ -42,3 +42,5 @@ cosmwasm-storage = { version = "0.16.0" }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
 # needed for tests
 mars-auction =  { path = "../auction" }
+astroport-pair = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-pair"}
+astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "master"}

@@ -1,5 +1,5 @@
 use crate::tax::deduct_tax;
-use cosmwasm_bignumber::{Uint256};
+use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
     to_binary, Addr, Api, BalanceResponse, BankMsg, BankQuery, Binary, Coin, CosmosMsg, Deps,
     QuerierWrapper, QueryRequest, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw20::BalanceResponse as CW20BalanceResponse;
 use cw20_base::msg::{ExecuteMsg as CW20ExecuteMsg, QueryMsg as Cw20QueryMsg};
 
-/// @dev Helper function which returns a cosmos wasm msg to transfer cw20 tokens to a recepient address
+/// @dev Helper function which returns a cosmos wasm msg to transfer cw20 tokens to a recipient address
 /// @param recipient : Address to be transferred cw20 tokens to
 /// @param token_contract_address : Contract address of the cw20 token to transfer
 /// @param amount : Number of tokens to transfer
@@ -26,11 +26,11 @@ pub fn build_transfer_cw20_token_msg(
     }))
 }
 
-/// Helper Function. Returns CosmosMsg which transfers CW20 Tokens from owner to recepient. (Transfers ASTRO from user to itself )
+/// Helper Function. Returns CosmosMsg which transfers CW20 Tokens from owner to recipient. (Transfers ASTRO from user to itself )
 pub fn build_transfer_cw20_from_user_msg(
     cw20_token_address: String,
     owner: String,
-    recepient: String,
+    recipient: String,
     amount: Uint256,
 ) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -38,7 +38,7 @@ pub fn build_transfer_cw20_from_user_msg(
         funds: vec![],
         msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
             owner,
-            recipient: recepient,
+            recipient: recipient,
             amount: amount.into(),
         })?,
     }))
@@ -48,7 +48,7 @@ pub fn build_transfer_cw20_from_user_msg(
 /// @param recipient_contract_addr : Contract Address to be transferred cw20 tokens to
 /// @param token_contract_address : Contract address of the cw20 token to transfer
 /// @param amount : Number of tokens to transfer
-/// @param msg_ : ExecuteMsg coded into binary which needs to be handled by the recepient contract
+/// @param msg_ : ExecuteMsg coded into binary which needs to be handled by the recipient contract
 pub fn build_send_cw20_token_msg(
     recipient_contract_addr: String,
     token_contract_address: String,
@@ -66,7 +66,7 @@ pub fn build_send_cw20_token_msg(
     }))
 }
 
-/// @dev Helper function which returns a cosmos wasm msg to send native tokens to recepient
+/// @dev Helper function which returns a cosmos wasm msg to send native tokens to recipient
 /// @param recipient : Contract Address to be transferred native tokens to
 /// @param denom : Native token to transfer
 /// @param amount : Number of tokens to transfer
