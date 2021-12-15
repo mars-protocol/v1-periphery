@@ -158,6 +158,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::LockUpInfoWithId { lockup_id } => {
             to_binary(&query_lockup_info_with_id(deps, lockup_id)?)
         }
+        QueryMsg::WithdrawalPercentAllowed { timestamp } => {
+            to_binary(&query_max_withdrawable_percent(deps, env, timestamp)?)
+        }
     }
 }
 
@@ -1063,6 +1066,28 @@ pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<Loc
     }
 
     Ok(lockup_response)
+}
+
+/// @dev Returns max withdrawable % for a position
+pub fn query_max_withdrawable_percent(
+    deps: Deps,
+    env: Env,
+    timestamp: Option<u64>,
+) -> StdResult<Decimal> {
+    let config = CONFIG.load(deps.storage)?;
+    let max_withdrawable_percent: Decimal;
+
+    match timestamp {
+        Some(timestamp) => {
+            max_withdrawable_percent = allowed_withdrawal_percent(timestamp, &config);
+        }
+        None => {
+            max_withdrawable_percent =
+                allowed_withdrawal_percent(env.block.time.seconds(), &config);
+        }
+    }
+
+    Ok(max_withdrawable_percent)
 }
 
 //----------------------------------------------------------------------------------------

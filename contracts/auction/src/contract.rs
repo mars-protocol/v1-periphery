@@ -53,7 +53,8 @@ pub fn instantiate(
         mars_vesting_duration: msg.mars_vesting_duration,
         lp_tokens_vesting_duration: msg.lp_tokens_vesting_duration,
         init_timestamp: msg.init_timestamp,
-        deposit_window: msg.deposit_window,
+        mars_deposit_window: msg.mars_deposit_window,
+        ust_deposit_window: msg.ust_deposit_window,
         withdrawal_window: msg.withdrawal_window,
     };
 
@@ -110,11 +111,8 @@ pub fn receive_cw20(
 ) -> Result<Response, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // CHECK :: MARS deposits can happen only via airdrop / lockdrop contracts
-    if config.airdrop_contract_address != cw20_msg.sender
-        && config.lockdrop_contract_address != cw20_msg.sender
-    {
-        return Err(StdError::generic_err("Unauthorized"));
+    if info.sender != config.mars_token_address {
+        return Err(StdError::generic_err("Only mars tokens are received!"));
     }
 
     // CHECK ::: Amount needs to be valid
@@ -124,7 +122,17 @@ pub fn receive_cw20(
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::DepositMarsTokens { user_address } => {
+            // CHECK :: MARS deposits can happen only via airdrop / lockdrop contracts
+            if config.airdrop_contract_address != cw20_msg.sender
+                && config.lockdrop_contract_address != cw20_msg.sender
+            {
+                return Err(StdError::generic_err("Unauthorized"));
+            }
+
             handle_deposit_mars_tokens(deps, env, info, user_address, cw20_msg.amount)
+        }
+        Cw20HookMsg::IncreaseMarsIncentives {} => {
+            handle_increasing_mars_incentives(deps, cw20_msg.amount)
         }
     }
 }
@@ -173,6 +181,30 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 //----------------------------------------------------------------------------------------
 // Handle functions
 //----------------------------------------------------------------------------------------
+
+/// @dev Facilitates increasing MARS incentives which are to be distributed for partcipating in the auction
+pub fn handle_increasing_mars_incentives(
+    deps: DepsMut,
+    amount: Uint128,
+) -> Result<Response, StdError> {
+    let state = STATE.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if state.lp_shares_minted > Uint128::zero() {
+        return Err(StdError::generic_err(
+            "MARS tokens are already being distributed",
+        ));
+    };
+
+    // Anyone can increase astro incentives
+
+    config.mars_rewards += amount;
+
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new()
+        .add_attribute("action", "mars_incentives_increased")
+        .add_attribute("amount", amount))
+}
 
 /// @dev Admin function to update Configuration parameters
 /// @param new_config : Same as UpdateConfigMsg struct

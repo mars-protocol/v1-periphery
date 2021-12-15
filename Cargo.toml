@@ -4,7 +4,6 @@ members = [
   "contracts/lockdrop", 
   "contracts/auction", 
   "contracts/lp_staking", 
-  "contracts/mocks/mock_astroport/*",
   "contracts/mocks/mock_redbank/*",
   "packages/*"
 ]
