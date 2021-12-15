@@ -1259,9 +1259,9 @@ fn calculate_ma_ust_share(
 // QUERY HELPERS
 //-----------------------------
 
-/// @dev Helper function. Queries pending xMars to be claimed from the incentives contract
+/// @dev Helper function. Queries pending Mars to be claimed from the incentives contract
 /// @params incentives_address : Incentives contract address
-/// @params contract_addr : Address for which pending xmars is to be queried
+/// @params contract_addr : Address for which pending mars is to be queried
 pub fn query_pending_mars_to_be_claimed(
     querier: &QuerierWrapper,
     incentives_address: String,
