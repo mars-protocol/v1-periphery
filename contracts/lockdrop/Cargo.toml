@@ -41,14 +41,12 @@ thiserror = { version = "1.0.26" }
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 mars-auction =  { path = "../auction" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
 # For testcases
-# mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
-# mars-address-provider = { git = "https://github.com/mars-protocol/mars-core.git", branch = "main", package = "mars-address-provider"}
-
-# mars-staking =  { path = "../mocks/mock_redbank/mars-staking" }
-# mars-red-bank =  { path = "../mocks/mock_redbank/mars-red-bank" }
-# mars-ma-token =  { path = "../mocks/mock_redbank/mars-ma-token" }
-# mars-incentives =  { path = "../mocks/mock_redbank/mars-incentives" }
-# mars-xmars-token =  { path = "../mocks/mock_redbank/mars-xmars-token" }
+mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
+mars-staking =  { path = "../mocks/mock_redbank/mars-staking" }
+mars-red-bank =  { path = "../mocks/mock_redbank/mars-red-bank" }
+mars-ma-token =  { path = "../mocks/mock_redbank/mars-ma-token" }
+mars-incentives =  { path = "../mocks/mock_redbank/mars-incentives" }
+mars-xmars-token =  { path = "../mocks/mock_redbank/mars-xmars-token" }
 

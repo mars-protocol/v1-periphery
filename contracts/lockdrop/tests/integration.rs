@@ -326,7 +326,8 @@ fn instantiate_auction_contract(
         mars_vesting_duration: 7776000u64,
         lp_tokens_vesting_duration: 7776000u64,
         init_timestamp: 1700001,
-        deposit_window: 10_000_00,
+        ust_deposit_window: 10_000_00,
+        mars_deposit_window: 10_000_00,
         withdrawal_window: 5_000_00,
     };
 
@@ -1170,7 +1171,7 @@ fn test_deposit_mars_to_auction() {
     let (auction_instance, _) = instantiate_auction_contract(
         &mut app,
         owner.clone(),
-        Addr::unchecked("mars_token"),
+        mars_token_instance.clone(),
         Addr::unchecked("airdrop_instance"),
         lockdrop_instance.clone(),
     );

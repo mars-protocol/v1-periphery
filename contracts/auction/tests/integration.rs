@@ -84,7 +84,6 @@ fn instantiate_astro_and_generator_and_vesting(
     let vesting_code_id = app.store_code(vesting_contract);
 
     let init_msg = VestingInstantiateMsg {
-        owner: owner.to_string(),
         token_addr: astro_token_instance.to_string(),
     };
 
@@ -198,7 +197,8 @@ fn instantiate_auction_contract(
         mars_vesting_duration: 259200u64,
         lp_tokens_vesting_duration: 7776000u64,
         init_timestamp: 17_000_00,
-        deposit_window: 5_000_00,
+        ust_deposit_window: 5_000_00,
+        mars_deposit_window: 5_000_00,
         withdrawal_window: 2_000_00,
     };
 
@@ -234,11 +234,9 @@ fn instantiate_airdrop_lockdrop_contracts(
     let airdrop_msg = mars_periphery::airdrop::InstantiateMsg {
         owner: Some(owner.clone().to_string()),
         mars_token_address: mars_token_instance.clone().into_string(),
-        terra_merkle_roots: Some(vec!["merkle_roots".to_string()]),
-        evm_merkle_roots: Some(vec!["merkle_roots".to_string()]),
+        merkle_roots: Some(vec!["merkle_roots".to_string()]),
         from_timestamp: Some(10_000_01),
         to_timestamp: 1000_000_00,
-        total_airdrop_size: Uint128::new(100_000_000_000),
     };
 
     // Airdrop Instance
@@ -253,14 +251,27 @@ fn instantiate_airdrop_lockdrop_contracts(
         )
         .unwrap();
 
-    // MARS to airdrop contract
+    // mint MARS for to Owner
     mint_some_tokens(
         app,
         owner.clone(),
         mars_token_instance.clone(),
         Uint128::new(100_000_000_000),
-        airdrop_instance.to_string(),
+        owner.clone().to_string(),
     );
+
+    // Set MARS airdrop incentives
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::new(100_000_000000),
+            contract: airdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     // RED BANK :: Address provider
     let mars_address_provider = Box::new(ContractWrapper::new(
@@ -457,8 +468,7 @@ fn init_auction_mars_contracts(app: &mut App) -> (Addr, Addr, Addr, Addr, Addr, 
         &mars_periphery::airdrop::ExecuteMsg::UpdateConfig {
             owner: None,
             auction_contract_address: Some(auction_instance.clone().to_string()),
-            terra_merkle_roots: None,
-            evm_merkle_roots: None,
+            merkle_roots: None,
             from_timestamp: None,
             to_timestamp: None,
         },
@@ -725,7 +735,11 @@ fn proper_initialization_only_auction_astro() {
         resp.lp_tokens_vesting_duration
     );
     assert_eq!(auction_init_msg.init_timestamp, resp.init_timestamp);
-    assert_eq!(auction_init_msg.deposit_window, resp.deposit_window);
+    assert_eq!(
+        auction_init_msg.mars_deposit_window,
+        resp.mars_deposit_window
+    );
+    assert_eq!(auction_init_msg.ust_deposit_window, resp.ust_deposit_window);
     assert_eq!(auction_init_msg.withdrawal_window, resp.withdrawal_window);
 
     // Check state
@@ -849,7 +863,10 @@ fn test_delegate_mars_tokens_from_airdrop() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 
     // open claim period for successful deposit
     app.update_block(|b| {
@@ -896,7 +913,7 @@ fn test_delegate_mars_tokens_from_airdrop() {
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_lp_shares);
     assert_eq!(Uint128::from(0u64), user_resp.withdrawable_lp_shares);
     assert_eq!(
-        Uint128::from(5000000000000u64),
+        Uint128::from(10000000000000u64),
         user_resp.total_auction_incentives
     );
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_auction_incentives);
@@ -941,7 +958,7 @@ fn test_delegate_mars_tokens_from_airdrop() {
     assert_eq!(Uint128::from(200000000u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
     assert_eq!(
-        Uint128::from(5000000000000u64),
+        Uint128::from(10000000000000u64),
         user_resp.total_auction_incentives
     );
 
@@ -961,7 +978,10 @@ fn test_delegate_mars_tokens_from_airdrop() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 }
 
 #[test]
@@ -1036,7 +1056,10 @@ fn test_delegate_mars_tokens_from_lockdrop() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 
     // open claim period for successful deposit
     app.update_block(|b| {
@@ -1074,7 +1097,7 @@ fn test_delegate_mars_tokens_from_lockdrop() {
     assert_eq!(Uint128::from(100000000u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
     assert_eq!(
-        Uint128::from(5000000000000u64),
+        Uint128::from(10000000000000u64),
         user_resp.total_auction_incentives
     );
 
@@ -1106,7 +1129,7 @@ fn test_delegate_mars_tokens_from_lockdrop() {
         .unwrap();
     assert_eq!(Uint128::from(200000000u64), user_resp.mars_deposited);
     assert_eq!(
-        Uint128::from(5000000000000u64),
+        Uint128::from(10000000000000u64),
         user_resp.total_auction_incentives
     );
 
@@ -1125,7 +1148,10 @@ fn test_delegate_mars_tokens_from_lockdrop() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 }
 
 #[test]
@@ -1229,7 +1255,7 @@ fn test_deposit_ust() {
             &coins,
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(err.to_string(), "Generic error: UST deposits window closed");
 
     // open claim period for successful deposit
     app.update_block(|b| {
@@ -1323,10 +1349,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::from(0u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(10000u64), user_resp.ust_deposited);
     assert_eq!(Uint128::zero(), user_resp.lp_shares);
-    assert_eq!(
-        Uint128::from(5000000000000u64),
-        user_resp.total_auction_incentives
-    );
+    assert_eq!(Uint128::from(0u64), user_resp.total_auction_incentives);
 
     // ######    SUCCESS :: UST Successfully deposited again     ######
     app.execute_contract(
@@ -1357,10 +1380,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::from(0u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(20000u64), user_resp.ust_deposited);
     assert_eq!(Uint128::zero(), user_resp.lp_shares);
-    assert_eq!(
-        Uint128::from(5000000000000u64),
-        user_resp.total_auction_incentives
-    );
+    assert_eq!(Uint128::from(00u64), user_resp.total_auction_incentives);
 
     // finish claim period for deposit failure
     app.update_block(|b| {
@@ -1376,7 +1396,7 @@ fn test_deposit_ust() {
             &coins,
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(err.to_string(), "Generic error: UST deposits window closed");
 }
 
 #[test]
@@ -1809,11 +1829,11 @@ fn test_add_liquidity_to_astroport_pool() {
         user1info_resp.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint128::from(2395583595557u64),
+        Uint128::from(4128989738527u64),
         user1info_resp.total_auction_incentives
     );
     assert_eq!(
-        Uint128::from(2395583595557u64),
+        Uint128::from(4128989738527u64),
         user1info_resp.withdrawable_auction_incentives
     );
 
@@ -2060,12 +2080,12 @@ fn test_stake_lp_tokens_and_claim_rewards() {
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_lp_shares);
     assert_eq!(Uint128::from(24u64), user_resp.withdrawable_lp_shares);
     assert_eq!(
-        Uint128::from(2395583595557u64),
+        Uint128::from(4128989738527u64),
         user_resp.total_auction_incentives
     );
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_auction_incentives);
     assert_eq!(
-        Uint128::from(184844413u64),
+        Uint128::from(318594887u64),
         user_resp.withdrawable_auction_incentives
     );
     assert_eq!(Decimal::zero(), user_resp.mars_reward_index);
@@ -2095,7 +2115,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_before_claim.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint128::from(739377652u64),
+        Uint128::from(1274379548u64),
         user_resp_before_claim.withdrawable_auction_incentives
     );
     assert_eq!(
@@ -2145,7 +2165,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_after_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint128::from(739377652u64),
+        Uint128::from(1274379548u64),
         user_resp_after_claim.withdrawn_auction_incentives
     );
     assert_eq!(
@@ -2202,7 +2222,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_after_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint128::from(739377652u64),
+        Uint128::from(1274379548u64),
         user_resp_after_claim.withdrawn_auction_incentives
     );
     assert_eq!(
@@ -2365,11 +2385,11 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_before_claim.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint128::from(739377652u64),
+        Uint128::from(1274379548u64),
         user_resp_before_claim.withdrawn_auction_incentives
     );
     assert_eq!(
-        Uint128::from(1478755306u64),
+        Uint128::from(2548759098u64),
         user_resp_before_claim.withdrawable_auction_incentives
     );
     assert_eq!(

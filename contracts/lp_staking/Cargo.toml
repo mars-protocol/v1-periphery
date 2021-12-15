@@ -35,6 +35,7 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.26" }
 
 [dev-dependencies]
+cw-multi-test = "0.8.0"
 cosmwasm-schema = "0.16.0"
 cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
 cw20-base = { version = "0.8", features = ["library"] }
