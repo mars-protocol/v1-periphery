@@ -22,7 +22,7 @@ pub struct Config {
     pub merkle_roots: Vec<String>,
     /// Timestamp since which MARS airdrops can be delegated to bootstrap auction contract
     pub from_timestamp: u64,
-    /// Timestamp to which MARS airdrops can be claimed
+    /// Timestamp till which MARS airdrops can be claimed
     pub to_timestamp: u64,
     /// Bootstrap auction contract address
     pub auction_contract_address: Option<Addr>,
