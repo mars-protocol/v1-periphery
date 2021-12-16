@@ -39,6 +39,12 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    if msg.mars_deposit_window > msg.ust_deposit_window {
+        return Err(StdError::generic_err(
+            "UST deposit window cannot be less than MARS deposit window",
+        ));
+    }
+
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         mars_token_address: deps.api.addr_validate(&msg.mars_token_address)?,
@@ -195,8 +201,6 @@ pub fn handle_increasing_mars_incentives(
             "MARS tokens are already being distributed",
         ));
     };
-
-    // Anyone can increase astro incentives
 
     config.mars_rewards += amount;
 
@@ -1220,27 +1224,27 @@ fn are_windows_closed(current_timestamp: u64, config: &Config) -> bool {
 /// Returns % UST that can be withdrawn and 'more_withdrawals_allowed' boolean which indicates whether more withdrawls by the user
 /// will be allowed or not
 fn allowed_withdrawal_percent(current_timestamp: u64, config: &Config) -> Decimal {
-    let withdrawal_cutoff_init_point = config.init_timestamp + config.ust_deposit_window;
+    let ust_withdrawal_cutoff_init_point = config.init_timestamp + config.ust_deposit_window;
 
     // Deposit window :: 100% withdrawals allowed
-    if current_timestamp <= withdrawal_cutoff_init_point {
+    if current_timestamp <= ust_withdrawal_cutoff_init_point {
         return Decimal::from_ratio(100u32, 100u32);
     }
 
-    let withdrawal_cutoff_second_point =
-        withdrawal_cutoff_init_point + (config.withdrawal_window / 2u64);
+    let ust_withdrawal_cutoff_second_point =
+        ust_withdrawal_cutoff_init_point + (config.withdrawal_window / 2u64);
     // Deposit window closed, 1st half of withdrawal window :: 50% withdrawals allowed
-    if current_timestamp <= withdrawal_cutoff_second_point {
+    if current_timestamp <= ust_withdrawal_cutoff_second_point {
         return Decimal::from_ratio(50u32, 100u32);
     }
-    let withdrawal_cutoff_final =
-        withdrawal_cutoff_second_point + (config.withdrawal_window / 2u64);
+    let ust_withdrawal_cutoff_final =
+        ust_withdrawal_cutoff_second_point + (config.withdrawal_window / 2u64);
     //  Deposit window closed, 2nd half of withdrawal window :: max withdrawal allowed decreases linearly from 50% to 0% vs time elapsed
-    if current_timestamp < withdrawal_cutoff_final {
-        let time_left = withdrawal_cutoff_final - current_timestamp;
+    if current_timestamp < ust_withdrawal_cutoff_final {
+        let time_left = ust_withdrawal_cutoff_final - current_timestamp;
         Decimal::from_ratio(
             50u64 * time_left,
-            100u64 * (withdrawal_cutoff_final - withdrawal_cutoff_second_point),
+            100u64 * (ust_withdrawal_cutoff_final - ust_withdrawal_cutoff_second_point),
         )
     }
     // Withdrawals not allowed
