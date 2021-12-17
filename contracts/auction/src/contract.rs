@@ -39,6 +39,12 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    if msg.mars_deposit_window > msg.ust_deposit_window {
+        return Err(StdError::generic_err(
+            "UST deposit window cannot be less than MARS deposit window",
+        ));
+    }
+
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         mars_token_address: deps.api.addr_validate(&msg.mars_token_address)?,
@@ -53,7 +59,8 @@ pub fn instantiate(
         mars_vesting_duration: msg.mars_vesting_duration,
         lp_tokens_vesting_duration: msg.lp_tokens_vesting_duration,
         init_timestamp: msg.init_timestamp,
-        deposit_window: msg.deposit_window,
+        mars_deposit_window: msg.mars_deposit_window,
+        ust_deposit_window: msg.ust_deposit_window,
         withdrawal_window: msg.withdrawal_window,
     };
 
@@ -110,11 +117,8 @@ pub fn receive_cw20(
 ) -> Result<Response, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // CHECK :: MARS deposits can happen only via airdrop / lockdrop contracts
-    if config.airdrop_contract_address != cw20_msg.sender
-        && config.lockdrop_contract_address != cw20_msg.sender
-    {
-        return Err(StdError::generic_err("Unauthorized"));
+    if info.sender != config.mars_token_address {
+        return Err(StdError::generic_err("Only mars tokens are received!"));
     }
 
     // CHECK ::: Amount needs to be valid
@@ -124,7 +128,17 @@ pub fn receive_cw20(
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::DepositMarsTokens { user_address } => {
+            // CHECK :: MARS deposits can happen only via airdrop / lockdrop contracts
+            if config.airdrop_contract_address != cw20_msg.sender
+                && config.lockdrop_contract_address != cw20_msg.sender
+            {
+                return Err(StdError::generic_err("Unauthorized"));
+            }
+
             handle_deposit_mars_tokens(deps, env, info, user_address, cw20_msg.amount)
+        }
+        Cw20HookMsg::IncreaseMarsIncentives {} => {
+            handle_increasing_mars_incentives(deps, cw20_msg.amount)
         }
     }
 }
@@ -173,6 +187,28 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 //----------------------------------------------------------------------------------------
 // Handle functions
 //----------------------------------------------------------------------------------------
+
+/// @dev Facilitates increasing MARS incentives which are to be distributed for partcipating in the auction
+pub fn handle_increasing_mars_incentives(
+    deps: DepsMut,
+    amount: Uint128,
+) -> Result<Response, StdError> {
+    let state = STATE.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if state.lp_shares_minted > Uint128::zero() {
+        return Err(StdError::generic_err(
+            "MARS tokens are already being distributed",
+        ));
+    };
+
+    config.mars_rewards += amount;
+
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new()
+        .add_attribute("action", "mars_incentives_increased")
+        .add_attribute("amount", amount))
+}
 
 /// @dev Admin function to update Configuration parameters
 /// @param new_config : Same as UpdateConfigMsg struct
@@ -232,9 +268,12 @@ pub fn handle_deposit_mars_tokens(
 ) -> Result<Response, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // CHECK :: deposit window open
-    if !is_deposit_open(env.block.time.seconds(), &config) {
-        return Err(StdError::generic_err("Deposit window closed"));
+    // CHECK :: MARS delegations window open
+    let mars_delegations_allowed_till = config.init_timestamp + config.mars_deposit_window;
+    if !(config.init_timestamp <= env.block.time.seconds()
+        && env.block.time.seconds() <= mars_delegations_allowed_till)
+    {
+        return Err(StdError::generic_err("MARS delegation window closed"));
     }
 
     let mut state = STATE.load(deps.storage)?;
@@ -265,9 +304,12 @@ pub fn handle_deposit_ust(
 ) -> Result<Response, StdError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // CHECK :: Lockdrop deposit window open
-    if !is_deposit_open(env.block.time.seconds(), &config) {
-        return Err(StdError::generic_err("Deposit window closed"));
+    // CHECK :: UST deposits window open
+    let ust_deposits_allowed_till = config.init_timestamp + config.ust_deposit_window;
+    if !(config.init_timestamp <= env.block.time.seconds()
+        && env.block.time.seconds() <= ust_deposits_allowed_till)
+    {
+        return Err(StdError::generic_err("UST deposits window closed"));
     }
 
     let mut state = STATE.load(deps.storage)?;
@@ -343,8 +385,8 @@ pub fn handle_withdraw_ust(
         )));
     }
 
-    // After deposit window is closed, we allow to withdraw only once
-    if env.block.time.seconds() > config.init_timestamp + config.deposit_window {
+    // After UST deposit window is closed, we allow to withdraw only once
+    if env.block.time.seconds() > config.init_timestamp + config.ust_deposit_window {
         user_info.ust_withdrawn = true;
     }
 
@@ -920,7 +962,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         mars_vesting_duration: config.mars_vesting_duration,
         lp_tokens_vesting_duration: config.lp_tokens_vesting_duration,
         init_timestamp: config.init_timestamp,
-        deposit_window: config.deposit_window,
+        mars_deposit_window: config.mars_deposit_window,
+        ust_deposit_window: config.ust_deposit_window,
         withdrawal_window: config.withdrawal_window,
     })
 }
@@ -1045,32 +1088,24 @@ fn calculate_user_lp_share(state: &State, user_info: &UserInfo) -> Uint128 {
     user_total_share_percent.div(Uint128::from(2u64)) * state.lp_shares_minted
 }
 
-/// @dev Calculates MARS tokens receivable by a user for participating (providing UST & MARS) in the bootstraping phase of the MARS-UST Pool
+/// @dev Calculates MARS tokens receivable by a user for delegating MARS in the bootstraping phase of the MARS-UST Pool
 /// Formula -
 /// user's MARS share %  = user's MARS deposits / Total MARS deposited
-/// user's UST share %  = user's UST deposits / Total UST deposited
-/// user's Auction Reward  = ( user's MARS share % + user's UST share % ) / 2 * Total Auction Incentives
+/// user's Auction Reward  = user's MARS share % * Total Auction Incentives
 /// @param total_mars_rewards : Total MARS tokens to be distributed as auction participation reward
 fn calculate_auction_reward_for_user(
     state: &State,
     user_info: &UserInfo,
     total_mars_rewards: Uint128,
 ) -> Uint128 {
-    let mut user_mars_shares_percent = Decimal::zero();
-    let mut user_ust_shares_percent = Decimal::zero();
-
-    if user_info.mars_deposited > Uint128::zero() {
-        user_mars_shares_percent =
-            Decimal::from_ratio(user_info.mars_deposited, state.total_mars_deposited);
+    if user_info.mars_deposited == Uint128::zero() || state.total_mars_deposited == Uint128::zero()
+    {
+        return Uint128::zero();
     }
 
-    if user_info.ust_deposited > Uint128::zero() {
-        user_ust_shares_percent =
-            Decimal::from_ratio(user_info.ust_deposited, state.total_ust_deposited);
-    }
-    let user_total_share_percent = user_mars_shares_percent + user_ust_shares_percent;
-
-    user_total_share_percent.div(Uint128::from(2u64)) * total_mars_rewards
+    let user_mars_shares_percent =
+        Decimal::from_ratio(user_info.mars_deposited, state.total_mars_deposited);
+    user_mars_shares_percent * total_mars_rewards
 }
 
 /// @dev Returns LP Balance that a user can withdraw based on the vesting schedule
@@ -1181,43 +1216,35 @@ fn compute_user_accrued_astro_reward(state: &State, user_info: &mut UserInfo) ->
 /// @param current_timestamp : Current timestamp
 /// @param config : Configuration
 fn are_windows_closed(current_timestamp: u64, config: &Config) -> bool {
-    let opened_till = config.init_timestamp + config.deposit_window + config.withdrawal_window;
+    let opened_till = config.init_timestamp + config.ust_deposit_window + config.withdrawal_window;
     (current_timestamp > opened_till) || (current_timestamp < config.init_timestamp)
-}
-
-/// @dev Helper function. Returns true if deposits are allowed
-/// @param current_timestamp : Current timestamp
-/// @param config : Configuration
-fn is_deposit_open(current_timestamp: u64, config: &Config) -> bool {
-    let deposits_opened_till = config.init_timestamp + config.deposit_window;
-    (config.init_timestamp <= current_timestamp) && (current_timestamp <= deposits_opened_till)
 }
 
 ///  @dev Helper function to calculate maximum % of their total UST deposited that can be withdrawn.  Returns % UST that can be withdrawn
 /// Returns % UST that can be withdrawn and 'more_withdrawals_allowed' boolean which indicates whether more withdrawls by the user
 /// will be allowed or not
 fn allowed_withdrawal_percent(current_timestamp: u64, config: &Config) -> Decimal {
-    let withdrawal_cutoff_init_point = config.init_timestamp + config.deposit_window;
+    let ust_withdrawal_cutoff_init_point = config.init_timestamp + config.ust_deposit_window;
 
     // Deposit window :: 100% withdrawals allowed
-    if current_timestamp <= withdrawal_cutoff_init_point {
+    if current_timestamp <= ust_withdrawal_cutoff_init_point {
         return Decimal::from_ratio(100u32, 100u32);
     }
 
-    let withdrawal_cutoff_second_point =
-        withdrawal_cutoff_init_point + (config.withdrawal_window / 2u64);
+    let ust_withdrawal_cutoff_second_point =
+        ust_withdrawal_cutoff_init_point + (config.withdrawal_window / 2u64);
     // Deposit window closed, 1st half of withdrawal window :: 50% withdrawals allowed
-    if current_timestamp <= withdrawal_cutoff_second_point {
+    if current_timestamp <= ust_withdrawal_cutoff_second_point {
         return Decimal::from_ratio(50u32, 100u32);
     }
-    let withdrawal_cutoff_final =
-        withdrawal_cutoff_second_point + (config.withdrawal_window / 2u64);
+    let ust_withdrawal_cutoff_final =
+        ust_withdrawal_cutoff_second_point + (config.withdrawal_window / 2u64);
     //  Deposit window closed, 2nd half of withdrawal window :: max withdrawal allowed decreases linearly from 50% to 0% vs time elapsed
-    if current_timestamp < withdrawal_cutoff_final {
-        let time_left = withdrawal_cutoff_final - current_timestamp;
+    if current_timestamp < ust_withdrawal_cutoff_final {
+        let time_left = ust_withdrawal_cutoff_final - current_timestamp;
         Decimal::from_ratio(
             50u64 * time_left,
-            100u64 * (withdrawal_cutoff_final - withdrawal_cutoff_second_point),
+            100u64 * (ust_withdrawal_cutoff_final - ust_withdrawal_cutoff_second_point),
         )
     }
     // Withdrawals not allowed

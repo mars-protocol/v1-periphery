@@ -113,6 +113,7 @@ pub enum QueryMsg {
     UserInfo { address: String },
     LockUpInfo { address: String, duration: u64 },
     LockUpInfoWithId { lockup_id: String },
+    WithdrawalPercentAllowed { timestamp: Option<u64> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

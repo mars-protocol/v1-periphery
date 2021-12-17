@@ -41,7 +41,7 @@ thiserror = { version = "1.0.26" }
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 mars-auction =  { path = "../auction" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
 # For testcases
 mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
 mars-staking =  { path = "../mocks/mock_redbank/mars-staking" }
