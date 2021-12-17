@@ -11,8 +11,6 @@ pub struct InstantiateMsg {
     pub address_provider: Option<String>,
     ///  maUST token address - Minted upon UST deposits into red bank
     pub ma_ust_token: Option<String>,
-    /// Bootstrap Auction contract address
-    pub auction_contract_address: Option<String>,
     /// Timestamp till when deposits can be made
     pub init_timestamp: u64,
     /// Number of seconds for which lockup deposits will be accepted
@@ -43,20 +41,6 @@ pub struct UpdateConfigMsg {
     pub ma_ust_token: Option<String>,
     /// Bootstrap Auction contract address
     pub auction_contract_address: Option<String>,
-    /// Timestamp till when deposits can be made
-    pub init_timestamp: Option<u64>,
-    /// Number of seconds for which lockup deposits will be accepted
-    pub deposit_window: Option<u64>,
-    /// Number of seconds for which lockup withdrawals will be allowed
-    pub withdrawal_window: Option<u64>,
-    /// Min. no. of days allowed for lockup
-    pub min_duration: Option<u64>,
-    /// Max. no. of days allowed for lockup
-    pub max_duration: Option<u64>,
-    /// Lockdrop Reward multiplier
-    pub weekly_multiplier: Option<Decimal>,
-    /// Total MARS lockdrop incentives to be distributed among the users
-    pub lockdrop_incentives: Option<Uint128>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -129,6 +113,7 @@ pub enum QueryMsg {
     UserInfo { address: String },
     LockUpInfo { address: String, duration: u64 },
     LockUpInfoWithId { lockup_id: String },
+    WithdrawalPercentAllowed { timestamp: Option<u64> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -136,11 +121,11 @@ pub struct ConfigResponse {
     /// Account who can update config
     pub owner: String,
     /// Contract used to query addresses related to red-bank (MARS Token)
-    pub address_provider: String,
+    pub address_provider: Option<Addr>,
     ///  maUST token address - Minted upon UST deposits into red bank
-    pub ma_ust_token: String,
+    pub ma_ust_token: Option<Addr>,
     /// Auction Contract address to which MARS tokens can be delegated to for bootstrapping MARS-UST Pool
-    pub auction_contract_address: String,
+    pub auction_contract_address: Option<Addr>,
     /// Timestamp till when deposits can be made
     pub init_timestamp: u64,
     /// Number of seconds for which lockup deposits will be accepted
@@ -176,7 +161,7 @@ pub struct StateResponse {
     /// Total weighted deposits
     pub total_deposits_weight: Uint128,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
-    pub xmars_per_maust_share: Decimal,
+    pub xmars_rewards_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

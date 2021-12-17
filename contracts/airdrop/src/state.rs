@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const STATE: Item<State> = Item::new("state");
 pub const USERS: Map<&Addr, UserInfo> = Map::new("users");
-pub const CLAIMS: Map<String, bool> = Map::new("claims");
 
 //----------------------------------------------------------------------------------------
 // Storage types
@@ -20,15 +19,13 @@ pub struct Config {
     ///  MARS token address
     pub mars_token_address: Addr,
     /// Merkle roots used to verify is a terra user is eligible for the airdrop
-    pub terra_merkle_roots: Vec<String>,
-    /// Merkle roots used to verify is an evm user is eligible for the airdrop
-    pub evm_merkle_roots: Vec<String>,
-    /// Timestamp since which MARS airdrops can be delegated to boostrap auction contract
+    pub merkle_roots: Vec<String>,
+    /// Timestamp since which MARS airdrops can be delegated to bootstrap auction contract
     pub from_timestamp: u64,
-    /// Timestamp to which MARS airdrops can be claimed
+    /// Timestamp till which MARS airdrops can be claimed
     pub to_timestamp: u64,
-    /// Boostrap auction contract address
-    pub auction_contract_address: Addr,
+    /// Bootstrap auction contract address
+    pub auction_contract_address: Option<Addr>,
     /// Boolean value indicating if the users can withdraw their MARS airdrop tokens or not
     /// This value is updated in the same Tx in which Liquidity is added to the LP Pool
     pub are_claims_enabled: bool,
@@ -39,7 +36,7 @@ pub struct Config {
 pub struct State {
     /// Total MARS issuance used as airdrop incentives
     pub total_airdrop_size: Uint128,
-    /// Total MARS tokens that have been delegated to the boostrap auction pool
+    /// Total MARS tokens that have been delegated to the bootstrap auction pool
     pub total_delegated_amount: Uint128,
     /// Total MARS tokens that are yet to be claimed by the users
     pub unclaimed_tokens: Uint128,
@@ -48,7 +45,7 @@ pub struct State {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserInfo {
     /// Total MARS airdrop tokens claimable by the user
-    pub airdrop_amount: Uint128,
+    pub claimed_amount: Uint128,
     /// MARS tokens delegated to the bootstrap auction contract to add to the user's position
     pub delegated_amount: Uint128,
     /// Boolean value indicating if the user has withdrawn the remaining MARS tokens
@@ -58,7 +55,7 @@ pub struct UserInfo {
 impl Default for UserInfo {
     fn default() -> Self {
         UserInfo {
-            airdrop_amount: Uint128::zero(),
+            claimed_amount: Uint128::zero(),
             delegated_amount: Uint128::zero(),
             tokens_withdrawn: false,
         }

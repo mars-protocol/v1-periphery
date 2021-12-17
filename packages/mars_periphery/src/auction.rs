@@ -15,7 +15,8 @@ pub struct InstantiateMsg {
     pub mars_vesting_duration: u64,
     pub lp_tokens_vesting_duration: u64,
     pub init_timestamp: u64,
-    pub deposit_window: u64,
+    pub mars_deposit_window: u64,
+    pub ust_deposit_window: u64,
     pub withdrawal_window: u64,
 }
 
@@ -58,6 +59,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     DepositMarsTokens { user_address: Addr },
+    IncreaseMarsIncentives {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -106,8 +108,11 @@ pub struct ConfigResponse {
     pub mars_lp_staking_contract: Option<Addr>,
     pub generator_contract: String,
     pub mars_rewards: Uint128,
+    pub mars_vesting_duration: u64,
+    pub lp_tokens_vesting_duration: u64,
     pub init_timestamp: u64,
-    pub deposit_window: u64,
+    pub mars_deposit_window: u64,
+    pub ust_deposit_window: u64,
     pub withdrawal_window: u64,
 }
 

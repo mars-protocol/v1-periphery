@@ -1,7 +1,10 @@
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use astroport::vesting::{
+    Cw20HookMsg as VestingHookMsg, InstantiateMsg as VestingInstantiateMsg, VestingAccount,
+    VestingSchedule, VestingSchedulePoint,
+};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Timestamp, Uint128, Uint64};
-use cw20_base::msg::ExecuteMsg as CW20ExecuteMsg;
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128, Uint64};
+use cw20::Cw20ExecuteMsg;
 use mars_periphery::auction::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse,
     UpdateConfigMsg, UserInfoResponse,
@@ -18,7 +21,7 @@ fn mock_app() -> App {
     App::new(api, env.block, bank, storage, tmq)
 }
 
-// Instantiate ASTRO Token Contract
+// Instantiate MARS Token Contract
 fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
     let mars_token_contract = Box::new(ContractWrapper::new(
         cw20_base::contract::execute,
@@ -29,8 +32,8 @@ fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
     let mars_token_code_id = app.store_code(mars_token_contract);
 
     let msg = cw20_base::msg::InstantiateMsg {
-        name: String::from("Astro token"),
-        symbol: String::from("ASTRO"),
+        name: String::from("Mars token"),
+        symbol: String::from("MARS"),
         decimals: 6,
         initial_balances: vec![],
         mint: Some(cw20::MinterResponse {
@@ -40,303 +43,48 @@ fn instantiate_mars_token(app: &mut App, owner: Addr) -> Addr {
         marketing: None,
     };
 
-    let mars_token_instance = app
-        .instantiate_contract(
-            mars_token_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ASTRO"),
-            None,
-        )
-        .unwrap();
-    mars_token_instance
-}
-
-// Instantiate AUCTION Contract
-fn instantiate_auction_contract(
-    app: &mut App,
-    owner: Addr,
-    mars_token_instance: Addr,
-    airdrop_instance: Addr,
-    lockdrop_instance: Addr,
-    pair_instance: Addr,
-    lp_token_instance: Addr,
-) -> (Addr, InstantiateMsg) {
-    let auction_contract = Box::new(ContractWrapper::new(
-        mars_auction::contract::execute,
-        mars_auction::contract::instantiate,
-        mars_auction::contract::query,
-    ));
-
-    let auction_code_id = app.store_code(auction_contract);
-
-    let auction_instantiate_msg = mars_periphery::auction::InstantiateMsg {
-        owner: owner.clone().to_string(),
-        mars_token_address: mars_token_instance.clone().into_string(),
-        airdrop_contract_address: airdrop_instance.to_string(),
-        lockdrop_contract_address: lockdrop_instance.to_string(),
-        astroport_lp_pool: Some(pair_instance.to_string()),
-        lp_token_address: Some(lp_token_instance.to_string()),
-        generator_contract: None,
-        mars_rewards: Uint256::from(1000000000000u64),
-        mars_vesting_duration: 7776000u64,
-        lp_tokens_vesting_duration: 7776000u64,
-        init_timestamp: 1_000_00,
-        deposit_window: 100_000_00,
-        withdrawal_window: 5_000_00,
-    };
-
-    // Init contract
-    let auction_instance = app
-        .instantiate_contract(
-            auction_code_id,
-            owner.clone(),
-            &auction_instantiate_msg,
-            &[],
-            "auction",
-            None,
-        )
-        .unwrap();
-    (auction_instance, auction_instantiate_msg)
-}
-
-fn init_auction_mars_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
-    let owner = Addr::unchecked("contract_owner");
-    let mars_token_instance = instantiate_mars_token(app, owner.clone());
-
-    // Instantiate Auction Contract
-    let (auction_instance, auction_instantiate_msg) = instantiate_auction_contract(
-        app,
-        owner.clone(),
-        mars_token_instance.clone(),
-        Addr::unchecked("airdrop_instance"),
-        Addr::unchecked("lockdrop_instance"),
-        Addr::unchecked("pair_instance"),
-        Addr::unchecked("lp_token_instance"),
-    );
-
-    (
-        auction_instance,
-        mars_token_instance,
-        auction_instantiate_msg,
-    )
-}
-
-// Initiates Auction, Astro token, Airdrop, Lockdrop and Astroport Pair contracts
-fn init_all_contracts(app: &mut App) -> (Addr, Addr, Addr, Addr, Addr, Addr, InstantiateMsg) {
-    let owner = Addr::unchecked("contract_owner");
-    let mars_token_instance = instantiate_mars_token(app, owner.clone());
-
-    // Instantiate LP Pair &  Airdrop / Lockdrop Contracts
-    let (pair_instance, lp_token_instance) =
-        instantiate_pair(app, owner.clone(), mars_token_instance.clone());
-    let (airdrop_instance, lockdrop_instance) =
-        instantiate_airdrop_lockdrop_contracts(app, owner.clone(), mars_token_instance.clone());
-
-    // Instantiate Auction Contract
-    let (auction_instance, auction_instantiate_msg) = instantiate_auction_contract(
-        app,
-        owner.clone(),
-        mars_token_instance.clone(),
-        airdrop_instance.clone(),
-        lockdrop_instance.clone(),
-        pair_instance.clone(),
-        lp_token_instance.clone(),
-    );
-
-    // Update Airdrop / Lockdrop Configs
-    app.execute_contract(
-        owner.clone(),
-        airdrop_instance.clone(),
-        &mars_periphery::airdrop::ExecuteMsg::UpdateConfig {
-            owner: None,
-            auction_contract_address: Some(auction_instance.to_string()),
-            terra_merkle_roots: None,
-            evm_merkle_roots: None,
-            from_timestamp: None,
-            to_timestamp: None,
-        },
-        &[],
-    )
-    .unwrap();
-
-    app.execute_contract(
+    app.instantiate_contract(
+        mars_token_code_id,
         owner,
-        lockdrop_instance.clone(),
-        &mars_periphery::lockdrop::ExecuteMsg::UpdateConfig {
-            new_config: mars_periphery::lockdrop::UpdateConfigMsg {
-                owner: None,
-                address_provider: None,
-                auction_contract_address: Some(auction_instance.to_string()),
-                ma_ust_token: None,
-                init_timestamp: None,
-                deposit_window: None,
-                withdrawal_window: None,
-                min_duration: None,
-                max_duration: None,
-                weekly_multiplier: None,
-                lockdrop_incentives: None,
-            },
-        },
+        &msg,
         &[],
+        String::from("MARS"),
+        None,
     )
-    .unwrap();
-
-    (
-        auction_instance,
-        mars_token_instance,
-        airdrop_instance,
-        lockdrop_instance,
-        pair_instance,
-        lp_token_instance,
-        auction_instantiate_msg,
-    )
+    .unwrap()
 }
 
-// Initiates Astroport Pair for ASTRO-UST Pool
-fn instantiate_pair(app: &mut App, owner: Addr, mars_token_instance: Addr) -> (Addr, Addr) {
-    let lp_token_contract = Box::new(ContractWrapper::new(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let pair_contract = Box::new(ContractWrapper::new(
-        astroport_pair::contract::execute,
-        astroport_pair::contract::instantiate,
-        astroport_pair::contract::query,
-    ));
-
-    let lp_token_code_id = app.store_code(lp_token_contract);
-    let pair_code_id = app.store_code(pair_contract);
-
-    let msg = astroport::pair::InstantiateMsg {
-        asset_infos: [
-            astroport::asset::AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            astroport::asset::AssetInfo::Token {
-                contract_addr: mars_token_instance,
-            },
-        ],
-        token_code_id: lp_token_code_id,
-        init_hook: None,
-        factory_addr: Addr::unchecked("factory"),
-        pair_type: astroport::factory::PairType::Xyk {},
+// Mints some TOKENS to "to" recipient
+fn mint_some_tokens(app: &mut App, owner: Addr, token_instance: Addr, amount: Uint128, to: String) {
+    let msg = cw20::Cw20ExecuteMsg::Mint {
+        recipient: to.clone(),
+        amount: amount,
     };
-
-    let pair_instance = app
-        .instantiate_contract(
-            pair_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("PAIR"),
-            None,
-        )
+    let res = app
+        .execute_contract(owner.clone(), token_instance.clone(), &msg, &[])
         .unwrap();
-
-    let resp: astroport::asset::PairInfo = app
-        .wrap()
-        .query_wasm_smart(&pair_instance, &astroport::pair::QueryMsg::Pair {})
-        .unwrap();
-    let lp_token_instance = resp.liquidity_token;
-
-    (pair_instance, lp_token_instance)
+    assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
+    assert_eq!(res.events[1].attributes[2], attr("to", to));
+    assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
-// Initiates Airdrop and lockdrop contracts
-fn instantiate_airdrop_lockdrop_contracts(
-    app: &mut App,
-    owner: Addr,
-    mars_token_instance: Addr,
-) -> (Addr, Addr) {
-    let airdrop_contract = Box::new(ContractWrapper::new(
-        mars_airdrop::contract::execute,
-        mars_airdrop::contract::instantiate,
-        mars_airdrop::contract::query,
-    ));
-
-    let lockdrop_contract = Box::new(ContractWrapper::new(
-        mars_lockdrop::contract::execute,
-        mars_lockdrop::contract::instantiate,
-        mars_lockdrop::contract::query,
-    ));
-
-    let airdrop_code_id = app.store_code(airdrop_contract);
-    let lockdrop_code_id = app.store_code(lockdrop_contract);
-
-    let airdrop_msg = mars_periphery::airdrop::InstantiateMsg {
-        owner: Some(owner.clone().to_string()),
-        mars_token_address: mars_token_instance.clone().into_string(),
-        terra_merkle_roots: Some(vec!["merkle_roots".to_string()]),
-        evm_merkle_roots: Some(vec!["merkle_roots".to_string()]),
-        from_timestamp: Some(1_000_00),
-        to_timestamp: 100_000_00,
-        auction_contract_address: "auction_instance".to_string(),
-        total_airdrop_size: Uint128::new(100_000_000_000),
-    };
-
-    let lockdrop_msg = mars_periphery::lockdrop::InstantiateMsg {
-        owner: owner.clone().to_string(),
-        address_provider: Some("address_provider".to_string()),
-        ma_ust_token: Some("ma_ust_token".to_string()),
-        auction_contract_address: Some("auction_instance".to_string()),
-        init_timestamp: 1571797420,
-        deposit_window: 100_000_00,
-        withdrawal_window: 5_000_00,
-        min_duration: 1u64,
-        max_duration: 52u64,
-        denom: Some("uusd".to_string()),
-        seconds_per_week: 604800u64,
-        weekly_multiplier: Some(Decimal256::from_ratio(1u64, 13u64)),
-        lockdrop_incentives: Some(Uint256::from(100_000_00u64)),
-    };
-
-    let airdrop_instance = app
-        .instantiate_contract(
-            airdrop_code_id,
-            owner.clone(),
-            &airdrop_msg,
-            &[],
-            String::from("airdrop_instance"),
-            None,
-        )
-        .unwrap();
-
-    let lockdrop_instance = app
-        .instantiate_contract(
-            lockdrop_code_id,
-            owner.clone(),
-            &lockdrop_msg,
-            &[],
-            String::from("lockdrop_instance"),
-            None,
-        )
-        .unwrap();
-
-    (airdrop_instance, lockdrop_instance)
-}
-
-// Instantiate Astroport's generator and vesting contracts
-fn instantiate_generator_and_vesting(
+// Instantiate Astroport's ASTRO, generator and vesting contracts
+fn instantiate_astro_and_generator_and_vesting(
     mut app: &mut App,
     owner: Addr,
     astro_token_instance: Addr,
-    lp_token_instance: Addr,
-) -> (Addr, Addr) {
+) -> (Addr, Addr, Addr) {
     // Vesting
     let vesting_contract = Box::new(ContractWrapper::new(
         astroport_vesting::contract::execute,
         astroport_vesting::contract::instantiate,
         astroport_vesting::contract::query,
     ));
+    // let owner = Addr::unchecked(owner.clone());
     let vesting_code_id = app.store_code(vesting_contract);
 
-    let init_msg = astroport::vesting::InstantiateMsg {
-        owner: owner.to_string(),
-        token_addr: astro_token_instance.clone().to_string(),
+    let init_msg = VestingInstantiateMsg {
+        token_addr: astro_token_instance.to_string(),
     };
 
     let vesting_instance = app
@@ -350,11 +98,11 @@ fn instantiate_generator_and_vesting(
         )
         .unwrap();
 
-    mint_some_mars(
+    mint_some_tokens(
         &mut app,
         owner.clone(),
         astro_token_instance.clone(),
-        Uint128::new(900_000_000_000),
+        Uint128::from(1_000_000_000_000000u64),
         owner.to_string(),
     );
 
@@ -371,11 +119,12 @@ fn instantiate_generator_and_vesting(
     let generator_code_id = app.store_code(generator_contract);
 
     let init_msg = astroport::generator::InstantiateMsg {
+        owner: owner.to_string(),
         allowed_reward_proxies: vec![],
         start_block: Uint64::from(app.block_info().height),
         astro_token: astro_token_instance.to_string(),
-        tokens_per_block: Uint128::from(0u128),
-        vesting_contract: vesting_instance.clone().to_string(),
+        tokens_per_block: Uint128::new(10_000000),
+        vesting_contract: vesting_instance.to_string(),
     };
 
     let generator_instance = app
@@ -389,90 +138,439 @@ fn instantiate_generator_and_vesting(
         )
         .unwrap();
 
-    let tokens_per_block = Uint128::new(10_000000);
-
-    let msg = astroport::generator::ExecuteMsg::SetTokensPerBlock {
-        amount: tokens_per_block,
-    };
-    app.execute_contract(owner.clone(), generator_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = astroport::generator::QueryMsg::Config {};
-    let res: astroport::generator::ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&generator_instance, &msg)
-        .unwrap();
-    assert_eq!(res.tokens_per_block, tokens_per_block);
-
     // vesting to generator:
 
     let current_block = app.block_info();
 
-    let amount = Uint128::new(630720000000);
+    let amount = Uint128::new(63072000_000000);
 
-    let msg = CW20ExecuteMsg::IncreaseAllowance {
-        spender: vesting_instance.clone().to_string(),
-        amount,
-        expires: None,
-    };
-
-    app.execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = astroport::vesting::ExecuteMsg::RegisterVestingAccounts {
-        vesting_accounts: vec![astroport::vesting::VestingAccount {
-            address: generator_instance.to_string(),
-            schedules: vec![astroport::vesting::VestingSchedule {
-                start_point: astroport::vesting::VestingSchedulePoint {
-                    time: current_block.time,
-                    amount,
-                },
-                end_point: None,
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vesting_instance.to_string(),
+        msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+            vesting_accounts: vec![VestingAccount {
+                address: generator_instance.to_string(),
+                schedules: vec![VestingSchedule {
+                    start_point: VestingSchedulePoint {
+                        time: current_block.time,
+                        amount,
+                    },
+                    end_point: None,
+                }],
             }],
-        }],
+        })
+        .unwrap(),
+        amount,
     };
 
-    app.execute_contract(owner.clone(), vesting_instance.clone(), &msg, &[])
+    app.execute_contract(owner, astro_token_instance.clone(), &msg, &[])
         .unwrap();
 
-    let msg = astroport::generator::ExecuteMsg::Add {
-        alloc_point: Uint64::from(10u64),
-        reward_proxy: None,
-        lp_token: lp_token_instance.clone(),
-        with_update: true,
+    (astro_token_instance, generator_instance, vesting_instance)
+}
+
+// Instantiate AUCTION Contract
+fn instantiate_auction_contract(
+    app: &mut App,
+    owner: Addr,
+    mars_token_instance: Addr,
+    astro_token_instance: Addr,
+    airdrop_instance: Addr,
+    lockdrop_instance: Addr,
+    generator_instance: Addr,
+) -> (Addr, InstantiateMsg) {
+    let auction_contract = Box::new(ContractWrapper::new(
+        mars_auction::contract::execute,
+        mars_auction::contract::instantiate,
+        mars_auction::contract::query,
+    ));
+
+    let auction_code_id = app.store_code(auction_contract);
+
+    let auction_instantiate_msg = mars_periphery::auction::InstantiateMsg {
+        owner: owner.to_string(),
+        mars_token_address: mars_token_instance.clone().into_string(),
+        astro_token_address: astro_token_instance.clone().into_string(),
+        airdrop_contract_address: airdrop_instance.to_string(),
+        lockdrop_contract_address: lockdrop_instance.to_string(),
+        generator_contract: generator_instance.to_string(),
+        mars_rewards: Uint128::from(10000000_000000u64),
+        mars_vesting_duration: 259200u64,
+        lp_tokens_vesting_duration: 7776000u64,
+        init_timestamp: 17_000_00,
+        ust_deposit_window: 5_000_00,
+        mars_deposit_window: 5_000_00,
+        withdrawal_window: 2_000_00,
     };
+
+    // Init contract
+    let auction_instance = app
+        .instantiate_contract(
+            auction_code_id,
+            owner.clone(),
+            &auction_instantiate_msg,
+            &[],
+            "auction",
+            None,
+        )
+        .unwrap();
+
+    (auction_instance, auction_instantiate_msg)
+}
+
+// Initiates Airdrop and lockdrop contracts
+fn instantiate_airdrop_lockdrop_contracts(
+    app: &mut App,
+    owner: Addr,
+    mars_token_instance: Addr,
+) -> (Addr, Addr) {
+    let airdrop_contract = Box::new(ContractWrapper::new(
+        mars_airdrop::contract::execute,
+        mars_airdrop::contract::instantiate,
+        mars_airdrop::contract::query,
+    ));
+
+    let airdrop_code_id = app.store_code(airdrop_contract);
+
+    let airdrop_msg = mars_periphery::airdrop::InstantiateMsg {
+        owner: Some(owner.clone().to_string()),
+        mars_token_address: mars_token_instance.clone().into_string(),
+        merkle_roots: Some(vec!["merkle_roots".to_string()]),
+        from_timestamp: Some(10_000_01),
+        to_timestamp: 1000_000_00,
+    };
+
+    // Airdrop Instance
+    let airdrop_instance = app
+        .instantiate_contract(
+            airdrop_code_id,
+            owner.clone(),
+            &airdrop_msg,
+            &[],
+            String::from("airdrop_instance"),
+            None,
+        )
+        .unwrap();
+
+    // mint MARS for to Owner
+    mint_some_tokens(
+        app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(100_000_000_000),
+        owner.clone().to_string(),
+    );
+
+    // Set MARS airdrop incentives
     app.execute_contract(
-        Addr::unchecked(owner.clone()),
-        generator_instance.clone(),
-        &msg,
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::new(100_000_000000),
+            contract: airdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
         &[],
     )
     .unwrap();
 
-    (generator_instance, vesting_instance)
-}
+    // RED BANK :: Address provider
+    let mars_address_provider = Box::new(ContractWrapper::new(
+        mars_address_provider::contract::execute,
+        mars_address_provider::contract::instantiate,
+        mars_address_provider::contract::query,
+    ));
 
-// Mints some ASTRO to "to" recepient
-fn mint_some_mars(
-    app: &mut App,
-    owner: Addr,
-    mars_token_instance: Addr,
-    amount: Uint128,
-    to: String,
-) {
-    let msg = cw20::Cw20ExecuteMsg::Mint {
-        recipient: to.clone(),
-        amount: amount,
-    };
-    let res = app
-        .execute_contract(owner.clone(), mars_token_instance.clone(), &msg, &[])
+    let mars_address_provider_code_id = app.store_code(mars_address_provider);
+
+    let mars_address_provider_instance = app
+        .instantiate_contract(
+            mars_address_provider_code_id,
+            owner.clone(),
+            &mars_core::address_provider::msg::InstantiateMsg {
+                owner: owner.clone().to_string(),
+            },
+            &[],
+            String::from("address_provider"),
+            None,
+        )
         .unwrap();
-    assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[1].attributes[2], attr("to", to));
-    assert_eq!(res.events[1].attributes[3], attr("amount", amount));
+
+    // Update address_provider Config
+    app.execute_contract(
+        owner.clone(),
+        mars_address_provider_instance.clone(),
+        &mars_core::address_provider::msg::ExecuteMsg::UpdateConfig {
+            config: mars_core::address_provider::msg::ConfigParams {
+                owner: None,
+                council_address: None,
+                incentives_address: None,
+                safety_fund_address: None,
+                mars_token_address: Some(mars_token_instance.to_string()),
+                oracle_address: None,
+                protocol_admin_address: None,
+                protocol_rewards_collector_address: None,
+                red_bank_address: None,
+                staking_address: None,
+                treasury_address: None,
+                vesting_address: None,
+                xmars_token_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Lockdrop Contract
+    let lockdrop_contract = Box::new(ContractWrapper::new(
+        mars_lockdrop::contract::execute,
+        mars_lockdrop::contract::instantiate,
+        mars_lockdrop::contract::query,
+    ));
+
+    let lockdrop_code_id = app.store_code(lockdrop_contract);
+
+    let lockdrop_msg = mars_periphery::lockdrop::InstantiateMsg {
+        owner: owner.clone().to_string(),
+        address_provider: None,
+        ma_ust_token: None,
+        init_timestamp: 10_000_01,
+        deposit_window: 5_000_00,
+        withdrawal_window: 2_000_00,
+        min_duration: 2,
+        max_duration: 51,
+        seconds_per_week: 7 * 86400 as u64,
+        weekly_multiplier: 9u64,
+        weekly_divider: 100u64,
+        lockdrop_incentives: Uint128::from(1000000000000u64),
+    };
+
+    let lockdrop_instance = app
+        .instantiate_contract(
+            lockdrop_code_id,
+            owner.clone(),
+            &lockdrop_msg,
+            &[],
+            String::from("lockdrop_instance"),
+            None,
+        )
+        .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &mars_periphery::lockdrop::ExecuteMsg::UpdateConfig {
+            new_config: mars_periphery::lockdrop::UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(mars_address_provider_instance.clone().to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Send MARS to Lockdrop
+    mint_some_tokens(
+        app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(1000000000000u128),
+        owner.to_string(),
+    );
+
+    (airdrop_instance, lockdrop_instance)
 }
 
-// Makes ASTRO & UST deposits into Auction contract
+// Initiates Auction contract with proper Config
+fn init_auction_mars_contracts(app: &mut App) -> (Addr, Addr, Addr, Addr, Addr, InstantiateMsg) {
+    let owner = Addr::unchecked("contract_owner");
+    let mars_token_instance = instantiate_mars_token(app, owner.clone());
+
+    // for successful deposit
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(10_000_00)
+    });
+
+    // Instantiate Airdrop / Lockdrop Contracts
+    let (airdrop_instance, lockdrop_instance) =
+        instantiate_airdrop_lockdrop_contracts(app, owner.clone(), mars_token_instance.clone());
+
+    let astro_token_contract = Box::new(ContractWrapper::new(
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
+    ));
+
+    let astro_token_code_id = app.store_code(astro_token_contract);
+
+    let msg = cw20_base::msg::InstantiateMsg {
+        name: String::from("astroport token"),
+        symbol: String::from("ASTRO"),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: Some(cw20::MinterResponse {
+            minter: owner.clone().to_string(),
+            cap: None,
+        }),
+        marketing: None,
+    };
+
+    let astro_token_instance = app
+        .instantiate_contract(
+            astro_token_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("astro"),
+            None,
+        )
+        .unwrap();
+
+    let (astro_token_instance, generator_instance, _) = instantiate_astro_and_generator_and_vesting(
+        app,
+        owner.clone(),
+        astro_token_instance.clone(),
+    );
+
+    // Instantiate Auction Contract
+    let (auction_instance, auction_instantiate_msg) = instantiate_auction_contract(
+        app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        astro_token_instance.clone(),
+        airdrop_instance.clone(),
+        lockdrop_instance.clone(),
+        generator_instance.clone(),
+    );
+
+    // Set Auction Contract address in lockdrop
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &mars_periphery::lockdrop::ExecuteMsg::UpdateConfig {
+            new_config: mars_periphery::lockdrop::UpdateConfigMsg {
+                owner: None,
+                address_provider: None,
+                ma_ust_token: None,
+                auction_contract_address: Some(auction_instance.clone().to_string()),
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Set Auction Contract address in Airdrop
+    app.execute_contract(
+        owner.clone(),
+        airdrop_instance.clone(),
+        &mars_periphery::airdrop::ExecuteMsg::UpdateConfig {
+            owner: None,
+            auction_contract_address: Some(auction_instance.clone().to_string()),
+            merkle_roots: None,
+            from_timestamp: None,
+            to_timestamp: None,
+        },
+        &[],
+    )
+    .unwrap();
+
+    (
+        airdrop_instance,
+        lockdrop_instance,
+        auction_instance,
+        mars_token_instance,
+        generator_instance,
+        auction_instantiate_msg,
+    )
+}
+
+// Initiates Astroport Pair for MARS-UST Pool
+fn instantiate_pair(app: &mut App, owner: Addr, mars_token_instance: Addr) -> (Addr, Addr) {
+    let factory_contract = Box::new(
+        ContractWrapper::new(
+            astroport_factory::contract::execute,
+            astroport_factory::contract::instantiate,
+            astroport_factory::contract::query,
+        )
+        .with_reply(astroport_factory::contract::reply),
+    );
+
+    let lp_token_contract = Box::new(ContractWrapper::new(
+        astroport_token::contract::execute,
+        astroport_token::contract::instantiate,
+        astroport_token::contract::query,
+    ));
+
+    let pair_contract = Box::new(
+        ContractWrapper::new(
+            astroport_pair::contract::execute,
+            astroport_pair::contract::instantiate,
+            astroport_pair::contract::query,
+        )
+        .with_reply(astroport_pair::contract::reply),
+    );
+
+    let factory_code_id = app.store_code(factory_contract);
+    let lp_token_code_id = app.store_code(lp_token_contract);
+    let pair_code_id = app.store_code(pair_contract);
+
+    let pair_configs = vec![astroport::factory::PairConfig {
+        code_id: pair_code_id,
+        pair_type: astroport::factory::PairType::Xyk {},
+        total_fee_bps: 100,
+        maker_fee_bps: 10,
+        is_disabled: None,
+    }];
+
+    let msg = astroport::factory::InstantiateMsg {
+        pair_configs: pair_configs.clone(),
+        token_code_id: lp_token_code_id,
+        fee_address: None,
+        owner: owner.to_string(),
+        generator_address: String::from("generator"),
+    };
+
+    let factory_instance = app
+        .instantiate_contract(factory_code_id, owner.clone(), &msg, &[], "factory", None)
+        .unwrap();
+
+    let asset_infos = [
+        astroport::asset::AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+        astroport::asset::AssetInfo::Token {
+            contract_addr: mars_token_instance.clone(),
+        },
+    ];
+
+    let msg = astroport::factory::ExecuteMsg::CreatePair {
+        asset_infos: asset_infos.clone(),
+        pair_type: astroport::factory::PairType::Xyk {},
+        init_params: None,
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let resp: astroport::asset::PairInfo = app
+        .wrap()
+        .query_wasm_smart(
+            &factory_instance.clone(),
+            &astroport::factory::QueryMsg::Pair {
+                asset_infos: asset_infos.clone(),
+            },
+        )
+        .unwrap();
+
+    let pair_instance = resp.contract_addr;
+    let lp_token_instance = resp.liquidity_token;
+
+    (pair_instance, lp_token_instance)
+}
+
+// Makes MARS & UST deposits into Auction contract
 fn make_mars_ust_deposits(
     app: &mut App,
     auction_instance: Addr,
@@ -486,18 +584,18 @@ fn make_mars_ust_deposits(
     // open claim period for successful deposit
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1_000_01)
+        b.time = Timestamp::from_seconds(17_000_01)
     });
 
-    // ######    SUCCESS :: ASTRO Successfully deposited     ######
+    // ######    SUCCESS :: MARS Successfully deposited     ######
     app.execute_contract(
         Addr::unchecked(auction_init_msg.lockdrop_contract_address.clone()),
         mars_token_instance.clone(),
-        &CW20ExecuteMsg::Send {
+        &Cw20ExecuteMsg::Send {
             contract: auction_instance.clone().to_string(),
             amount: Uint128::new(100000000),
             msg: to_binary(&Cw20HookMsg::DepositMarsTokens {
-                user_address: user1_address.clone(),
+                user_address: Addr::unchecked(user1_address.to_string()),
             })
             .unwrap(),
         },
@@ -508,11 +606,11 @@ fn make_mars_ust_deposits(
     app.execute_contract(
         Addr::unchecked(auction_init_msg.lockdrop_contract_address.clone()),
         mars_token_instance.clone(),
-        &CW20ExecuteMsg::Send {
+        &Cw20ExecuteMsg::Send {
             contract: auction_instance.clone().to_string(),
             amount: Uint128::new(65435340),
             msg: to_binary(&Cw20HookMsg::DepositMarsTokens {
-                user_address: user2_address.clone(),
+                user_address: Addr::unchecked(user2_address.to_string()),
             })
             .unwrap(),
         },
@@ -523,11 +621,11 @@ fn make_mars_ust_deposits(
     app.execute_contract(
         Addr::unchecked(auction_init_msg.lockdrop_contract_address.clone()),
         mars_token_instance.clone(),
-        &CW20ExecuteMsg::Send {
+        &Cw20ExecuteMsg::Send {
             contract: auction_instance.clone().to_string(),
             amount: Uint128::new(76754654),
             msg: to_binary(&Cw20HookMsg::DepositMarsTokens {
-                user_address: user3_address.clone(),
+                user_address: Addr::unchecked(user3_address.to_string()),
             })
             .unwrap(),
         },
@@ -602,9 +700,9 @@ fn make_mars_ust_deposits(
 }
 
 #[test]
-fn proper_initialization_only_auction_mars() {
+fn proper_initialization_only_auction_astro() {
     let mut app = mock_app();
-    let (auction_instance, _, auction_init_msg) = init_auction_mars_contracts(&mut app);
+    let (_, _, auction_instance, _, _, auction_init_msg) = init_auction_mars_contracts(&mut app);
 
     let resp: ConfigResponse = app
         .wrap()
@@ -612,8 +710,12 @@ fn proper_initialization_only_auction_mars() {
         .unwrap();
 
     // Check config
-    assert_eq!(auction_init_msg.owner, resp.owner);
+    assert_eq!(Addr::unchecked(auction_init_msg.owner), resp.owner);
     assert_eq!(auction_init_msg.mars_token_address, resp.mars_token_address);
+    assert_eq!(
+        auction_init_msg.astro_token_address,
+        resp.astro_token_address
+    );
     assert_eq!(
         auction_init_msg.airdrop_contract_address,
         resp.airdrop_contract_address
@@ -622,9 +724,22 @@ fn proper_initialization_only_auction_mars() {
         auction_init_msg.lockdrop_contract_address,
         resp.lockdrop_contract_address
     );
+    assert_eq!(auction_init_msg.generator_contract, resp.generator_contract);
     assert_eq!(auction_init_msg.mars_rewards, resp.mars_rewards);
+    assert_eq!(
+        auction_init_msg.mars_vesting_duration,
+        resp.mars_vesting_duration
+    );
+    assert_eq!(
+        auction_init_msg.lp_tokens_vesting_duration,
+        resp.lp_tokens_vesting_duration
+    );
     assert_eq!(auction_init_msg.init_timestamp, resp.init_timestamp);
-    assert_eq!(auction_init_msg.deposit_window, resp.deposit_window);
+    assert_eq!(
+        auction_init_msg.mars_deposit_window,
+        resp.mars_deposit_window
+    );
+    assert_eq!(auction_init_msg.ust_deposit_window, resp.ust_deposit_window);
     assert_eq!(auction_init_msg.withdrawal_window, resp.withdrawal_window);
 
     // Check state
@@ -633,73 +748,64 @@ fn proper_initialization_only_auction_mars() {
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
 
-    assert_eq!(Uint256::zero(), resp.total_mars_deposited);
-    assert_eq!(Uint256::zero(), resp.total_ust_deposited);
-    assert_eq!(Uint256::zero(), resp.lp_shares_minted);
-    assert_eq!(Uint256::zero(), resp.lp_shares_withdrawn);
-    assert_eq!(false, resp.are_staked);
+    assert!(resp.total_mars_deposited.is_zero());
+    assert!(resp.total_ust_deposited.is_zero());
+    assert!(resp.lp_shares_minted.is_zero());
+    assert!(resp.lp_shares_withdrawn.is_zero());
+    assert!(!resp.are_staked_for_single_incentives);
+    assert!(!resp.are_staked_for_dual_incentives);
     assert_eq!(0u64, resp.pool_init_timestamp);
-    assert_eq!(Decimal256::zero(), resp.global_reward_index);
+    assert!(resp.global_mars_reward_index.is_zero());
+    assert!(resp.global_astro_reward_index.is_zero());
 }
 
-#[test]
-fn proper_initialization_all_contracts() {
-    let mut app = mock_app();
-    let (auction_instance, _, _, _, _, _, auction_init_msg) = init_all_contracts(&mut app);
+// #[test]
+// fn proper_initialization_all_contracts() {
+//     let mut app = mock_app();
+//     let (auction_instance, _, _, _, _, _, auction_init_msg) = init_all_contracts(&mut app);
 
-    let resp: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&auction_instance, &QueryMsg::Config {})
-        .unwrap();
+//     let resp: ConfigResponse = app
+//         .wrap()
+//         .query_wasm_smart(&auction_instance, &QueryMsg::Config {})
+//         .unwrap();
 
-    // Check config
-    assert_eq!(auction_init_msg.owner, resp.owner);
-    assert_eq!(auction_init_msg.mars_token_address, resp.mars_token_address);
-    assert_eq!(
-        auction_init_msg.airdrop_contract_address,
-        resp.airdrop_contract_address
-    );
-    assert_eq!(
-        auction_init_msg.lockdrop_contract_address,
-        resp.lockdrop_contract_address
-    );
-    assert_eq!(auction_init_msg.mars_rewards, resp.mars_rewards);
-    assert_eq!(auction_init_msg.init_timestamp, resp.init_timestamp);
-    assert_eq!(auction_init_msg.deposit_window, resp.deposit_window);
-    assert_eq!(auction_init_msg.withdrawal_window, resp.withdrawal_window);
+//     // Check config
+//     assert_eq!(auction_init_msg.owner, Some(resp.owner.to_string()));
+//     assert_eq!(auction_init_msg.mars_token_address, resp.mars_token_address);
+//     assert_eq!(
+//         auction_init_msg.airdrop_contract_address,
+//         resp.airdrop_contract_address
+//     );
+//     assert_eq!(
+//         auction_init_msg.lockdrop_contract_address,
+//         resp.lockdrop_contract_address
+//     );
+//     assert_eq!(auction_init_msg.init_timestamp, resp.init_timestamp);
+//     assert_eq!(auction_init_msg.deposit_window, resp.deposit_window);
+//     assert_eq!(auction_init_msg.withdrawal_window, resp.withdrawal_window);
 
-    // Check state
-    let resp: StateResponse = app
-        .wrap()
-        .query_wasm_smart(&auction_instance, &QueryMsg::State {})
-        .unwrap();
+//     // Check state
+//     let resp: StateResponse = app
+//         .wrap()
+//         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+//         .unwrap();
 
-    assert_eq!(Uint256::zero(), resp.total_mars_deposited);
-    assert_eq!(Uint256::zero(), resp.total_ust_deposited);
-    assert_eq!(Uint256::zero(), resp.lp_shares_minted);
-    assert_eq!(Uint256::zero(), resp.lp_shares_withdrawn);
-    assert_eq!(false, resp.are_staked);
-    assert_eq!(0u64, resp.pool_init_timestamp);
-    assert_eq!(Decimal256::zero(), resp.global_reward_index);
-}
+//     assert!(resp.total_mars_deposited.is_zero());
+//     assert!(resp.total_ust_deposited.is_zero());
+//     assert!(resp.lp_shares_minted.is_none());
+//     assert!(!resp.is_lp_staked);
+//     assert_eq!(0u64, resp.pool_init_timestamp);
+//     assert!(resp.generator_mars_per_share.is_zero());
+// }
 
 #[test]
 fn test_delegate_mars_tokens_from_airdrop() {
     let mut app = mock_app();
-    let (auction_instance, mars_token_instance, auction_init_msg) =
+    let (airdrop_instance, _, auction_instance, mars_token_instance, _, auction_init_msg) =
         init_auction_mars_contracts(&mut app);
 
-    // mint ASTRO for to Airdrop Contract
-    mint_some_mars(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        mars_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        "airdrop_instance".to_string(),
-    );
-
-    // mint ASTRO for to Wrong Airdrop Contract
-    mint_some_mars(
+    // mint MARS for to Wrong Airdrop Contract
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -707,17 +813,18 @@ fn test_delegate_mars_tokens_from_airdrop() {
         "not_airdrop_instance".to_string(),
     );
 
-    // deposit ASTRO Msg
-    let send_cw20_msg = &CW20ExecuteMsg::Send {
+    // deposit MARS Msg
+    let send_cw20_msg = &Cw20ExecuteMsg::Send {
         contract: auction_instance.clone().to_string(),
         amount: Uint128::new(100000000),
         msg: to_binary(&Cw20HookMsg::DepositMarsTokens {
-            user_address: Addr::unchecked("airdrop_recepient".to_string()),
+            user_address: Addr::unchecked("airdrop_recipient".to_string()),
         })
         .unwrap(),
     };
 
     // ######    ERROR :: Unauthorized     ######
+
     let mut err = app
         .execute_contract(
             Addr::unchecked("not_airdrop_instance"),
@@ -729,15 +836,16 @@ fn test_delegate_mars_tokens_from_airdrop() {
     assert_eq!(err.to_string(), "Generic error: Unauthorized");
 
     // ######    ERROR :: Amount must be greater than 0     ######
+
     err = app
         .execute_contract(
-            Addr::unchecked("airdrop_instance"),
+            airdrop_instance.clone(),
             mars_token_instance.clone(),
-            &CW20ExecuteMsg::Send {
+            &Cw20ExecuteMsg::Send {
                 contract: auction_instance.clone().to_string(),
                 amount: Uint128::new(0),
                 msg: to_binary(&Cw20HookMsg::DepositMarsTokens {
-                    user_address: Addr::unchecked("airdrop_recepient".to_string()),
+                    user_address: Addr::unchecked("airdrop_recipient".to_string()),
                 })
                 .unwrap(),
             },
@@ -749,133 +857,150 @@ fn test_delegate_mars_tokens_from_airdrop() {
     // ######    ERROR :: Deposit window closed     ######
     err = app
         .execute_contract(
-            Addr::unchecked("airdrop_instance"),
+            airdrop_instance.clone(),
             mars_token_instance.clone(),
             &send_cw20_msg,
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 
     // open claim period for successful deposit
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1_000_01)
+        b.time = Timestamp::from_seconds(17_000_01)
     });
 
-    // ######    SUCCESS :: ASTRO Successfully deposited     ######
-    app.execute_contract(
-        Addr::unchecked("airdrop_instance"),
-        mars_token_instance.clone(),
-        &send_cw20_msg,
-        &[],
-    )
-    .unwrap();
-    // Check state response
-    let state_resp: StateResponse = app
-        .wrap()
-        .query_wasm_smart(&auction_instance, &QueryMsg::State {})
-        .unwrap();
-    assert_eq!(Uint256::from(100000000u64), state_resp.total_mars_deposited);
-    assert_eq!(Uint256::from(0u64), state_resp.total_ust_deposited);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_minted);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_withdrawn);
-    assert_eq!(false, state_resp.are_staked);
-    assert_eq!(
-        Decimal256::from_ratio(0u64, 1u64),
-        state_resp.global_reward_index
-    );
-    // Check user response
-    let user_resp: UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &QueryMsg::UserInfo {
-                address: "airdrop_recepient".to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(Uint256::from(100000000u64), user_resp.mars_deposited);
-    assert_eq!(Uint256::from(0u64), user_resp.ust_deposited);
-    assert_eq!(Uint256::from(0u64), user_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.withdrawn_lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.withdrawable_lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.total_auction_incentives);
+    // // ######    SUCCESS :: MARS Successfully deposited     ######
 
-    // ######    SUCCESS :: ASTRO Successfully deposited again   ######
     app.execute_contract(
-        Addr::unchecked("airdrop_instance"),
+        airdrop_instance.clone(),
         mars_token_instance.clone(),
         &send_cw20_msg,
         &[],
     )
     .unwrap();
+
     // Check state response
     let state_resp: StateResponse = app
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(200000000u64), state_resp.total_mars_deposited);
-    assert_eq!(Uint256::from(0u64), state_resp.total_ust_deposited);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_minted);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_withdrawn);
-    assert_eq!(false, state_resp.are_staked);
-    assert_eq!(
-        Decimal256::from_ratio(0u64, 1u64),
-        state_resp.global_reward_index
-    );
+    assert_eq!(Uint128::from(100000000u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(0u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::zero(), state_resp.lp_shares_minted);
+    assert!(!state_resp.are_staked_for_single_incentives);
+    assert!(!state_resp.are_staked_for_dual_incentives);
+    assert!(state_resp.global_mars_reward_index.is_zero());
+    assert!(state_resp.global_astro_reward_index.is_zero());
+
     // Check user response
     let user_resp: UserInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &auction_instance,
             &QueryMsg::UserInfo {
-                address: "airdrop_recepient".to_string(),
+                address: "airdrop_recipient".to_string(),
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(200000000u64), user_resp.mars_deposited);
-    assert_eq!(Uint256::from(0u64), user_resp.ust_deposited);
-    assert_eq!(Uint256::from(0u64), user_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.withdrawn_lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.withdrawable_lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.total_auction_incentives);
+    assert_eq!(Uint128::from(100000000u64), user_resp.mars_deposited);
+    assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::from(0u64), user_resp.lp_shares);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_lp_shares);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawable_lp_shares);
+    assert_eq!(
+        Uint128::from(10000000000000u64),
+        user_resp.total_auction_incentives
+    );
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_auction_incentives);
+    assert_eq!(
+        Uint128::from(0u64),
+        user_resp.withdrawable_auction_incentives
+    );
+    assert_eq!(Decimal::zero(), user_resp.mars_reward_index);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawable_mars_incentives);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_mars_incentives);
+    assert_eq!(Decimal::zero(), user_resp.astro_reward_index);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawable_astro_incentives);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_astro_incentives);
+
+    // ######    SUCCESS :: MARS Successfully deposited again   ######
+    app.execute_contract(
+        airdrop_instance.clone(),
+        mars_token_instance.clone(),
+        &send_cw20_msg,
+        &[],
+    )
+    .unwrap();
+
+    // Check state response
+    let state_resp: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(Uint128::from(200000000u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(0u64), state_resp.total_ust_deposited);
+
+    // Check user response
+    let user_resp: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &auction_instance,
+            &QueryMsg::UserInfo {
+                address: "airdrop_recipient".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(200000000u64), user_resp.mars_deposited);
+    assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
+    assert_eq!(
+        Uint128::from(10000000000000u64),
+        user_resp.total_auction_incentives
+    );
 
     // ######    ERROR :: Deposit window closed     ######
 
     // finish claim period for deposit failure
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10100001)
+        b.time = Timestamp::from_seconds(24_000_01)
     });
+
     err = app
         .execute_contract(
-            Addr::unchecked("airdrop_instance"),
+            airdrop_instance,
             mars_token_instance.clone(),
             &send_cw20_msg,
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 }
 
 #[test]
 fn test_delegate_mars_tokens_from_lockdrop() {
     let mut app = mock_app();
-    let (auction_instance, mars_token_instance, auction_init_msg) =
+    let (_, lockdrop_instance, auction_instance, mars_token_instance, _, auction_init_msg) =
         init_auction_mars_contracts(&mut app);
 
-    // mint ASTRO for to Lockdrop Contract
-    mint_some_mars(
+    // mint MARS for to Lockdrop Contract
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
         Uint128::new(100_000_000_000),
-        "lockdrop_instance".to_string(),
+        lockdrop_instance.clone().to_string(),
     );
 
-    // mint ASTRO for to Wrong Lockdrop Contract
-    mint_some_mars(
+    // mint MARS for to Wrong Lockdrop Contract
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -883,8 +1008,8 @@ fn test_delegate_mars_tokens_from_lockdrop() {
         "not_lockdrop_instance".to_string(),
     );
 
-    // deposit ASTRO Msg
-    let send_cw20_msg = &CW20ExecuteMsg::Send {
+    // deposit MARS Msg
+    let send_cw20_msg = &Cw20ExecuteMsg::Send {
         contract: auction_instance.clone().to_string(),
         amount: Uint128::new(100000000),
         msg: to_binary(&Cw20HookMsg::DepositMarsTokens {
@@ -907,9 +1032,9 @@ fn test_delegate_mars_tokens_from_lockdrop() {
     // ######    ERROR :: Amount must be greater than 0     ######
     err = app
         .execute_contract(
-            Addr::unchecked("lockdrop_instance"),
+            lockdrop_instance.clone(),
             mars_token_instance.clone(),
-            &CW20ExecuteMsg::Send {
+            &Cw20ExecuteMsg::Send {
                 contract: auction_instance.clone().to_string(),
                 amount: Uint128::new(0),
                 msg: to_binary(&Cw20HookMsg::DepositMarsTokens {
@@ -925,34 +1050,39 @@ fn test_delegate_mars_tokens_from_lockdrop() {
     // ######    ERROR :: Deposit window closed     ######
     err = app
         .execute_contract(
-            Addr::unchecked("lockdrop_instance"),
+            lockdrop_instance.clone(),
             mars_token_instance.clone(),
             &send_cw20_msg,
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 
     // open claim period for successful deposit
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1_000_01)
+        b.time = Timestamp::from_seconds(17_000_01)
     });
 
-    // ######    SUCCESS :: ASTRO Successfully deposited     ######
+    // ######    SUCCESS :: MARS Successfully deposited     ######
+
     app.execute_contract(
-        Addr::unchecked("lockdrop_instance"),
+        lockdrop_instance.clone(),
         mars_token_instance.clone(),
         &send_cw20_msg,
         &[],
     )
     .unwrap();
+
     // Check state response
     let state_resp: StateResponse = app
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(100000000u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(100000000u64), state_resp.total_mars_deposited);
 
     // Check user response
     let user_resp: UserInfoResponse = app
@@ -964,12 +1094,16 @@ fn test_delegate_mars_tokens_from_lockdrop() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(100000000u64), user_resp.mars_deposited);
-    assert_eq!(Uint256::from(0u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::from(100000000u64), user_resp.mars_deposited);
+    assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
+    assert_eq!(
+        Uint128::from(10000000000000u64),
+        user_resp.total_auction_incentives
+    );
 
-    // ######    SUCCESS :: ASTRO Successfully deposited again   ######
+    // ######    SUCCESS :: MARS Successfully deposited again   ######
     app.execute_contract(
-        Addr::unchecked("lockdrop_instance"),
+        lockdrop_instance.clone(),
         mars_token_instance.clone(),
         &send_cw20_msg,
         &[],
@@ -980,8 +1114,8 @@ fn test_delegate_mars_tokens_from_lockdrop() {
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(200000000u64), state_resp.total_mars_deposited);
-    assert_eq!(Uint256::from(0u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::from(200000000u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(0u64), state_resp.total_ust_deposited);
 
     // Check user response
     let user_resp: UserInfoResponse = app
@@ -993,7 +1127,11 @@ fn test_delegate_mars_tokens_from_lockdrop() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(200000000u64), user_resp.mars_deposited);
+    assert_eq!(Uint128::from(200000000u64), user_resp.mars_deposited);
+    assert_eq!(
+        Uint128::from(10000000000000u64),
+        user_resp.total_auction_incentives
+    );
 
     // ######    ERROR :: Deposit window closed     ######
 
@@ -1004,26 +1142,32 @@ fn test_delegate_mars_tokens_from_lockdrop() {
     });
     err = app
         .execute_contract(
-            Addr::unchecked("lockdrop_instance"),
+            lockdrop_instance,
             mars_token_instance.clone(),
             &send_cw20_msg,
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: MARS delegation window closed"
+    );
 }
 
 #[test]
 fn test_update_config() {
     let mut app = mock_app();
-    let (auction_instance, _, auction_init_msg) = init_auction_mars_contracts(&mut app);
+    let owner = Addr::unchecked("contract_owner");
+    let (_, _, auction_instance, mars_token_instance, _, auction_init_msg) =
+        init_auction_mars_contracts(&mut app);
+
+    let (pool_instance, _) = instantiate_pair(&mut app, owner, mars_token_instance);
 
     let update_msg = UpdateConfigMsg {
         owner: Some("new_owner".to_string()),
-        astroport_lp_pool: Some("astroport_lp_pool".to_string()),
-        lp_token_address: Some("lp_token_address".to_string()),
+        astroport_lp_pool: Some(pool_instance.to_string()),
+        mars_lp_staking_contract: Some("mars_lp_staking_contract".to_string()),
         generator_contract: Some("generator_contract".to_string()),
-        mars_rewards: Some(Uint256::from(10000000u64)),
     };
 
     // ######    ERROR :: Only owner can update configuration     ######
@@ -1044,7 +1188,7 @@ fn test_update_config() {
 
     // ######    SUCCESS :: Should have successfully updated   ######
     app.execute_contract(
-        Addr::unchecked(auction_init_msg.owner),
+        Addr::unchecked(auction_init_msg.owner.clone()),
         auction_instance.clone(),
         &ExecuteMsg::UpdateConfig {
             new_config: update_msg.clone(),
@@ -1061,32 +1205,37 @@ fn test_update_config() {
     assert_eq!(update_msg.clone().owner.unwrap(), resp.owner);
     assert_eq!(
         update_msg.clone().astroport_lp_pool.unwrap(),
-        resp.astroport_lp_pool
+        resp.astroport_lp_pool.unwrap()
     );
     assert_eq!(
-        update_msg.clone().lp_token_address.unwrap(),
-        resp.lp_token_address
+        update_msg.clone().mars_lp_staking_contract.unwrap(),
+        resp.mars_lp_staking_contract.unwrap()
     );
     assert_eq!(
         update_msg.clone().generator_contract.unwrap(),
         resp.generator_contract
     );
-    assert_eq!(update_msg.mars_rewards.unwrap(), resp.mars_rewards);
 }
 
 #[test]
 fn test_deposit_ust() {
     let mut app = mock_app();
-    let (auction_instance, _, _) = init_auction_mars_contracts(&mut app);
+    let (_, _, auction_instance, _, _, _) = init_auction_mars_contracts(&mut app);
     let user_address = Addr::unchecked("user");
 
     // Set user balances
     app.init_bank_balance(
         &user_address.clone(),
-        vec![Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::new(20000000u128),
-        }],
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(20000000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(20000000u128),
+            },
+        ],
     )
     .unwrap();
 
@@ -1106,15 +1255,55 @@ fn test_deposit_ust() {
             &coins,
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(err.to_string(), "Generic error: UST deposits window closed");
 
     // open claim period for successful deposit
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1_000_01)
+        b.time = Timestamp::from_seconds(17_000_01)
     });
 
-    // ######    ERROR :: Amount must be greater than 0     ######
+    // ######    ERROR :: Trying to deposit several coins     ######
+    err = app
+        .execute_contract(
+            user_address.clone(),
+            auction_instance.clone(),
+            &deposit_ust_msg,
+            &[
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(10u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(2000u128),
+                },
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Trying to deposit several coins"
+    );
+
+    // ######    ERROR :: Only UST among native tokens accepted     ######
+    err = app
+        .execute_contract(
+            user_address.clone(),
+            auction_instance.clone(),
+            &deposit_ust_msg,
+            &[Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::from(10u128),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Only UST among native tokens accepted"
+    );
+
+    // ######    ERROR :: Deposit amount must be greater than 0    ######
     err = app
         .execute_contract(
             user_address.clone(),
@@ -1128,7 +1317,7 @@ fn test_deposit_ust() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Amount must be greater than 0"
+        "Generic error: Deposit amount must be greater than 0"
     );
 
     // ######    SUCCESS :: UST Successfully deposited     ######
@@ -1144,11 +1333,8 @@ fn test_deposit_ust() {
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(00u64), state_resp.total_mars_deposited);
-    assert_eq!(Uint256::from(10000u64), state_resp.total_ust_deposited);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_minted);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_withdrawn);
-    assert_eq!(false, state_resp.are_staked);
+    assert_eq!(Uint128::from(00u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(10000u64), state_resp.total_ust_deposited);
 
     // Check user response
     let mut user_resp: UserInfoResponse = app
@@ -1160,12 +1346,10 @@ fn test_deposit_ust() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(0u64), user_resp.mars_deposited);
-    assert_eq!(Uint256::from(10000u64), user_resp.ust_deposited);
-    assert_eq!(Uint256::from(0u64), user_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.withdrawn_lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.withdrawable_lp_shares);
-    assert_eq!(Uint256::from(0u64), user_resp.total_auction_incentives);
+    assert_eq!(Uint128::from(0u64), user_resp.mars_deposited);
+    assert_eq!(Uint128::from(10000u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::zero(), user_resp.lp_shares);
+    assert_eq!(Uint128::from(0u64), user_resp.total_auction_incentives);
 
     // ######    SUCCESS :: UST Successfully deposited again     ######
     app.execute_contract(
@@ -1180,8 +1364,8 @@ fn test_deposit_ust() {
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(00u64), state_resp.total_mars_deposited);
-    assert_eq!(Uint256::from(20000u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::from(00u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(20000u64), state_resp.total_ust_deposited);
 
     // Check user response
     user_resp = app
@@ -1193,14 +1377,17 @@ fn test_deposit_ust() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(0u64), user_resp.mars_deposited);
-    assert_eq!(Uint256::from(20000u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::from(0u64), user_resp.mars_deposited);
+    assert_eq!(Uint128::from(20000u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::zero(), user_resp.lp_shares);
+    assert_eq!(Uint128::from(00u64), user_resp.total_auction_incentives);
 
     // finish claim period for deposit failure
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10100001)
+        b.time = Timestamp::from_seconds(25100001)
     });
+
     err = app
         .execute_contract(
             user_address.clone(),
@@ -1209,13 +1396,13 @@ fn test_deposit_ust() {
             &coins,
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Deposit window closed");
+    assert_eq!(err.to_string(), "Generic error: UST deposits window closed");
 }
 
 #[test]
 fn test_withdraw_ust() {
     let mut app = mock_app();
-    let (auction_instance, _, _) = init_auction_mars_contracts(&mut app);
+    let (_, _, auction_instance, _, _, _) = init_auction_mars_contracts(&mut app);
     let user1_address = Addr::unchecked("user1");
     let user2_address = Addr::unchecked("user2");
     let user3_address = Addr::unchecked("user3");
@@ -1256,7 +1443,7 @@ fn test_withdraw_ust() {
     // open claim period for successful deposit
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1_000_01)
+        b.time = Timestamp::from_seconds(17_000_01)
     });
 
     // ######    SUCCESS :: UST Successfully deposited     ######
@@ -1287,7 +1474,7 @@ fn test_withdraw_ust() {
         user1_address.clone(),
         auction_instance.clone(),
         &ExecuteMsg::WithdrawUst {
-            amount: Uint256::from(10000u64),
+            amount: Uint128::from(10000u64),
         },
         &[],
     )
@@ -1297,7 +1484,7 @@ fn test_withdraw_ust() {
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(20000u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::from(20000u64), state_resp.total_ust_deposited);
 
     // Check user response
     let mut user_resp: UserInfoResponse = app
@@ -1309,7 +1496,7 @@ fn test_withdraw_ust() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(0u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
 
     app.execute_contract(
         user1_address.clone(),
@@ -1322,7 +1509,7 @@ fn test_withdraw_ust() {
     // close deposit window. Max 50% withdrawals allowed now
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10100001)
+        b.time = Timestamp::from_seconds(22_000_10)
     });
 
     // ######    ERROR :: Amount exceeds maximum allowed withdrawal limit of {}   ######
@@ -1332,14 +1519,14 @@ fn test_withdraw_ust() {
             user1_address.clone(),
             auction_instance.clone(),
             &ExecuteMsg::WithdrawUst {
-                amount: Uint256::from(10000u64),
+                amount: Uint128::from(10000u64),
             },
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Amount exceeds maximum allowed withdrawal limit of 0.5"
+        "Generic error: Amount exceeds maximum allowed withdrawal limit of 5000 uusd"
     );
 
     // ######    SUCCESS :: Withdraw 50% successfully   ######
@@ -1348,7 +1535,7 @@ fn test_withdraw_ust() {
         user1_address.clone(),
         auction_instance.clone(),
         &ExecuteMsg::WithdrawUst {
-            amount: Uint256::from(5000u64),
+            amount: Uint128::from(5000u64),
         },
         &[],
     )
@@ -1358,7 +1545,7 @@ fn test_withdraw_ust() {
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(25000u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::from(25000u64), state_resp.total_ust_deposited);
 
     // Check user response
     user_resp = app
@@ -1370,7 +1557,7 @@ fn test_withdraw_ust() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(5000u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::from(5000u64), user_resp.ust_deposited);
 
     // ######    ERROR :: Max 1 withdrawal allowed during current window   ######
 
@@ -1379,7 +1566,7 @@ fn test_withdraw_ust() {
             user1_address.clone(),
             auction_instance.clone(),
             &ExecuteMsg::WithdrawUst {
-                amount: Uint256::from(10u64),
+                amount: Uint128::from(10u64),
             },
             &[],
         )
@@ -1392,7 +1579,7 @@ fn test_withdraw_ust() {
     // 50% of withdrawal window over. Max withdrawal % decreasing linearly now
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10351001)
+        b.time = Timestamp::from_seconds(23_000_10)
     });
 
     // ######    ERROR :: Amount exceeds maximum allowed withdrawal limit of {}   ######
@@ -1402,14 +1589,14 @@ fn test_withdraw_ust() {
             user2_address.clone(),
             auction_instance.clone(),
             &ExecuteMsg::WithdrawUst {
-                amount: Uint256::from(10000u64),
+                amount: Uint128::from(10000u64),
             },
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Amount exceeds maximum allowed withdrawal limit of 0.2002"
+        "Generic error: Amount exceeds maximum allowed withdrawal limit of 4999 uusd"
     );
 
     // ######    SUCCESS :: Withdraw some UST successfully   ######
@@ -1418,7 +1605,7 @@ fn test_withdraw_ust() {
         user2_address.clone(),
         auction_instance.clone(),
         &ExecuteMsg::WithdrawUst {
-            amount: Uint256::from(2000u64),
+            amount: Uint128::from(2000u64),
         },
         &[],
     )
@@ -1428,7 +1615,7 @@ fn test_withdraw_ust() {
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(23000u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::from(23000u64), state_resp.total_ust_deposited);
 
     // Check user response
     user_resp = app
@@ -1440,7 +1627,7 @@ fn test_withdraw_ust() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(8000u64), user_resp.ust_deposited);
+    assert_eq!(Uint128::from(8000u64), user_resp.ust_deposited);
 
     // ######    ERROR :: Max 1 withdrawal allowed during current window   ######
 
@@ -1449,7 +1636,7 @@ fn test_withdraw_ust() {
             user2_address.clone(),
             auction_instance.clone(),
             &ExecuteMsg::WithdrawUst {
-                amount: Uint256::from(10u64),
+                amount: Uint128::from(10u64),
             },
             &[],
         )
@@ -1462,7 +1649,7 @@ fn test_withdraw_ust() {
     // finish deposit period for deposit failure
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10611001)
+        b.time = Timestamp::from_seconds(27_000_10)
     });
 
     err = app
@@ -1470,32 +1657,50 @@ fn test_withdraw_ust() {
             user3_address.clone(),
             auction_instance.clone(),
             &ExecuteMsg::WithdrawUst {
-                amount: Uint256::from(10u64),
+                amount: Uint128::from(10u64),
             },
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Amount exceeds maximum allowed withdrawal limit of 0"
+        "Generic error: Amount exceeds maximum allowed withdrawal limit of 0 uusd"
     );
 }
 
 #[test]
 fn test_add_liquidity_to_astroport_pool() {
     let mut app = mock_app();
+    let owner = Addr::unchecked("contract_owner");
+
     let (
-        auction_instance,
-        mars_token_instance,
         airdrop_instance,
         lockdrop_instance,
-        pair_instance,
+        auction_instance,
+        mars_token_instance,
         _,
         auction_init_msg,
-    ) = init_all_contracts(&mut app);
+    ) = init_auction_mars_contracts(&mut app);
+    let (pool_instance, _) = instantiate_pair(&mut app, owner, mars_token_instance.clone());
 
-    // mint ASTRO to Lockdrop Contract
-    mint_some_mars(
+    // Set pool address to which liquidity will be deposited
+    app.execute_contract(
+        Addr::unchecked(auction_init_msg.owner.clone()),
+        auction_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                astroport_lp_pool: Some(pool_instance.to_string()),
+                mars_lp_staking_contract: None,
+                generator_contract: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    // mint MARS to Lockdrop Contract
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -1503,11 +1708,11 @@ fn test_add_liquidity_to_astroport_pool() {
         auction_init_msg.lockdrop_contract_address.to_string(),
     );
 
-    let (user1_address, user2_address, user3_address) = make_mars_ust_deposits(
+    let (user1_address, _, _) = make_mars_ust_deposits(
         &mut app,
         auction_instance.clone(),
         auction_init_msg.clone(),
-        mars_token_instance,
+        mars_token_instance.clone(),
     );
 
     // ######    ERROR :: Unauthorized   ######
@@ -1526,7 +1731,7 @@ fn test_add_liquidity_to_astroport_pool() {
 
     err = app
         .execute_contract(
-            Addr::unchecked(auction_init_msg.owner.to_string()),
+            Addr::unchecked(auction_init_msg.owner.clone()),
             auction_instance.clone(),
             &ExecuteMsg::AddLiquidityToAstroportPool { slippage: None },
             &[],
@@ -1540,12 +1745,12 @@ fn test_add_liquidity_to_astroport_pool() {
     // finish deposit / withdraw period
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10611001)
+        b.time = Timestamp::from_seconds(24_000_10)
     });
 
     let success_ = app
         .execute_contract(
-            Addr::unchecked(auction_init_msg.owner.to_string()),
+            Addr::unchecked(auction_init_msg.owner.clone()),
             auction_instance.clone(),
             &ExecuteMsg::AddLiquidityToAstroportPool { slippage: None },
             &[],
@@ -1569,18 +1774,15 @@ fn test_add_liquidity_to_astroport_pool() {
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(242189994u64), state_resp.total_mars_deposited);
-    assert_eq!(Uint256::from(6530319u64), state_resp.total_ust_deposited);
-    assert_eq!(Uint256::from(39769057u64), state_resp.lp_shares_minted);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_withdrawn);
-    assert_eq!(false, state_resp.are_staked);
-    assert_eq!(Decimal256::zero(), state_resp.global_reward_index);
-    assert_eq!(10611001u64, state_resp.pool_init_timestamp);
+    assert_eq!(Uint128::from(242189994u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(6530319u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::from(39769057u64), state_resp.lp_shares_minted);
+    assert_eq!(2400010u64, state_resp.pool_init_timestamp);
 
     // Astroport Pool :: Check response
     let pool_resp: astroport::pair::PoolResponse = app
         .wrap()
-        .query_wasm_smart(&pair_instance, &astroport::pair::QueryMsg::Pool {})
+        .query_wasm_smart(&pool_instance, &astroport::pair::QueryMsg::Pool {})
         .unwrap();
     assert_eq!(Uint128::from(39769057u64), pool_resp.total_share);
 
@@ -1606,7 +1808,7 @@ fn test_add_liquidity_to_astroport_pool() {
 
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10911001)
+        b.time = Timestamp::from_seconds(17911001)
     });
 
     // Auction :: Check user-1 state
@@ -1619,125 +1821,66 @@ fn test_add_liquidity_to_astroport_pool() {
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(100000000u64), user1info_resp.mars_deposited);
-    assert_eq!(Uint256::from(432423u64), user1info_resp.ust_deposited);
-    assert_eq!(Uint256::from(9527010u64), user1info_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user1info_resp.withdrawn_lp_shares);
+    assert_eq!(Uint128::from(100000000u64), user1info_resp.mars_deposited);
+    assert_eq!(Uint128::from(432423u64), user1info_resp.ust_deposited);
+    assert_eq!(Uint128::from(9527010u64), user1info_resp.lp_shares);
     assert_eq!(
-        Uint256::from(367554u64),
+        Uint128::from(9527010u64),
         user1info_resp.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint256::from(239558358147u64),
+        Uint128::from(4128989738527u64),
         user1info_resp.total_auction_incentives
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user1info_resp.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(9242220607u64),
+        Uint128::from(4128989738527u64),
         user1info_resp.withdrawable_auction_incentives
-    );
-    assert_eq!(Decimal256::zero(), user1info_resp.user_reward_index);
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_resp.withdrawable_staking_incentives
-    );
-
-    // Auction :: Check user-2 state
-    let user2info_resp: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user2_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(Uint256::from(65435340u64), user2info_resp.mars_deposited);
-    assert_eq!(Uint256::from(454353u64), user2info_resp.ust_deposited);
-    assert_eq!(Uint256::from(6755923u64), user2info_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user2info_resp.withdrawn_lp_shares);
-    assert_eq!(
-        Uint256::from(260645u64),
-        user2info_resp.withdrawable_lp_shares
-    );
-    assert_eq!(
-        Uint256::from(169878883474u64),
-        user2info_resp.total_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_resp.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(6553969269u64),
-        user2info_resp.withdrawable_auction_incentives
-    );
-    assert_eq!(Decimal256::zero(), user2info_resp.user_reward_index);
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_resp.withdrawable_staking_incentives
-    );
-
-    // Auction :: Check user-3 state
-    let user3info_resp: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user3_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(Uint256::from(76754654u64), user3info_resp.mars_deposited);
-    assert_eq!(Uint256::from(5643543u64), user3info_resp.ust_deposited);
-    assert_eq!(Uint256::from(23486123u64), user3info_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user3info_resp.withdrawn_lp_shares);
-    assert_eq!(
-        Uint256::from(906100u64),
-        user3info_resp.withdrawable_lp_shares
-    );
-    assert_eq!(
-        Uint256::from(590562733232u64),
-        user3info_resp.total_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_resp.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(22784056066u64),
-        user3info_resp.withdrawable_auction_incentives
-    );
-    assert_eq!(Decimal256::zero(), user3info_resp.user_reward_index);
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_resp.withdrawable_staking_incentives
     );
 
     // ######    ERROR :: Liquidity already added   ######
     // user1_address, user2_address, user3_address
     err = app
         .execute_contract(
-            Addr::unchecked(auction_init_msg.owner.to_string()),
+            Addr::unchecked(auction_init_msg.owner.clone()),
             auction_instance.clone(),
             &ExecuteMsg::AddLiquidityToAstroportPool { slippage: None },
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Liquidity already added");
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Liquidity already provided to pool"
+    );
 }
 
 #[test]
-fn test_stake_lp_tokens() {
+fn test_stake_lp_tokens_and_claim_rewards() {
     let mut app = mock_app();
-    let (auction_instance, mars_token_instance, _, _, _, lp_token_instance, auction_init_msg) =
-        init_all_contracts(&mut app);
+    let owner = Addr::unchecked("contract_owner");
 
-    // mint ASTRO to Lockdrop Contract
-    mint_some_mars(
+    let (_, _, auction_instance, mars_token_instance, generator_instance, auction_init_msg) =
+        init_auction_mars_contracts(&mut app);
+    let (pool_instance, lp_token_instance) =
+        instantiate_pair(&mut app, owner, mars_token_instance.clone());
+
+    // Set pool address to which liquidity will be deposited
+    app.execute_contract(
+        Addr::unchecked(auction_init_msg.owner.clone()),
+        auction_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                astroport_lp_pool: Some(pool_instance.to_string()),
+                mars_lp_staking_contract: None,
+                generator_contract: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    // mint MARS to Lockdrop Contract
+    mint_some_tokens(
         &mut app,
         Addr::unchecked(auction_init_msg.owner.clone()),
         mars_token_instance.clone(),
@@ -1745,35 +1888,71 @@ fn test_stake_lp_tokens() {
         auction_init_msg.lockdrop_contract_address.to_string(),
     );
 
-    let (user1_address, user2_address, user3_address) = make_mars_ust_deposits(
+    // mint MARS to Auction Contract
+    mint_some_tokens(
+        &mut app,
+        Addr::unchecked(auction_init_msg.owner.clone()),
+        mars_token_instance.clone(),
+        Uint128::new(100_000_000_000),
+        auction_instance.clone().to_string(),
+    );
+
+    // Instantiate LP staking contract
+    let lp_staking_contract = Box::new(ContractWrapper::new(
+        mars_lp_staking::contract::execute,
+        mars_lp_staking::contract::instantiate,
+        mars_lp_staking::contract::query,
+    ));
+
+    let lp_staking_code_id = app.store_code(lp_staking_contract);
+
+    let lp_staking_instance = app
+        .instantiate_contract(
+            lp_staking_code_id,
+            Addr::unchecked(auction_init_msg.owner.clone()),
+            &mars_periphery::lp_staking::InstantiateMsg {
+                owner: Some(auction_init_msg.owner.clone()),
+                mars_token: mars_token_instance.clone().to_string(),
+                staking_token: Some(lp_token_instance.to_string()),
+                init_timestamp: 24_000_01,
+                till_timestamp: 24_000_000,
+                cycle_rewards: Some(Uint128::from(100_000000u64)),
+                cycle_duration: 86400u64,
+                reward_increase: Some(Decimal::from_ratio(2u64, 100u64)),
+            },
+            &[],
+            String::from("lp_staking"),
+            None,
+        )
+        .unwrap();
+
+    // MARS to LP Staking contract
+    mint_some_tokens(
+        &mut app,
+        Addr::unchecked(auction_init_msg.owner.clone()),
+        mars_token_instance.clone(),
+        Uint128::new(10000_000_000_000),
+        lp_staking_instance.clone().to_string(),
+    );
+
+    let (user1_address, _, _) = make_mars_ust_deposits(
         &mut app,
         auction_instance.clone(),
         auction_init_msg.clone(),
         mars_token_instance.clone(),
     );
 
-    // ######    Initialize generator and vesting instance   ######
-    let (generator_instance, _) = instantiate_generator_and_vesting(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        mars_token_instance.clone(),
-        lp_token_instance.clone(),
-    );
+    // finish deposit / withdraw period
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(24_000_10)
+    });
 
-    let update_msg = UpdateConfigMsg {
-        owner: None,
-        astroport_lp_pool: None,
-        lp_token_address: None,
-        generator_contract: Some(generator_instance.to_string()),
-        mars_rewards: None,
-    };
-
+    // Initialize MARS - UST POOL
     app.execute_contract(
         Addr::unchecked(auction_init_msg.owner.clone()),
         auction_instance.clone(),
-        &ExecuteMsg::UpdateConfig {
-            new_config: update_msg.clone(),
-        },
+        &ExecuteMsg::AddLiquidityToAstroportPool { slippage: None },
         &[],
     )
     .unwrap();
@@ -1781,17 +1960,8 @@ fn test_stake_lp_tokens() {
     // finish deposit / withdraw period
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10611001)
+        b.time = Timestamp::from_seconds(24_000_30)
     });
-
-    let success_ = app
-        .execute_contract(
-            Addr::unchecked(auction_init_msg.owner.to_string()),
-            auction_instance.clone(),
-            &ExecuteMsg::AddLiquidityToAstroportPool { slippage: None },
-            &[],
-        )
-        .unwrap();
 
     // ######    ERROR :: Unauthorized   ######
 
@@ -1799,919 +1969,514 @@ fn test_stake_lp_tokens() {
         .execute_contract(
             Addr::unchecked("not_owner".to_string()),
             auction_instance.clone(),
-            &ExecuteMsg::StakeLpTokens {},
+            &ExecuteMsg::StakeLpTokens {
+                single_incentive_staking: true,
+                dual_incentives_staking: false,
+            },
             &[],
         )
         .unwrap_err();
     assert_eq!(err.to_string(), "Generic error: Unauthorized");
 
-    // ######    SUCCESS :: Stake successfully   ######
+    // ######    ERROR :: Invalid values provided   ######
 
-    let success_ = app
+    err = app
         .execute_contract(
             Addr::unchecked(auction_init_msg.owner.clone()),
             auction_instance.clone(),
-            &ExecuteMsg::StakeLpTokens {},
+            &ExecuteMsg::StakeLpTokens {
+                single_incentive_staking: true,
+                dual_incentives_staking: true,
+            },
             &[],
         )
-        .unwrap();
-    assert_eq!(
-        success_.events[1].attributes[1],
-        attr("action", "Auction::ExecuteMsg::StakeLPTokens")
-    );
-    assert_eq!(
-        success_.events[1].attributes[2],
-        attr("staked_amount", "39769057")
-    );
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Invalid values provided");
 
-    // Auction :: Check state response
+    err = app
+        .execute_contract(
+            Addr::unchecked(auction_init_msg.owner.clone()),
+            auction_instance.clone(),
+            &ExecuteMsg::StakeLpTokens {
+                single_incentive_staking: false,
+                dual_incentives_staking: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Invalid values provided");
+
+    // ######    ERROR :: LP Staking address not set  ######
+
+    err = app
+        .execute_contract(
+            Addr::unchecked(auction_init_msg.owner.clone()),
+            auction_instance.clone(),
+            &ExecuteMsg::StakeLpTokens {
+                single_incentive_staking: true,
+                dual_incentives_staking: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: LP Staking not set");
+
+    // Set LP Staking contract
+    app.execute_contract(
+        Addr::unchecked(auction_init_msg.owner.clone()),
+        auction_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                astroport_lp_pool: None,
+                mars_lp_staking_contract: Some(lp_staking_instance.clone().to_string()),
+                generator_contract: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    // ********
+    // ******** SUCCESSFULLY STAKED WITH LP STAKING CONTRACT ********
+    // ********
+
+    app.execute_contract(
+        Addr::unchecked(auction_init_msg.owner.clone()),
+        auction_instance.clone(),
+        &ExecuteMsg::StakeLpTokens {
+            single_incentive_staking: true,
+            dual_incentives_staking: false,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check state
     let state_resp: StateResponse = app
         .wrap()
         .query_wasm_smart(&auction_instance, &QueryMsg::State {})
         .unwrap();
-    assert_eq!(Uint256::from(242189994u64), state_resp.total_mars_deposited);
-    assert_eq!(Uint256::from(6530319u64), state_resp.total_ust_deposited);
-    assert_eq!(Uint256::from(39769057u64), state_resp.lp_shares_minted);
-    assert_eq!(Uint256::from(0u64), state_resp.lp_shares_withdrawn);
-    assert_eq!(true, state_resp.are_staked);
-    assert_eq!(10611001u64, state_resp.pool_init_timestamp);
+    assert_eq!(Uint128::from(242189994u64), state_resp.total_mars_deposited);
+    assert_eq!(Uint128::from(6530319u64), state_resp.total_ust_deposited);
+    assert_eq!(Uint128::from(39769057u64), state_resp.lp_shares_minted);
+    assert!(state_resp.lp_shares_withdrawn.is_zero());
+    assert_eq!(true, state_resp.are_staked_for_single_incentives);
+    assert_eq!(false, state_resp.are_staked_for_dual_incentives);
+    assert!(state_resp.global_mars_reward_index.is_zero());
+    assert!(state_resp.global_astro_reward_index.is_zero());
+
+    // Check user response :: Check vesting calculations
+    let user_resp: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &auction_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(9527010u64), user_resp.lp_shares);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_lp_shares);
+    assert_eq!(Uint128::from(24u64), user_resp.withdrawable_lp_shares);
+    assert_eq!(
+        Uint128::from(4128989738527u64),
+        user_resp.total_auction_incentives
+    );
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_auction_incentives);
+    assert_eq!(
+        Uint128::from(318594887u64),
+        user_resp.withdrawable_auction_incentives
+    );
+    assert_eq!(Decimal::zero(), user_resp.mars_reward_index);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawable_mars_incentives);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_mars_incentives);
+    assert_eq!(Decimal::zero(), user_resp.astro_reward_index);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawable_astro_incentives);
+    assert_eq!(Uint128::from(0u64), user_resp.withdrawn_astro_incentives);
 
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10911001)
+        b.time = Timestamp::from_seconds(24_000_90)
     });
 
-    // Auction :: Check user-1 state
-    let user1info_resp: mars_periphery::auction::UserInfoResponse = app
+    // Check user response :: Check LP staking calculations
+    let user_resp_before_claim: UserInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(100000000u64), user1info_resp.mars_deposited);
-    assert_eq!(Uint256::from(432423u64), user1info_resp.ust_deposited);
-    assert_eq!(Uint256::from(9527010u64), user1info_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user1info_resp.withdrawn_lp_shares);
     assert_eq!(
-        Uint256::from(367554u64),
-        user1info_resp.withdrawable_lp_shares
+        Uint128::from(98u64),
+        user_resp_before_claim.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint256::from(239558358147u64),
-        user1info_resp.total_auction_incentives
+        Uint128::from(1274379548u64),
+        user_resp_before_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user1info_resp.withdrawn_auction_incentives
+        Uint128::from(16635u64),
+        user_resp_before_claim.withdrawable_mars_incentives
     );
     assert_eq!(
-        Uint256::from(9242220607u64),
-        user1info_resp.withdrawable_auction_incentives
+        Uint128::from(0u64),
+        user_resp_before_claim.withdrawn_mars_incentives
     );
-    // assert_eq!(Decimal256::zero(), user1info_resp.user_reward_index);
-    assert_eq!(
-        Uint256::from(41395684287u64),
-        user1info_resp.withdrawable_staking_incentives
-    );
+    assert_eq!(Decimal::zero(), user_resp_before_claim.astro_reward_index);
 
-    // Auction :: Check user-2 state
-    let user2info_resp: mars_periphery::auction::UserInfoResponse = app
+    // ********
+    // ******** USER SUCCESSFULLY CLAIMS REWARDS (WITHOUT WITHDRAWING UNLOCKEDLP SHARES) ********
+    // ********
+
+    app.execute_contract(
+        user1_address.clone(),
+        auction_instance.clone(),
+        &ExecuteMsg::ClaimRewards {
+            withdraw_unlocked_shares: false,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check user response
+    let user_resp_after_claim: UserInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user2_address.to_string(),
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(65435340u64), user2info_resp.mars_deposited);
-    assert_eq!(Uint256::from(454353u64), user2info_resp.ust_deposited);
-    assert_eq!(Uint256::from(6755923u64), user2info_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user2info_resp.withdrawn_lp_shares);
     assert_eq!(
-        Uint256::from(260645u64),
-        user2info_resp.withdrawable_lp_shares
+        Uint128::from(98u64),
+        user_resp_after_claim.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint256::from(169878883474u64),
-        user2info_resp.total_auction_incentives
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawn_lp_shares
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user2info_resp.withdrawn_auction_incentives
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint256::from(6553969269u64),
-        user2info_resp.withdrawable_auction_incentives
+        Uint128::from(1274379548u64),
+        user_resp_after_claim.withdrawn_auction_incentives
     );
-    // assert_eq!(Decimal256::zero(), user2info_resp.user_reward_index);
     assert_eq!(
-        Uint256::from(29355071064u64),
-        user2info_resp.withdrawable_staking_incentives
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawable_mars_incentives
     );
+    assert_eq!(
+        Uint128::from(16635u64),
+        user_resp_after_claim.withdrawn_mars_incentives
+    );
+    assert_eq!(Decimal::zero(), user_resp_after_claim.astro_reward_index);
 
-    // Auction :: Check user-3 state
-    let user3info_resp: mars_periphery::auction::UserInfoResponse = app
+    // ********
+    // ******** USER SUCCESSFULLY WITHDRAWS UNLOCKED LP SHARES ********
+    // ********
+
+    app.execute_contract(
+        user1_address.clone(),
+        auction_instance.clone(),
+        &ExecuteMsg::ClaimRewards {
+            withdraw_unlocked_shares: true,
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check state
+    let state_resp: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(Uint128::from(98u64), state_resp.lp_shares_withdrawn);
+
+    // Check user response
+    let user_resp_after_withdraw: UserInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user3_address.to_string(),
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
             },
         )
         .unwrap();
-    assert_eq!(Uint256::from(76754654u64), user3info_resp.mars_deposited);
-    assert_eq!(Uint256::from(5643543u64), user3info_resp.ust_deposited);
-    assert_eq!(Uint256::from(23486123u64), user3info_resp.lp_shares);
-    assert_eq!(Uint256::from(0u64), user3info_resp.withdrawn_lp_shares);
     assert_eq!(
-        Uint256::from(906100u64),
-        user3info_resp.withdrawable_lp_shares
+        Uint128::from(0u64),
+        user_resp_after_withdraw.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint256::from(590562733232u64),
-        user3info_resp.total_auction_incentives
+        Uint128::from(98u64),
+        user_resp_after_withdraw.withdrawn_lp_shares
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user3info_resp.withdrawn_auction_incentives
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint256::from(22784056066u64),
-        user3info_resp.withdrawable_auction_incentives
+        Uint128::from(1274379548u64),
+        user_resp_after_claim.withdrawn_auction_incentives
     );
-    // assert_eq!(Decimal256::zero(), user3info_resp.user_reward_index);
     assert_eq!(
-        Uint256::from(102049240301u64),
-        user3info_resp.withdrawable_staking_incentives
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawable_mars_incentives
     );
+    assert_eq!(
+        Uint128::from(16635u64),
+        user_resp_after_claim.withdrawn_mars_incentives
+    );
+    assert_eq!(Decimal::zero(), user_resp_after_claim.astro_reward_index);
 
-    // ######    ERROR :: Already staked   ######
+    // ######    ERROR :: Invalid values provided   ######
 
     err = app
         .execute_contract(
             Addr::unchecked(auction_init_msg.owner.clone()),
             auction_instance.clone(),
-            &ExecuteMsg::StakeLpTokens {},
+            &ExecuteMsg::StakeLpTokens {
+                single_incentive_staking: true,
+                dual_incentives_staking: true,
+            },
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Already staked");
-}
+    assert_eq!(err.to_string(), "Generic error: Invalid values provided");
 
-#[test]
-fn test_claim_rewards() {
-    let mut app = mock_app();
-    let (auction_instance, astro_token_instance, _, _, _, lp_token_instance, auction_init_msg) =
-        init_all_contracts(&mut app);
+    err = app
+        .execute_contract(
+            Addr::unchecked(auction_init_msg.owner.clone()),
+            auction_instance.clone(),
+            &ExecuteMsg::StakeLpTokens {
+                single_incentive_staking: false,
+                dual_incentives_staking: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Invalid values provided");
 
-    let claim_rewards_msg = ExecuteMsg::ClaimRewards {};
+    // ######    ERROR :: LP Tokens already staked with MARS LP Staking contract   ######
 
-    // mint ASTRO to Lockdrop Contract
-    mint_some_mars(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        astro_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        auction_init_msg.lockdrop_contract_address.to_string(),
+    err = app
+        .execute_contract(
+            Addr::unchecked(auction_init_msg.owner.clone()),
+            auction_instance.clone(),
+            &ExecuteMsg::StakeLpTokens {
+                single_incentive_staking: true,
+                dual_incentives_staking: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: LP Tokens already staked with MARS LP Staking contract"
     );
 
-    // mint ASTRO to Auction Contract
-    mint_some_mars(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        astro_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        auction_instance.to_string(),
-    );
+    // ********
+    // ******** SUCCESSFULLY UNSTAKED FROM LP STAKING CONTRACT AND STAKED WITH GENERATOR ********
+    // ********
 
-    let (user1_address, user2_address, user3_address) = make_mars_ust_deposits(
-        &mut app,
-        auction_instance.clone(),
-        auction_init_msg.clone(),
-        astro_token_instance.clone(),
-    );
+    // Instantiate Generator Proxy for MARS
+    let generator_proxy_to_mars_contract = Box::new(ContractWrapper::new(
+        generator_proxy_to_mars::contract::execute,
+        generator_proxy_to_mars::contract::instantiate,
+        generator_proxy_to_mars::contract::query,
+    ));
+    let generator_proxy_to_mars_code_id = app.store_code(generator_proxy_to_mars_contract);
 
-    // ######    Initialize generator and vesting instance   ######
-    let (generator_instance, _) = instantiate_generator_and_vesting(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        astro_token_instance.clone(),
-        lp_token_instance.clone(),
-    );
+    let generator_proxy_to_mars_instance = app
+        .instantiate_contract(
+            generator_proxy_to_mars_code_id,
+            Addr::unchecked(auction_init_msg.owner.clone()),
+            &astroport_generator_proxy::generator_proxy::InstantiateMsg {
+                generator_contract_addr: generator_instance.clone().to_string(),
+                pair_addr: pool_instance.clone().to_string(),
+                lp_token_addr: lp_token_instance.clone().to_string(),
+                reward_contract_addr: lp_staking_instance.clone().to_string(),
+                reward_token_addr: mars_token_instance.clone().to_string(),
+            },
+            &[],
+            String::from("MARS"),
+            None,
+        )
+        .unwrap();
 
-    let update_msg = UpdateConfigMsg {
-        owner: None,
-        astroport_lp_pool: None,
-        lp_token_address: None,
-        generator_contract: Some(generator_instance.to_string()),
-        mars_rewards: None,
-    };
-
+    // Set RewardProxyForMars with Generator
     app.execute_contract(
         Addr::unchecked(auction_init_msg.owner.clone()),
-        auction_instance.clone(),
-        &ExecuteMsg::UpdateConfig {
-            new_config: update_msg.clone(),
+        generator_instance.clone(),
+        &astroport::generator::ExecuteMsg::SetAllowedRewardProxies {
+            proxies: vec![generator_proxy_to_mars_instance.clone().to_string()],
         },
         &[],
     )
     .unwrap();
 
-    // ######    ERROR :: Deposit/withdrawal windows are open   ######
-
-    let mut err = app
-        .execute_contract(
-            user1_address.clone(),
-            auction_instance.clone(),
-            &claim_rewards_msg,
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Deposit/withdrawal windows are open"
-    );
-
-    // finish deposit / withdraw period
-    app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(10611001)
-    });
-
-    // ######    ERROR :: Invalid request   ######
-
-    err = app
-        .execute_contract(
-            Addr::unchecked("not_user".to_string()),
-            auction_instance.clone(),
-            &claim_rewards_msg,
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Invalid request");
-
-    // ######    Sucess :: Initialize ASTRO-UST Pool   ######
-
-    app.execute_contract(
-        Addr::unchecked(auction_init_msg.owner.to_string()),
-        auction_instance.clone(),
-        &ExecuteMsg::AddLiquidityToAstroportPool { slippage: None },
-        &[],
-    )
-    .unwrap();
-
-    // ######    SUCCESS :: Stake successfully   ######
-
-    app.execute_contract(
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        auction_instance.clone(),
-        &ExecuteMsg::StakeLpTokens {},
-        &[],
-    )
-    .unwrap();
-
-    app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(10911001)
-    });
-
-    // ######    SUCCESS :: Successfully claim staking rewards for User-1 ######
-
-    // Auction :: Check user-1 state (before claim)
-    let user1info_before_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_before_claim.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_before_claim.withdrawn_staking_incentives
-    );
-
-    // Auction :: Claim rewards for the user
-    app.execute_contract(
-        user1_address.clone(),
-        auction_instance.clone(),
-        &claim_rewards_msg,
-        &[],
-    )
-    .unwrap();
-
-    // Auction :: Check user-1 state (After Claim)
-    let user1info_after_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user1info_before_claim.withdrawn_lp_shares,
-        user1info_after_claim.withdrawn_lp_shares
-    );
-    assert_eq!(
-        user1info_before_claim.withdrawable_lp_shares,
-        user1info_after_claim.withdrawable_lp_shares
-    );
-    assert_eq!(
-        user1info_before_claim.withdrawable_auction_incentives,
-        user1info_after_claim.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim.withdrawable_auction_incentives
-    );
-    assert_eq!(
-        user1info_before_claim.withdrawable_staking_incentives,
-        user1info_after_claim.withdrawn_staking_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim.withdrawable_staking_incentives
-    );
-
-    // ######    SUCCESS :: Successfully claim staking rewards for User-2 ######
-
-    // Auction :: Check user-2 state (before claim)
-    let user2info_before_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user2_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_before_claim.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_before_claim.withdrawn_staking_incentives
-    );
-
-    // Auction :: Claim rewards for the user 2
-    app.execute_contract(
-        user2_address.clone(),
-        auction_instance.clone(),
-        &claim_rewards_msg,
-        &[],
-    )
-    .unwrap();
-
-    // Auction :: Check user-2 state (After Claim)
-    let user2info_after_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user2_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user2info_before_claim.withdrawn_lp_shares,
-        user2info_after_claim.withdrawn_lp_shares
-    );
-    assert_eq!(
-        user2info_before_claim.withdrawable_lp_shares,
-        user2info_after_claim.withdrawable_lp_shares
-    );
-    assert_eq!(
-        user2info_before_claim.withdrawable_auction_incentives,
-        user2info_after_claim.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_after_claim.withdrawable_auction_incentives
-    );
-    assert_eq!(
-        user2info_before_claim.withdrawable_staking_incentives,
-        user2info_after_claim.withdrawn_staking_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_after_claim.withdrawable_staking_incentives
-    );
-
-    app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(10991001)
-    });
-
-    // ######    SUCCESS :: Successfully claim staking rewards for User-3 ######
-
-    // Auction :: Check user-3 state (before claim)
-    let user3info_before_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user3_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_before_claim.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_before_claim.withdrawn_staking_incentives
-    );
-
-    // Auction :: Claim rewards for the user 3
-    app.execute_contract(
-        user3_address.clone(),
-        auction_instance.clone(),
-        &claim_rewards_msg,
-        &[],
-    )
-    .unwrap();
-
-    // Auction :: Check user-3 state (After Claim)
-    let user3info_after_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user3_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user3info_before_claim.withdrawn_lp_shares,
-        user3info_after_claim.withdrawn_lp_shares
-    );
-    assert_eq!(
-        user3info_before_claim.withdrawable_lp_shares,
-        user3info_after_claim.withdrawable_lp_shares
-    );
-    assert_eq!(
-        user3info_before_claim.withdrawable_auction_incentives,
-        user3info_after_claim.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_after_claim.withdrawable_auction_incentives
-    );
-    assert_eq!(
-        user3info_before_claim.withdrawable_staking_incentives,
-        user3info_after_claim.withdrawn_staking_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_after_claim.withdrawable_staking_incentives
-    );
-
-    // ######    SUCCESS :: Successfully again claim staking rewards for User-1 ######
-
-    // Auction :: Check user-1 state (before claim)
-    let user1info_before_claim2: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user1info_after_claim.withdrawn_auction_incentives,
-        user1info_before_claim2.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        user1info_after_claim.withdrawn_staking_incentives,
-        user1info_before_claim2.withdrawn_staking_incentives
-    );
-
-    // Auction :: Claim rewards for the user
-    app.execute_contract(
-        user1_address.clone(),
-        auction_instance.clone(),
-        &claim_rewards_msg,
-        &[],
-    )
-    .unwrap();
-
-    // Auction :: Check user-1 state (After Claim)
-    let user1info_after_claim2: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user1info_before_claim2.withdrawn_lp_shares,
-        user1info_after_claim2.withdrawn_lp_shares
-    );
-    assert_eq!(
-        user1info_before_claim2.withdrawable_lp_shares,
-        user1info_after_claim2.withdrawable_lp_shares
-    );
-    assert_eq!(
-        user1info_after_claim.withdrawn_auction_incentives
-            + user1info_before_claim2.withdrawable_auction_incentives,
-        user1info_after_claim2.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim2.withdrawable_auction_incentives
-    );
-    assert_eq!(
-        user1info_after_claim.withdrawn_staking_incentives
-            + user1info_before_claim2.withdrawable_staking_incentives,
-        user1info_after_claim2.withdrawn_staking_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim2.withdrawable_staking_incentives
-    );
-}
-
-#[test]
-fn test_withdraw_unlocked_lp_shares() {
-    let mut app = mock_app();
-    let (auction_instance, astro_token_instance, _, _, _, lp_token_instance, auction_init_msg) =
-        init_all_contracts(&mut app);
-
-    let withdraw_lp_msg = ExecuteMsg::WithdrawLpShares {};
-
-    // mint ASTRO to Lockdrop Contract
-    mint_some_mars(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        astro_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        auction_init_msg.lockdrop_contract_address.to_string(),
-    );
-
-    // mint ASTRO to Auction Contract
-    mint_some_mars(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        astro_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        auction_instance.to_string(),
-    );
-
-    let (user1_address, user2_address, user3_address) = make_mars_ust_deposits(
-        &mut app,
-        auction_instance.clone(),
-        auction_init_msg.clone(),
-        astro_token_instance.clone(),
-    );
-
-    // ######    Initialize generator and vesting instance   ######
-    let (generator_instance, _) = instantiate_generator_and_vesting(
-        &mut app,
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        astro_token_instance.clone(),
-        lp_token_instance.clone(),
-    );
-
-    let update_msg = UpdateConfigMsg {
-        owner: None,
-        astroport_lp_pool: None,
-        lp_token_address: None,
-        generator_contract: Some(generator_instance.to_string()),
-        mars_rewards: None,
+    // Set RewardProxyForMars with Generator
+    let msg = astroport::generator::ExecuteMsg::Add {
+        alloc_point: Uint64::from(10u64),
+        reward_proxy: Some(generator_proxy_to_mars_instance.clone().to_string()),
+        lp_token: lp_token_instance.clone(),
     };
+    app.execute_contract(
+        Addr::unchecked(auction_init_msg.owner.clone()),
+        generator_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
 
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(24_001_50)
+    });
+
+    // Unstake from LP Staking and stake with Generator
     app.execute_contract(
         Addr::unchecked(auction_init_msg.owner.clone()),
         auction_instance.clone(),
-        &ExecuteMsg::UpdateConfig {
-            new_config: update_msg.clone(),
+        &ExecuteMsg::StakeLpTokens {
+            single_incentive_staking: false,
+            dual_incentives_staking: true,
         },
         &[],
     )
     .unwrap();
 
-    // ######    ERROR :: Deposit/withdrawal windows are open   ######
-
-    let mut err = app
-        .execute_contract(
-            user1_address.clone(),
-            auction_instance.clone(),
-            &withdraw_lp_msg,
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Deposit/withdrawal windows are open"
-    );
-
-    // finish deposit / withdraw period
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(10611001)
+        b.time = Timestamp::from_seconds(24_002_50)
     });
 
-    // ######    ERROR :: Invalid request. No LP Tokens to claim   ######
+    // Check state
+    let state_resp: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(Uint128::from(98u64), state_resp.lp_shares_withdrawn);
+    assert_eq!(false, state_resp.are_staked_for_single_incentives);
+    assert_eq!(true, state_resp.are_staked_for_dual_incentives);
 
-    err = app
-        .execute_contract(
-            Addr::unchecked("not_user".to_string()),
-            auction_instance.clone(),
-            &withdraw_lp_msg,
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Invalid request. No LP Tokens to claim"
-    );
-
-    // ######    Sucess :: Initialize ASTRO-UST Pool   ######
-
-    app.execute_contract(
-        Addr::unchecked(auction_init_msg.owner.to_string()),
-        auction_instance.clone(),
-        &ExecuteMsg::AddLiquidityToAstroportPool { slippage: None },
-        &[],
-    )
-    .unwrap();
-
-    // ######    SUCCESS :: Stake successfully   ######
-
-    app.execute_contract(
-        Addr::unchecked(auction_init_msg.owner.clone()),
-        auction_instance.clone(),
-        &ExecuteMsg::StakeLpTokens {},
-        &[],
-    )
-    .unwrap();
-
-    app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(10911001)
-    });
-
-    // ######    SUCCESS :: Successfully withdraw LP shares (which also claims rewards) for User-1 ######
-
-    // Auction :: Check user-1 state (before claim)
-    let user1info_before_claim: mars_periphery::auction::UserInfoResponse = app
+    // Check user response
+    let user_resp_before_claim: UserInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
             },
         )
         .unwrap();
     assert_eq!(
-        Uint256::from(0u64),
-        user1info_before_claim.withdrawn_lp_shares
+        Uint128::from(98u64),
+        user_resp_before_claim.withdrawn_lp_shares
+    );
+    assert_eq!(
+        Uint128::from(196u64),
+        user_resp_before_claim.withdrawable_lp_shares
+    );
+    assert_eq!(
+        Uint128::from(1274379548u64),
+        user_resp_before_claim.withdrawn_auction_incentives
+    );
+    assert_eq!(
+        Uint128::from(2548759098u64),
+        user_resp_before_claim.withdrawable_auction_incentives
+    );
+    assert_eq!(
+        Uint128::from(44362u64),
+        user_resp_before_claim.withdrawable_mars_incentives
+    );
+    assert_eq!(
+        Uint128::from(16635u64),
+        user_resp_before_claim.withdrawn_mars_incentives
+    );
+    assert_eq!(
+        Uint128::from(41395360476u64),
+        user_resp_before_claim.withdrawable_astro_incentives
+    );
+    assert_eq!(
+        Uint128::from(0u64),
+        user_resp_before_claim.withdrawn_astro_incentives
     );
 
-    // Auction :: Withdraw unvested LP shares for the user
+    // ********
+    // ******** USER SUCCESSFULLY CLAIMS DUAL REWARDS WITHDRAWS UNLOCKED LP SHARES ********
+    // ********
+
     app.execute_contract(
         user1_address.clone(),
         auction_instance.clone(),
-        &withdraw_lp_msg,
+        &ExecuteMsg::ClaimRewards {
+            withdraw_unlocked_shares: true,
+        },
         &[],
     )
     .unwrap();
 
-    // Auction :: Check user-1 state (After Claim)
-    let user1info_after_claim: mars_periphery::auction::UserInfoResponse = app
+    // Check state
+    let state_resp: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&auction_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(Uint128::from(294u64), state_resp.lp_shares_withdrawn);
+
+    // Check user response
+    let user_resp_after_claim: UserInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
+            &QueryMsg::UserInfo {
+                address: user1_address.clone().to_string(),
             },
         )
         .unwrap();
     assert_eq!(
-        user1info_before_claim.withdrawable_lp_shares,
-        user1info_after_claim.withdrawn_lp_shares
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim.withdrawable_lp_shares
+        user_resp_before_claim.withdrawable_lp_shares + user_resp_before_claim.withdrawn_lp_shares,
+        user_resp_after_claim.withdrawn_lp_shares
     );
     assert_eq!(
-        user1info_before_claim.withdrawable_auction_incentives,
-        user1info_after_claim.withdrawn_auction_incentives
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim.withdrawable_auction_incentives
+        user_resp_before_claim.withdrawable_auction_incentives
+            + user_resp_before_claim.withdrawn_auction_incentives,
+        user_resp_after_claim.withdrawn_auction_incentives
     );
     assert_eq!(
-        user1info_before_claim.withdrawable_staking_incentives,
-        user1info_after_claim.withdrawn_staking_incentives
+        Uint128::from(0u64),
+        user_resp_after_claim.withdrawable_mars_incentives
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim.withdrawable_staking_incentives
-    );
-
-    // ######    SUCCESS :: Successfully withdraw LP shares (which also claims rewards) for User-2 ######
-
-    // Auction :: Check user-2 state (before claim)
-    let user2info_before_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user2_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_before_claim.withdrawn_lp_shares
-    );
-
-    // Auction :: Withdraw unvested LP shares for the user
-    app.execute_contract(
-        user2_address.clone(),
-        auction_instance.clone(),
-        &withdraw_lp_msg,
-        &[],
-    )
-    .unwrap();
-
-    // Auction :: Check user-2 state (After Claim)
-    let user2info_after_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user2_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user2info_before_claim.withdrawable_lp_shares,
-        user2info_after_claim.withdrawn_lp_shares
+        user_resp_before_claim.withdrawable_mars_incentives
+            + user_resp_before_claim.withdrawn_mars_incentives,
+        user_resp_after_claim.withdrawn_mars_incentives
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user2info_after_claim.withdrawable_lp_shares
+        Uint128::from(41395360476u64),
+        user_resp_after_claim.withdrawn_astro_incentives
     );
     assert_eq!(
-        user2info_before_claim.withdrawable_auction_incentives,
-        user2info_after_claim.withdrawn_auction_incentives
+        user_resp_before_claim.withdrawable_astro_incentives
+            + user_resp_before_claim.withdrawn_astro_incentives,
+        user_resp_after_claim.withdrawn_astro_incentives
     );
     assert_eq!(
-        Uint256::from(0u64),
-        user2info_after_claim.withdrawable_auction_incentives
-    );
-    assert_eq!(
-        user2info_before_claim.withdrawable_staking_incentives,
-        user2info_after_claim.withdrawn_staking_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user2info_after_claim.withdrawable_staking_incentives
-    );
-
-    app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(10991001)
-    });
-
-    // ######    SUCCESS :: Successfully withdraw LP shares (which also claims rewards) for User-3 ######
-
-    // Auction :: Check user-3 state (before claim)
-    let user3info_before_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user3_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_before_claim.withdrawn_lp_shares
-    );
-
-    // Auction :: Withdraw unvested LP shares for the user
-    app.execute_contract(
-        user3_address.clone(),
-        auction_instance.clone(),
-        &withdraw_lp_msg,
-        &[],
-    )
-    .unwrap();
-
-    // Auction :: Check user-3 state (After Claim)
-    let user3info_after_claim: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user3_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user3info_before_claim.withdrawable_lp_shares,
-        user3info_after_claim.withdrawn_lp_shares
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_after_claim.withdrawable_lp_shares
-    );
-    assert_eq!(
-        user3info_before_claim.withdrawable_auction_incentives,
-        user3info_after_claim.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_after_claim.withdrawable_auction_incentives
-    );
-    assert_eq!(
-        user3info_before_claim.withdrawable_staking_incentives,
-        user3info_after_claim.withdrawn_staking_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user3info_after_claim.withdrawable_staking_incentives
-    );
-
-    // ######    SUCCESS :: Successfully again withdraw LP shares (which also claims rewards) for User-1 ######
-
-    // Auction :: Check user-1 state (before claim)
-    let user1info_before_claim2: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
-            },
-        )
-        .unwrap();
-
-    // Auction :: Withdraw LP for the user
-    app.execute_contract(
-        user1_address.clone(),
-        auction_instance.clone(),
-        &withdraw_lp_msg,
-        &[],
-    )
-    .unwrap();
-
-    // Auction :: Check user-1 state (After Claim)
-    let user1info_after_claim2: mars_periphery::auction::UserInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &auction_instance,
-            &mars_periphery::auction::QueryMsg::UserInfo {
-                address: user1_address.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        user1info_before_claim2.withdrawn_lp_shares
-            + user1info_before_claim2.withdrawable_lp_shares,
-        user1info_after_claim2.withdrawn_lp_shares
-    );
-    assert_eq!(
-        Uint256::zero(),
-        user1info_after_claim2.withdrawable_lp_shares
-    );
-    assert_eq!(
-        user1info_after_claim.withdrawn_auction_incentives
-            + user1info_before_claim2.withdrawable_auction_incentives,
-        user1info_after_claim2.withdrawn_auction_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim2.withdrawable_auction_incentives
-    );
-    assert_eq!(
-        user1info_after_claim.withdrawn_staking_incentives
-            + user1info_before_claim2.withdrawable_staking_incentives,
-        user1info_after_claim2.withdrawn_staking_incentives
-    );
-    assert_eq!(
-        Uint256::from(0u64),
-        user1info_after_claim2.withdrawable_staking_incentives
+        Uint128::zero(),
+        user_resp_after_claim.withdrawable_astro_incentives
     );
 }

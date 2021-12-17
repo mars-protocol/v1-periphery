@@ -1,7 +1,7 @@
 [package]
 name = "mars-lockdrop"
 version = "1.0.0"
-authors = ["alien Hunter <alienHunterOnMars@protonmail.com>"]
+authors = ["astromartian"]
 edition = "2018"
 
 
@@ -29,11 +29,10 @@ mars-core = { path = "../../packages/mars-core", version = "1.0.0" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
-cw20 = "0.9.0"
 cw-storage-plus = "0.8"
-cw20-base = { version = "0.8", features = ["library"] }
 
-cosmwasm-bignumber = "2.2.0"
+cw20 = { version = "0.9" }
+cw20-base = { version = "0.9", features = ["library"] }
 
 schemars = "0.8.3"
 serde = { version = "1.0.127", default-features = false, features = ["derive"] }
@@ -42,10 +41,12 @@ thiserror = { version = "1.0.26" }
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 mars-auction =  { path = "../auction" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
 # For testcases
 mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
 mars-staking =  { path = "../mocks/mock_redbank/mars-staking" }
+mars-red-bank =  { path = "../mocks/mock_redbank/mars-red-bank" }
+mars-ma-token =  { path = "../mocks/mock_redbank/mars-ma-token" }
 mars-incentives =  { path = "../mocks/mock_redbank/mars-incentives" }
 mars-xmars-token =  { path = "../mocks/mock_redbank/mars-xmars-token" }
 

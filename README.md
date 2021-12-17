@@ -1,10 +1,12 @@
 # Mars Periphery
 
-This repo contains the following contracts -
+This repo contains the contracts which facilitates MARS tokens airdrop, lockdrop, LP Bootstrapping via auction during the intital protocol launch along with the MARS-UST staking contract.
 
-- **Airdrop Contract** : Used for MARS tokens airdrop claim during the intital protocol launch.
+- **Airdrop Contract** : Used for MARS tokens airdrop claim / delegation to LP bootstrapping auction during the intital protocol launch.
 
 - **Lockdrop Contract** : Allows users to lock their UST for selected duration against which they get MARS token rewards pro-rata to their wighted share along with xMars tokens which are accrued per block. Upon expiration of the lockup, users can withdraw their deposits as interest bearing maUST tokens, redeemable against UST via the Red Bank.
+
+- **Auction Contract** : Allows airdrop recipients / lockdrop participants to delegate their MARS rewards while anyone can delegate UST to LP bootstrapping against which they get a one-time MARS token rewards and MARS-UST LP tokens pro-rata to their share of total MARS / UST delegated to the bootstrapping pool.
 
 - **LP Staking Contract** : Facilitates MARS-UST LP Token staking and reward distribution.
 
@@ -45,7 +47,7 @@ cargo build
 docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.11.3
+  cosmwasm/rust-optimizer:0.12.3
 ```
 
 ### Test

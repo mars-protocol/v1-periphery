@@ -1,10 +1,9 @@
-use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128, Uint64};
-use cw20_base::msg::ExecuteMsg as CW20ExecuteMsg;
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+use cosmwasm_std::{to_binary, Addr, Decimal, Timestamp, Uint128};
 use cw_multi_test::{App, BankKeeper, ContractWrapper, Executor};
 use mars_periphery::lp_staking::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    StakerInfoResponse, StateResponse, TimeResponse, UpdateConfigMsg,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakerInfoResponse,
+    StateResponse, UpdateConfigMsg,
 };
 
 fn mock_app() -> App {
@@ -98,17 +97,17 @@ fn instantiate_lp_staking_contract(
 
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1_000_000_000)
+        b.time = Timestamp::from_seconds(1_000_000_00)
     });
     let lp_staking_instantiate_msg = mars_periphery::lp_staking::InstantiateMsg {
         owner: Some(owner.clone().to_string()),
         mars_token: mars_token_instance.clone().to_string(),
         staking_token: Some(staking_token_instance.to_string()),
-        init_timestamp: 1_000_000_001,
-        till_timestamp: 1_000_000_00000,
+        init_timestamp: 1_000_000_10,
+        till_timestamp: 1_000_001_10,
         cycle_rewards: Some(Uint128::from(100u64)),
         cycle_duration: 10u64,
-        reward_increase: Some(Decimal::from_ratio(2u64, 100u64)),
+        reward_increase: Some(Decimal::from_ratio(3u64, 100u64)),
     };
 
     // Init contract
@@ -190,11 +189,7 @@ fn test_proper_initialization() {
         .query_wasm_smart(&lp_staking_instance, &QueryMsg::State { timestamp: None })
         .unwrap();
     assert_eq!(0u64, resp.current_cycle);
-    assert_eq!(Uint128::from(100000000u64), resp.current_cycle_rewards);
-    assert_eq!(
-        lp_staking_instantiate_msg.init_timestamp.clone(),
-        resp.last_distributed
-    );
+    assert_eq!(Uint128::from(100u64), resp.current_cycle_rewards);
     assert_eq!(Uint128::zero(), resp.total_bond_amount);
     assert_eq!(Decimal::zero(), resp.global_reward_index);
 }
@@ -292,7 +287,7 @@ fn test_bond_tokens() {
     let owner = Addr::unchecked("contract_owner");
 
     let mut app = mock_app();
-    let (mars_token_instance, lp_staking_instance, staking_token_instance, _) =
+    let (_, lp_staking_instance, staking_token_instance, _) =
         init_all_contracts(&mut app, owner.clone());
 
     // ***
@@ -398,10 +393,6 @@ fn test_bond_tokens() {
         )
         .unwrap();
     assert_eq!(Uint128::from(2000u64), user_position_.bond_amount);
-    assert_eq!(
-        Decimal::from_ratio(30u64, 1000u64),
-        user_position_.reward_index
-    );
     assert_eq!(Uint128::from(30u64), user_position_.pending_reward);
 
     // ***
@@ -544,7 +535,7 @@ fn test_bond_tokens() {
         )
         .unwrap();
     assert_eq!(Uint128::from(2150u64), user_position_.bond_amount);
-    assert_eq!(Uint128::from(1135u64), user_position_.pending_reward);
+    assert_eq!(Uint128::from(1134u64), user_position_.pending_reward);
 
     // ***
     // *** Test :: Staking when reward distribution is over ***
@@ -588,7 +579,7 @@ fn test_bond_tokens() {
         )
         .unwrap();
     assert_eq!(Uint128::from(2180u64), user_position_.bond_amount);
-    assert_eq!(Uint128::from(1135u64), user_position_.pending_reward);
+    assert_eq!(Uint128::from(1134u64), user_position_.pending_reward);
 }
 
 #[test]
@@ -605,6 +596,18 @@ fn test_unbond_tokens() {
         &cw20::Cw20ExecuteMsg::Mint {
             recipient: "user".to_string(),
             amount: Uint128::new(1000_000000u128),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // MARS to LP Staking contract
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Mint {
+            recipient: lp_staking_instance.to_string(),
+            amount: Uint128::new(1000000_000000u128),
         },
         &[],
     )
@@ -760,7 +763,7 @@ fn test_unbond_tokens() {
     assert_eq!(0u64, state_.current_cycle);
     assert_eq!(Uint128::from(100u64), state_.current_cycle_rewards);
     assert_eq!(1_000_000_19, state_.last_distributed);
-    assert_eq!(Uint128::from(9999900u64), state_.total_bond_amount);
+    assert_eq!(Uint128::from(9999800u64), state_.total_bond_amount);
     assert_eq!(
         Decimal::from_ratio(40000200002u64, 10000000000000000u64),
         state_.global_reward_index
@@ -782,7 +785,7 @@ fn test_unbond_tokens() {
         Decimal::from_ratio(40000200002u64, 10000000000000000u64),
         user_position_.reward_index
     );
-    assert_eq!(Uint128::from(20u64), user_position_.pending_reward);
+    assert_eq!(Uint128::from(0u64), user_position_.pending_reward);
 
     // ***
     // *** Test :: UN-Staking when reward distribution is live & don't claim rewards (spans multiple blocks) ***
@@ -811,7 +814,7 @@ fn test_unbond_tokens() {
     assert_eq!(2u64, state_.current_cycle);
     assert_eq!(Uint128::from(106u64), state_.current_cycle_rewards);
     assert_eq!(1_000_000_37, state_.last_distributed);
-    assert_eq!(Uint128::from(9999500u64), state_.total_bond_amount);
+    assert_eq!(Uint128::from(9999700u64), state_.total_bond_amount);
 
     // Check User State
     let user_position_: StakerInfoResponse = app
@@ -824,8 +827,8 @@ fn test_unbond_tokens() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::from(9999500u64), user_position_.bond_amount);
-    assert_eq!(Uint128::from(188u64), user_position_.pending_reward);
+    assert_eq!(Uint128::from(9999700u64), user_position_.bond_amount);
+    assert_eq!(Uint128::from(187u64), user_position_.pending_reward);
 
     // ***
     // *** Test :: UN-Staking when reward distribution is live & claim rewards (spans multiple blocks) ***
@@ -854,7 +857,7 @@ fn test_unbond_tokens() {
     assert_eq!(2u64, state_.current_cycle);
     assert_eq!(Uint128::from(106u64), state_.current_cycle_rewards);
     assert_eq!(1_000_000_39, state_.last_distributed);
-    assert_eq!(Uint128::from(9999400u64), state_.total_bond_amount);
+    assert_eq!(Uint128::from(9999600u64), state_.total_bond_amount);
 
     // Check User State
     let user_position_: StakerInfoResponse = app
@@ -867,7 +870,7 @@ fn test_unbond_tokens() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::from(9999400u64), user_position_.bond_amount);
+    assert_eq!(Uint128::from(9999600u64), user_position_.bond_amount);
     assert_eq!(Uint128::from(0u64), user_position_.pending_reward);
 
     // ***
@@ -897,7 +900,7 @@ fn test_unbond_tokens() {
     assert_eq!(10u64, state_.current_cycle);
     assert_eq!(Uint128::from(0u64), state_.current_cycle_rewards);
     assert_eq!(1_000_001_10, state_.last_distributed);
-    assert_eq!(Uint128::from(9999300u64), state_.total_bond_amount);
+    assert_eq!(Uint128::from(9999500u64), state_.total_bond_amount);
 
     // Check User State
     let user_position_: StakerInfoResponse = app
@@ -910,7 +913,7 @@ fn test_unbond_tokens() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::from(9999300u64), user_position_.bond_amount);
+    assert_eq!(Uint128::from(9999500u64), user_position_.bond_amount);
     assert_eq!(Uint128::from(0u64), user_position_.pending_reward);
 
     // ***
@@ -940,7 +943,7 @@ fn test_unbond_tokens() {
     assert_eq!(10u64, state_.current_cycle);
     assert_eq!(Uint128::from(0u64), state_.current_cycle_rewards);
     assert_eq!(1_000_001_10, state_.last_distributed);
-    assert_eq!(Uint128::from(9999200u64), state_.total_bond_amount);
+    assert_eq!(Uint128::from(9999400u64), state_.total_bond_amount);
 
     // Check User State
     let user_position_: StakerInfoResponse = app
@@ -953,7 +956,7 @@ fn test_unbond_tokens() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::from(9999200u64), user_position_.bond_amount);
+    assert_eq!(Uint128::from(9999400u64), user_position_.bond_amount);
     assert_eq!(Uint128::from(0u64), user_position_.pending_reward);
 }
 
@@ -971,6 +974,18 @@ fn test_claim_rewards() {
         &cw20::Cw20ExecuteMsg::Mint {
             recipient: "user".to_string(),
             amount: Uint128::new(1000_000000u128),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // MARS to LP Staking contract
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Mint {
+            recipient: lp_staking_instance.to_string(),
+            amount: Uint128::new(1000000_000000u128),
         },
         &[],
     )
@@ -1036,10 +1051,6 @@ fn test_claim_rewards() {
         )
         .unwrap();
     assert_eq!(Uint128::from(1000u64), user_position_.bond_amount);
-    assert_eq!(
-        Decimal::from_ratio(0u64, 1000u64),
-        user_position_.reward_index
-    );
     assert_eq!(Uint128::from(0u64), user_position_.pending_reward);
 
     // ***
@@ -1080,10 +1091,6 @@ fn test_claim_rewards() {
         )
         .unwrap();
     assert_eq!(Uint128::from(1000u64), user_position_.bond_amount);
-    assert_eq!(
-        Decimal::from_ratio(0u64, 1000u64),
-        user_position_.reward_index
-    );
     assert_eq!(Uint128::from(0u64), user_position_.pending_reward);
 
     // ***
@@ -1135,36 +1142,4 @@ fn test_claim_rewards() {
         b.height += 17280;
         b.time = Timestamp::from_seconds(1_000_001_53)
     });
-
-    app.execute_contract(
-        Addr::unchecked("user".clone()),
-        lp_staking_instance.clone(),
-        &ExecuteMsg::Claim {},
-        &[],
-    )
-    .unwrap();
-
-    // Check Global State
-    let state_: StateResponse = app
-        .wrap()
-        .query_wasm_smart(&lp_staking_instance, &QueryMsg::State { timestamp: None })
-        .unwrap();
-    assert_eq!(10u64, state_.current_cycle);
-    assert_eq!(Uint128::from(0u64), state_.current_cycle_rewards);
-    assert_eq!(1_000_001_10, state_.last_distributed);
-    assert_eq!(Uint128::from(1000u64), state_.total_bond_amount);
-
-    // Check User State
-    let user_position_: StakerInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &lp_staking_instance,
-            &QueryMsg::StakerInfo {
-                staker: "user".to_string(),
-                timestamp: None,
-            },
-        )
-        .unwrap();
-    assert_eq!(Uint128::from(1000u64), user_position_.bond_amount);
-    assert_eq!(Uint128::from(0u64), user_position_.pending_reward);
 }

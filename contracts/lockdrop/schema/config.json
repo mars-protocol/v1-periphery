@@ -3,12 +3,9 @@
   "title": "Config",
   "type": "object",
   "required": [
-    "address_provider",
-    "auction_contract_address",
     "deposit_window",
     "init_timestamp",
     "lockdrop_incentives",
-    "ma_ust_token",
     "max_lock_duration",
     "min_lock_duration",
     "owner",
@@ -20,17 +17,23 @@
   "properties": {
     "address_provider": {
       "description": "Contract used to query addresses related to red-bank (MARS Token)",
-      "allOf": [
+      "anyOf": [
         {
           "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
         }
       ]
     },
     "auction_contract_address": {
       "description": "Auction Contract address to which MARS tokens can be deposited for bootstrapping MARS-UST Pool",
-      "allOf": [
+      "anyOf": [
         {
           "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
         }
       ]
     },
@@ -56,9 +59,12 @@
     },
     "ma_ust_token": {
       "description": "maUST token address - Minted upon UST deposits into red bank",
-      "allOf": [
+      "anyOf": [
         {
           "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
         }
       ]
     },

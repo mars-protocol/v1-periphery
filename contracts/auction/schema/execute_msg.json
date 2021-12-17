@@ -59,7 +59,7 @@
           ],
           "properties": {
             "amount": {
-              "$ref": "#/definitions/Uint256"
+              "$ref": "#/definitions/Uint128"
             }
           }
         }
@@ -173,10 +173,10 @@
               ],
               "properties": {
                 "prev_astro_balance": {
-                  "$ref": "#/definitions/Uint256"
+                  "$ref": "#/definitions/Uint128"
                 },
                 "prev_mars_balance": {
-                  "$ref": "#/definitions/Uint256"
+                  "$ref": "#/definitions/Uint128"
                 },
                 "user_address": {
                   "anyOf": [
@@ -189,7 +189,7 @@
                   ]
                 },
                 "withdraw_lp_shares": {
-                  "$ref": "#/definitions/Uint256"
+                  "$ref": "#/definitions/Uint128"
                 }
               }
             }
@@ -209,7 +209,7 @@
               ],
               "properties": {
                 "prev_lp_balance": {
-                  "$ref": "#/definitions/Uint256"
+                  "$ref": "#/definitions/Uint128"
                 }
               }
             }
@@ -246,9 +246,6 @@
       "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
       "type": "string"
     },
-    "Uint256": {
-      "type": "string"
-    },
     "UpdateConfigMsg": {
       "type": "object",
       "properties": {
@@ -268,16 +265,6 @@
           "type": [
             "string",
             "null"
-          ]
-        },
-        "mars_rewards": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Uint256"
-            },
-            {
-              "type": "null"
-            }
           ]
         },
         "owner": {

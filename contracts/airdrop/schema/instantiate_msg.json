@@ -3,15 +3,11 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "auction_contract_address",
     "mars_token_address",
     "to_timestamp",
     "total_airdrop_size"
   ],
   "properties": {
-    "auction_contract_address": {
-      "type": "string"
-    },
     "evm_merkle_roots": {
       "type": [
         "array",

@@ -1,7 +1,7 @@
 [package]
 name = "mars-auction"
 version = "1.0.0"
-authors = ["alien Hunter <alienHunterOnMars@protonmail.com>"]
+authors = ["astromartian"]
 edition = "2018"
 description = "Contract to facilitate MARS-UST LP Pool bootstrapping via auction"
 
@@ -34,7 +34,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport =  { path = "../../packages/astroport" }
+astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "master"}
 mars-core =  { path = "../../packages/mars-core" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
@@ -49,11 +49,19 @@ cosmwasm-bignumber = "2.2.0"
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
-# terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
+
 # needed for intergration testing
-# astroport-pair =  { path = "../mocks/mock_astroport/pair" }
-# astroport-token =  { path = "../mocks/mock_astroport/token" }
-# astroport-vesting = {path = "../mocks/mock_astroport/vesting"}
-# astroport-generator = {path = "../mocks/mock_astroport/generator"}
-# mars-airdrop =  { path = "../airdrop" }
-# mars-lockdrop =  { path = "../lockdrop" }
+generator-proxy-to-mars = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "generator-proxy-to-mars"}
+astroport-generator-proxy = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "astroport-generator-proxy"}
+astroport-vesting = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-vesting"}
+astroport-generator = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-generator"}
+astroport-factory =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-factory"}
+astroport-pair =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-pair"}
+astroport-token =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-token"}
+
+mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
+
+mars-airdrop =  { path = "../airdrop" }
+mars-lockdrop =  { path = "../lockdrop" }
+mars-lp-staking =    { path = "../lp_staking" }

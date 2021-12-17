@@ -26,11 +26,12 @@ mars-periphery = { path = "../../packages/mars_periphery" }
 
 cosmwasm-std = { version = "0.16.0" }
 cw-storage-plus = { version = "0.8" }
+
 cw20-base = { version = "0.8", features = ["library"] }
 cw20 = { version = "0.8" }
+cw2 = { version = "0.8" } 
 serde = { version = "1.0.127", default-features = false, features = ["derive"] }
 schemars = "0.8.3"
-cosmwasm-bignumber = "2.2.0"
 
 hex = "0.4.3"
 sha3 = "0.9.1"
@@ -38,6 +39,8 @@ sha3 = "0.9.1"
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
 # needed for tests
 mars-auction =  { path = "../auction" }
+astroport-pair = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-pair"}
+astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "master"}

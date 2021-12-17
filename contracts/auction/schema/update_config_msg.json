@@ -21,26 +21,11 @@
         "null"
       ]
     },
-    "mars_rewards": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Uint256"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "owner": {
       "type": [
         "string",
         "null"
       ]
-    }
-  },
-  "definitions": {
-    "Uint256": {
-      "type": "string"
     }
   }
 }

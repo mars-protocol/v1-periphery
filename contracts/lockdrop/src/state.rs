@@ -18,11 +18,11 @@ pub struct Config {
     /// Account which can update config
     pub owner: Addr,
     /// Contract used to query addresses related to red-bank (MARS Token)
-    pub address_provider: Addr,
+    pub address_provider: Option<Addr>,
     ///  maUST token address - Minted upon UST deposits into red bank
-    pub ma_ust_token: Addr,
+    pub ma_ust_token: Option<Addr>,
     /// Auction Contract address to which MARS tokens can be deposited for bootstrapping MARS-UST Pool
-    pub auction_contract_address: Addr,
+    pub auction_contract_address: Option<Addr>,
     /// Timestamp when Contract will start accepting deposits
     pub init_timestamp: u64,
     /// Deposit Window Length
@@ -60,7 +60,7 @@ pub struct State {
     /// Total weighted deposits
     pub total_deposits_weight: Uint128,
     /// Ratio of MARS rewards accured to total_maust_locked. Used to calculate MARS incentives accured by each user
-    pub xmars_per_maust_share: Decimal,
+    pub xmars_rewards_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
