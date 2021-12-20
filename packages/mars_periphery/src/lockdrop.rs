@@ -1,5 +1,5 @@
 use cosmwasm_std::{to_binary, Addr, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg};
-
+use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,8 +27,6 @@ pub struct InstantiateMsg {
     pub weekly_multiplier: u64,
     /// Lockdrop Reward divider
     pub weekly_divider: u64,
-    /// Total MARS lockdrop incentives to be distributed among the users
-    pub lockdrop_incentives: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -46,6 +44,7 @@ pub struct UpdateConfigMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    Receive(Cw20ReceiveMsg),
     // ADMIN Function ::: To update configuration
     UpdateConfig {
         new_config: UpdateConfigMsg,
@@ -92,6 +91,12 @@ pub enum CallbackMsg {
         duration: u64,
         forceful_unlock: bool,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    IncreaseMarsIncentives {},
 }
 
 // Modified from

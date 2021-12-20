@@ -18,9 +18,9 @@ backtraces = ["cosmwasm-std/backtraces"]
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
 cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
 
-cw2 = "0.8"
-cw20 = "0.8"
-cw20-base = { version = "0.8", features = ["library"] }
+cw2 = "0.9"
+cw20 = "0.9"
+cw20-base = { version = "0.9", features = ["library"] }
 
 cosmwasm-bignumber = "2.2.0"
 terra-cosmwasm = "2.1.0"

@@ -30,9 +30,9 @@ pub struct Config {
     /// Withdrawal Window Length
     pub withdrawal_window: u64,
     /// Min. no. of weeks allowed for lockup
-    pub min_lock_duration: u64,
+    pub min_duration: u64,
     /// Max. no. of weeks allowed for lockup
-    pub max_lock_duration: u64,
+    pub max_duration: u64,
     /// Number of seconds per week
     pub seconds_per_week: u64,
     /// Lockdrop Reward multiplier

@@ -1237,7 +1237,6 @@ fn test_delegate_mars_to_bootstrap_auction() {
         ust_deposit_window: 2592000u64,
         mars_deposit_window: 2592000u64,
         withdrawal_window: 1592000u64,
-        mars_rewards: Uint128::zero(),
         mars_vesting_duration: 0,
     };
 

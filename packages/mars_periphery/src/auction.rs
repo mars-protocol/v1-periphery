@@ -11,7 +11,6 @@ pub struct InstantiateMsg {
     pub airdrop_contract_address: String,
     pub lockdrop_contract_address: String,
     pub generator_contract: String,
-    pub mars_rewards: Uint128,
     pub mars_vesting_duration: u64,
     pub lp_tokens_vesting_duration: u64,
     pub init_timestamp: u64,
