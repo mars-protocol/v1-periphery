@@ -1,9 +1,11 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 
+use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
+use cw20::Cw20ReceiveMsg;
 use mars_core::address_provider::helpers::{query_address, query_addresses};
 use mars_core::address_provider::MarsContract;
 use mars_core::incentives::msg::QueryMsg::UserUnclaimedRewards;
@@ -14,11 +16,9 @@ use mars_periphery::helpers::{
     cw20_get_balance,
 };
 use mars_periphery::lockdrop::{
-    CallbackMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg,
-    StateResponse, UpdateConfigMsg, UserInfoResponse,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse,
+    QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
-
-use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 
 const UUSD_DENOM: &str = "uusd";
 //----------------------------------------------------------------------------------------
@@ -47,7 +47,7 @@ pub fn instantiate(
         return Err(StdError::generic_err("Invalid deposit / withdraw window"));
     }
 
-    // CHECK :: min_lock_duration , max_lock_duration need to be valid (min_lock_duration < max_lock_duration)
+    // CHECK :: min_duration , max_duration need to be valid (min_duration < max_duration)
     if msg.max_duration <= msg.min_duration {
         return Err(StdError::generic_err("Invalid Lockup durations"));
     }
@@ -60,12 +60,12 @@ pub fn instantiate(
         init_timestamp: msg.init_timestamp,
         deposit_window: msg.deposit_window,
         withdrawal_window: msg.withdrawal_window,
-        min_lock_duration: msg.min_duration,
-        max_lock_duration: msg.max_duration,
+        min_duration: msg.min_duration,
+        max_duration: msg.max_duration,
         seconds_per_week: msg.seconds_per_week,
         weekly_multiplier: msg.weekly_multiplier,
         weekly_divider: msg.weekly_divider,
-        lockdrop_incentives: msg.lockdrop_incentives,
+        lockdrop_incentives: Uint128::zero(),
     };
 
     if msg.address_provider.is_some() {
@@ -94,6 +94,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::UpdateConfig { new_config } => update_config(deps, env, info, new_config),
         ExecuteMsg::DepositUst { duration } => try_deposit_ust(deps, env, info, duration),
         ExecuteMsg::WithdrawUst { duration, amount } => {
@@ -146,6 +147,26 @@ fn _handle_callback(
     }
 }
 
+pub fn receive_cw20(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    cw20_msg: Cw20ReceiveMsg,
+) -> Result<Response, StdError> {
+    // CHECK :: Tokens sent > 0
+    if cw20_msg.amount == Uint128::zero() {
+        return Err(StdError::generic_err(
+            "Number of tokens sent should be > 0 ",
+        ));
+    }
+
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::IncreaseMarsIncentives {} => {
+            handle_increase_mars_incentives(deps, env, info, cw20_msg.amount)
+        }
+    }
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -167,6 +188,43 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 //----------------------------------------------------------------------------------------
 // Handle Functions
 //----------------------------------------------------------------------------------------
+
+/// @dev Facilitates increasing MARS incentives that are to be distributed as Lockdrop participation reward
+/// @params amount : Number of MARS tokens which are to be added to current incentives
+pub fn handle_increase_mars_incentives(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<Response, StdError> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if config.address_provider.is_none() {
+        return Err(StdError::generic_err("Address provider not set"));
+    }
+
+    let mars_token_address = query_address(
+        &deps.querier,
+        config.address_provider.clone().unwrap(),
+        MarsContract::MarsToken,
+    )?;
+
+    if info.sender != mars_token_address {
+        return Err(StdError::generic_err("Only astro tokens are received!"));
+    }
+
+    if env.block.time.seconds()
+        >= config.init_timestamp + config.deposit_window + config.withdrawal_window
+    {
+        return Err(StdError::generic_err("MARS is already being distributed"));
+    };
+
+    config.lockdrop_incentives += amount;
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new()
+        .add_attribute("action", "mars_incentives_increased")
+        .add_attribute("amount", amount))
+}
 
 /// @dev ADMIN Function. Facilitates state update. Will be used to set address_provider / maUST token address most probably, based on deployment schedule
 /// @params new_config : New configuration struct
@@ -240,10 +298,10 @@ pub fn try_deposit_ust(
     }
 
     // CHECK :: Valid Lockup Duration
-    if duration > config.max_lock_duration || duration < config.min_lock_duration {
+    if duration > config.max_duration || duration < config.min_duration {
         return Err(StdError::generic_err(format!(
             "Lockup duration needs to be between {} and {}",
-            config.min_lock_duration, config.max_lock_duration
+            config.min_duration, config.max_duration
         )));
     }
 
@@ -930,8 +988,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         init_timestamp: config.init_timestamp,
         deposit_window: config.deposit_window,
         withdrawal_window: config.withdrawal_window,
-        min_duration: config.min_lock_duration,
-        max_duration: config.max_lock_duration,
+        min_duration: config.min_duration,
+        max_duration: config.max_duration,
         weekly_multiplier: config.weekly_multiplier,
         weekly_divider: config.weekly_divider,
         lockdrop_incentives: config.lockdrop_incentives,

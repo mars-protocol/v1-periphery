@@ -1,12 +1,11 @@
 use std::str::FromStr;
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, Addr, Coin, Decimal, Timestamp, Uint128};
-use cw20::{BalanceResponse, Cw20QueryMsg};
-use cw20_base::msg::ExecuteMsg as CW20ExecuteMsg;
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use mars_periphery::lockdrop::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg, StateResponse,
-    UpdateConfigMsg, UserInfoResponse,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg,
+    StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -322,7 +321,6 @@ fn instantiate_auction_contract(
         airdrop_contract_address: airdrop_instance.to_string(),
         lockdrop_contract_address: lockdrop_instance.to_string(),
         generator_contract: "generator_contract".to_string(),
-        mars_rewards: Uint128::from(1000000000000u64),
         mars_vesting_duration: 7776000u64,
         lp_tokens_vesting_duration: 7776000u64,
         init_timestamp: 1700001,
@@ -342,6 +340,19 @@ fn instantiate_auction_contract(
             None,
         )
         .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: auction_instance.clone().to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
     (auction_instance, auction_instantiate_msg)
 }
 
@@ -377,7 +388,6 @@ fn instantiate_lockdrop_contract(
         seconds_per_week: 7 * 86400 as u64,
         weekly_multiplier: 9u64,
         weekly_divider: 100u64,
-        lockdrop_incentives: Uint128::from(1000000000000u64),
     };
     if address_provider.is_some() {
         lockdrop_instantiate_msg.address_provider = Some(address_provider.unwrap().to_string());
@@ -397,6 +407,7 @@ fn instantiate_lockdrop_contract(
             None,
         )
         .unwrap();
+
     (lockdrop_instance, lockdrop_instantiate_msg)
 }
 
@@ -469,7 +480,6 @@ fn test_proper_initialization() {
     assert_eq!(init_msg.max_duration, resp.max_duration);
     assert_eq!(init_msg.weekly_multiplier, resp.weekly_multiplier);
     assert_eq!(init_msg.weekly_divider, resp.weekly_divider);
-    assert_eq!(init_msg.lockdrop_incentives, resp.lockdrop_incentives);
 
     // Check state
     let resp: StateResponse = app
@@ -562,6 +572,44 @@ fn test_deposit_ust() {
     let mut app = mock_app();
     let owner = Addr::unchecked("contract_owner");
     let (lockdrop_instance, _) = instantiate_lockdrop_contract(&mut app, owner.clone(), None, None);
+
+    let (address_provider_instance, _, _, _, mars_token_instance) =
+        instantiate_red_bank(&mut app, owner.clone());
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    mint_some_mars(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(900_000_0000_000),
+        owner.to_string(),
+    );
+
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: lockdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     let user1_address = Addr::unchecked("user1");
     let user2_address = Addr::unchecked("user2");
@@ -876,6 +924,44 @@ fn test_withdraw_ust() {
     let owner = Addr::unchecked("contract_owner");
     let (lockdrop_instance, _) = instantiate_lockdrop_contract(&mut app, owner.clone(), None, None);
 
+    let (address_provider_instance, _, _, _, mars_token_instance) =
+        instantiate_red_bank(&mut app, owner.clone());
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    mint_some_mars(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(900_000_0000_000),
+        owner.to_string(),
+    );
+
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: lockdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
     let user1_address = Addr::unchecked("user1");
 
     // Set user balances
@@ -1168,6 +1254,15 @@ fn test_deposit_mars_to_auction() {
 
     let (address_provider_instance, _, _, _, mars_token_instance) =
         instantiate_red_bank(&mut app, owner.clone());
+
+    mint_some_mars(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Uint128::new(900_000_0000_000),
+        owner.to_string(),
+    );
+
     let (auction_instance, _) = instantiate_auction_contract(
         &mut app,
         owner.clone(),
@@ -1176,14 +1271,32 @@ fn test_deposit_mars_to_auction() {
         lockdrop_instance.clone(),
     );
 
-    // mint MARS for to Lockdrop Contract
-    mint_some_mars(
-        &mut app,
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
         owner.clone(),
         mars_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        lockdrop_instance.clone().to_string(),
-    );
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: lockdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     let user1_address = Addr::unchecked("user1");
 
@@ -1243,25 +1356,12 @@ fn test_deposit_mars_to_auction() {
         "Generic error: Deposit / withdraw windows not closed yet"
     );
 
-    // ######    ERROR :: Address provider not set   ######
+    // ######    ERROR :: Auction contract address not set   ######
     app.update_block(|b| {
         b.height += 17280;
         b.time = Timestamp::from_seconds(17_000_03)
     });
 
-    err = app
-        .execute_contract(
-            user1_address.clone(),
-            lockdrop_instance.clone(),
-            &ExecuteMsg::DepositMarsToAuction {
-                amount: Uint128::from(9000u64),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Address provider not set");
-
-    // ######    ERROR :: Auction contract address not set   ######
     app.execute_contract(
         owner.clone(),
         lockdrop_instance.clone(),
@@ -1453,22 +1553,49 @@ fn test_deposit_ust_in_red_bank() {
 
     let (address_provider_instance, red_bank_instance, _, _, mars_token_instance) =
         instantiate_red_bank(&mut app, owner.clone());
-    let (_, _) = instantiate_auction_contract(
-        &mut app,
-        owner.clone(),
-        Addr::unchecked("mars_token"),
-        Addr::unchecked("airdrop_instance"),
-        lockdrop_instance.clone(),
-    );
 
-    // mint MARS for to Lockdrop Contract
     mint_some_mars(
         &mut app,
         owner.clone(),
         mars_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        lockdrop_instance.clone().to_string(),
+        Uint128::new(900_000_0000_000),
+        owner.to_string(),
     );
+
+    let (_, _) = instantiate_auction_contract(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Addr::unchecked("airdrop_instance"),
+        lockdrop_instance.clone(),
+    );
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: lockdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     let user1_address = Addr::unchecked("user1");
 
@@ -1524,20 +1651,6 @@ fn test_deposit_ust_in_red_bank() {
         )
         .unwrap_err();
     assert_eq!(err.to_string(), "Generic error: Unauthorized");
-
-    // ***
-    // *** Test :: Error " Address provider not set" ***
-    // ***
-
-    let err = app
-        .execute_contract(
-            owner.clone(),
-            lockdrop_instance.clone(),
-            &ExecuteMsg::DepositUstInRedBank {},
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Address provider not set");
 
     // ***
     // *** Test :: Error " maUST address should be set" ***
@@ -1717,22 +1830,49 @@ fn test_enable_claims() {
 
     let (address_provider_instance, red_bank_instance, _, _, mars_token_instance) =
         instantiate_red_bank(&mut app, owner.clone());
-    let (auction_instance, _) = instantiate_auction_contract(
-        &mut app,
-        owner.clone(),
-        Addr::unchecked("mars_token"),
-        Addr::unchecked("airdrop_instance"),
-        lockdrop_instance.clone(),
-    );
 
-    // mint MARS for to Lockdrop Contract
     mint_some_mars(
         &mut app,
         owner.clone(),
         mars_token_instance.clone(),
-        Uint128::new(100_000_000_000),
-        lockdrop_instance.clone().to_string(),
+        Uint128::new(900_000_0000_000),
+        owner.to_string(),
     );
+
+    let (auction_instance, _) = instantiate_auction_contract(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Addr::unchecked("airdrop_instance"),
+        lockdrop_instance.clone(),
+    );
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: lockdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     let user1_address = Addr::unchecked("user1");
 
@@ -1889,22 +2029,49 @@ fn test_claim_rewards_and_unlock() {
         xmars_token_instance,
         mars_token_instance,
     ) = instantiate_red_bank(&mut app, owner.clone());
-    let (auction_instance, _) = instantiate_auction_contract(
-        &mut app,
-        owner.clone(),
-        Addr::unchecked("mars_token"),
-        Addr::unchecked("airdrop_instance"),
-        lockdrop_instance.clone(),
-    );
 
-    // mint MARS for to Lockdrop Contract
     mint_some_mars(
         &mut app,
         owner.clone(),
         mars_token_instance.clone(),
-        Uint128::new(1000000000000),
-        lockdrop_instance.clone().to_string(),
+        Uint128::new(900_000_0000_000),
+        owner.to_string(),
     );
+
+    let (auction_instance, _) = instantiate_auction_contract(
+        &mut app,
+        owner.clone(),
+        mars_token_instance.clone(),
+        Addr::unchecked("airdrop_instance"),
+        lockdrop_instance.clone(),
+    );
+
+    app.execute_contract(
+        owner.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::UpdateConfig {
+            new_config: UpdateConfigMsg {
+                owner: None,
+                address_provider: Some(address_provider_instance.to_string()),
+                ma_ust_token: None,
+                auction_contract_address: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: lockdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     let user1_address = Addr::unchecked("user1");
     let user2_address = Addr::unchecked("user2");
@@ -2008,23 +2175,6 @@ fn test_claim_rewards_and_unlock() {
         }],
     )
     .unwrap();
-
-    // ***
-    // *** Test :: Error " Address provider not set" ***
-    // ***
-
-    let err = app
-        .execute_contract(
-            user1_address.clone(),
-            lockdrop_instance.clone(),
-            &ExecuteMsg::ClaimRewardsAndUnlock {
-                lockup_to_unlock_duration: 0u64,
-                forceful_unlock: false,
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Address provider not set");
 
     // *** Update Configuration ***
 
@@ -2619,7 +2769,7 @@ fn test_claim_rewards_and_unlock() {
     app.execute_contract(
         user3_address.clone(),
         mars_token_instance.clone(),
-        &CW20ExecuteMsg::IncreaseAllowance {
+        &Cw20ExecuteMsg::IncreaseAllowance {
             spender: lockdrop_instance.clone().to_string(),
             amount: Uint128::from(1000000000000000000u64),
             expires: None,
