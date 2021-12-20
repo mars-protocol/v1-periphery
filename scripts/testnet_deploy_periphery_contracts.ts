@@ -44,7 +44,7 @@ async function main() {
   // DEPOLYMENT CONFIGURATION FOR BOMBAY-12
   const LOCKDROP_INIT_TIMESTAMP =
     parseInt((Date.now() / 1000).toFixed(0)) + 150;
-  const LOCKDROP_DEPOSIT_WINDOW = 3600;
+  const LOCKDROP_DEPOSIT_WINDOW = 4500;
   const LOCKDROP_WITHDRAWAL_WINDOW = 3600;
   const SECONDS_PER_WEEK = 3600 * 3;
 
