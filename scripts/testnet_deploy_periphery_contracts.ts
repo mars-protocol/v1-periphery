@@ -1,9 +1,5 @@
 import "dotenv/config";
-import {
-  LegacyAminoMultisigPublicKey,
-  MsgExecuteContract,
-  SimplePublicKey,
-} from "@terra-money/terra.js";
+import { MsgExecuteContract, SimplePublicKey } from "@terra-money/terra.js";
 import {
   deployContract,
   executeContract,
@@ -105,7 +101,7 @@ async function main() {
     network.lockdrop_address = await deployContract(
       terra,
       wallet,
-      join(ARTIFACTS_PATH, "astroport_lockdrop.wasm"),
+      join(ARTIFACTS_PATH, "mars_lockdrop.wasm"),
       CONFIGURATION.lockdrop_InitMsg.config,
       "MARS Protocol -::- Phase 1 -::- Lockdrop"
     );
@@ -131,7 +127,7 @@ async function main() {
     network.airdrop_address = await deployContract(
       terra,
       wallet,
-      join(ARTIFACTS_PATH, "astroport_airdrop.wasm"),
+      join(ARTIFACTS_PATH, "mars_airdrop.wasm"),
       CONFIGURATION.airdrop_InitMsg.config,
       "MARS Protocol -::- Phase 2 -::- Airdrop"
     );
@@ -164,7 +160,7 @@ async function main() {
     network.auction_address = await deployContract(
       terra,
       wallet,
-      join(ARTIFACTS_PATH, "astroport_auction.wasm"),
+      join(ARTIFACTS_PATH, "mars_auction.wasm"),
       CONFIGURATION.auction_InitMsg.config,
       "MARS Protocol -::- Phase 2 -::- Auction"
     );
