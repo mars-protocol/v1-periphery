@@ -210,7 +210,7 @@ pub fn handle_increase_mars_incentives(
     )?;
 
     if info.sender != mars_token_address {
-        return Err(StdError::generic_err("Only astro tokens are received!"));
+        return Err(StdError::generic_err("Only mars tokens are received!"));
     }
 
     if env.block.time.seconds()
