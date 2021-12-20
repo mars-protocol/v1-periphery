@@ -1,0 +1,14 @@
+{
+  "columns": ["User Address", "Airdrop Amount"],
+  "index": [1, 2, 3, 4, 5],
+  "data": [
+    ["terra17mpuq65hw5kt7d44kpw4nk7x339xhznaa0duzv", 1002498087000],
+    ["terra1lv845g7szf9m3082qn3eehv9ewkjjr2kdyz0t6", 1002498730003],
+    ["terra1mthww38ea56sjmwtswlvy0g4zzjspjwaw3e6t8", 1002503467000],
+    ["terra1jdd392vxlx5u23yvekvvjzuna0gszttgtngfnt", 1002503467000],
+    ["terra1yskm9s4r0h0egg3lxe5wmmppr9s6lfau4j8yhc", 1002503516700],
+    ["terra19x45fmcfmrnhe35r38xwtutft248ylj8p9mh5j", 1000503467000],
+    ["terra1elk8fwaqv2hg9hpuh6wclvur0mj408d7zrly49", 1000503467000],
+    ["terra1suygcd3r636scvclqm08euwaemdrmrwxl06z0v", 1000503467000]
+  ]
+}
