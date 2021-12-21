@@ -221,19 +221,19 @@ async function main() {
     writeArtifact(network, terra.config.chainID);
   }
 
-  // MARS::Send::Lockdrop::IncreaseAstroIncentives:: Transfer MARS to Lockdrop and set total incentives
-  // MARS::Send::Lockdrop::IncreaseAstroIncentives:: Transfer MARS to Lockdrop and set total incentives
-  if (!network.lockdrop_astro_token_transferred) {
+  // MARS::Send::Lockdrop::IncreaseMarsIncentives:: Transfer MARS to Lockdrop and set total incentives
+  // MARS::Send::Lockdrop::IncreaseMarsIncentives:: Transfer MARS to Lockdrop and set total incentives
+  if (!network.lockdrop_mars_token_transferred) {
     let transfer_msg = {
       send: {
         contract: network.lockdrop_address,
         amount: String(LOCKDROP_INCENTIVES),
         msg: Buffer.from(
-          JSON.stringify({ increase_astro_incentives: {} })
+          JSON.stringify({ increase_mars_incentives: {} })
         ).toString("base64"),
       },
     };
-    let increase_astro_incentives = await executeContract(
+    let increase_mars_incentives = await executeContract(
       terra,
       wallet,
       network.mars_token_address,
@@ -242,15 +242,15 @@ async function main() {
       "Transfer MARS to Lockdrop for Incentives"
     );
     console.log(
-      `${terra.config.chainID} :: Transferring MARS Token and setting incentives in Lockdrop... ${increase_astro_incentives.txhash}`
+      `${terra.config.chainID} :: Transferring MARS Token and setting incentives in Lockdrop... ${increase_mars_incentives.txhash}`
     );
-    network.lockdrop_astro_token_transferred = true;
+    network.lockdrop_mars_token_transferred = true;
     writeArtifact(network, terra.config.chainID);
   }
 
-  // MARS::Send::Airdrop::IncreaseAstroIncentives:: Transfer MARS to Airdrop
-  // MARS::Send::Airdrop::IncreaseAstroIncentives:: Transfer MARS to Airdrop
-  if (!network.airdrop_astro_token_transferred) {
+  // MARS::Send::Airdrop::IncreaseMarsIncentives:: Transfer MARS to Airdrop
+  // MARS::Send::Airdrop::IncreaseMarsIncentives:: Transfer MARS to Airdrop
+  if (!network.airdrop_mars_token_transferred) {
     // transfer MARS Tx
     let tx = await executeContract(
       terra,
@@ -261,7 +261,7 @@ async function main() {
           contract: network.airdrop_address,
           amount: String(AIRDROP_INCENTIVES),
           msg: Buffer.from(
-            JSON.stringify({ increase_astro_incentives: {} })
+            JSON.stringify({ increase_mars_incentives: {} })
           ).toString("base64"),
         },
       },
@@ -271,20 +271,20 @@ async function main() {
     console.log(
       `${terra.config.chainID} :: Transferring MARS Token and setting incentives in Airdrop... ${tx.txhash}`
     );
-    network.airdrop_astro_token_transferred = true;
+    network.airdrop_mars_token_transferred = true;
     writeArtifact(network, terra.config.chainID);
   }
 
-  // MARS::Send::Airdrop::IncreaseAstroIncentives::Transfer MARS to Auction
-  // MARS::Send::Airdrop::IncreaseAstroIncentives::Transfer MARS to Auction
-  if (!network.auction_astro_token_transferred) {
+  // MARS::Send::Airdrop::IncreaseMarsIncentives::Transfer MARS to Auction
+  // MARS::Send::Airdrop::IncreaseMarsIncentives::Transfer MARS to Auction
+  if (!network.auction_mars_token_transferred) {
     // transfer MARS Tx
     let msg = {
       send: {
         contract: network.auction_address,
         amount: String(AUCTION_INCENTIVES),
         msg: Buffer.from(
-          JSON.stringify({ increase_astro_incentives: {} })
+          JSON.stringify({ increase_mars_incentives: {} })
         ).toString("base64"),
       },
     };
@@ -299,7 +299,7 @@ async function main() {
     console.log(
       `${terra.config.chainID} :: Transferring MARS Token and setting incentives in Auction... ${out.txhash}`
     );
-    network.auction_astro_token_transferred = true;
+    network.auction_mars_token_transferred = true;
     writeArtifact(network, terra.config.chainID);
   }
 }
