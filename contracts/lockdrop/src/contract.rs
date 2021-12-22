@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg,
@@ -39,17 +41,22 @@ pub fn instantiate(
             env.block.time.seconds()
         )));
     }
-    // CHECK :: deposit_window,withdrawal_window need to be valid (withdrawal_window < deposit_window)
-    if msg.deposit_window == 0u64
-        || msg.withdrawal_window == 0u64
-        || msg.deposit_window <= msg.withdrawal_window
-    {
-        return Err(StdError::generic_err("Invalid deposit / withdraw window"));
-    }
 
-    // CHECK :: min_lock_duration , max_lock_duration need to be valid (min_lock_duration < max_lock_duration)
-    if msg.max_duration <= msg.min_duration {
-        return Err(StdError::generic_err("Invalid Lockup durations"));
+    for lockup_option in msg.lockup_durations.clone() {
+        // CHECK :: Lockup duration limits
+        if lockup_option.0 < 3 || lockup_option.0 > 24 {
+            return Err(StdError::generic_err(format!(
+                "Lockup duration needs to be b/w than 3 and 24 months, invalid {} option provided ",
+                lockup_option.0
+            )));
+        }
+        // CHECK :: Lockup Boosty limits
+        if lockup_option.1 > 24 {
+            return Err(StdError::generic_err(format!(
+                "Lockup boost needs to be less than 24, invalid {} option provided ",
+                lockup_option.1
+            )));
+        }
     }
 
     let mut config = Config {
@@ -60,11 +67,8 @@ pub fn instantiate(
         init_timestamp: msg.init_timestamp,
         deposit_window: msg.deposit_window,
         withdrawal_window: msg.withdrawal_window,
-        min_lock_duration: msg.min_duration,
-        max_lock_duration: msg.max_duration,
-        seconds_per_week: msg.seconds_per_week,
-        weekly_multiplier: msg.weekly_multiplier,
-        weekly_divider: msg.weekly_divider,
+        lockup_durations: msg.lockup_durations,
+        seconds_per_duration_unit: msg.seconds_per_duration_unit,
         lockdrop_incentives: msg.lockdrop_incentives,
     };
 
@@ -240,10 +244,19 @@ pub fn try_deposit_ust(
     }
 
     // CHECK :: Valid Lockup Duration
-    if duration > config.max_lock_duration || duration < config.min_lock_duration {
+    let mut is_duration_valid = false;
+    for lockup_option in config.lockup_durations.clone() {
+        if lockup_option.0 == duration {
+            is_duration_valid = true;
+            break;
+        }
+    }
+
+    // If duration is not valid
+    if !is_duration_valid {
         return Err(StdError::generic_err(format!(
-            "Lockup duration needs to be between {} and {}",
-            config.min_lock_duration, config.max_lock_duration
+            "{} lockup duration not supported",
+            duration
         )));
     }
 
@@ -930,10 +943,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         init_timestamp: config.init_timestamp,
         deposit_window: config.deposit_window,
         withdrawal_window: config.withdrawal_window,
-        min_duration: config.min_lock_duration,
-        max_duration: config.max_lock_duration,
-        weekly_multiplier: config.weekly_multiplier,
-        weekly_divider: config.weekly_divider,
+        lockup_durations: config.lockup_durations,
+        seconds_per_duration_unit: config.seconds_per_duration_unit,
         lockdrop_incentives: config.lockdrop_incentives,
     })
 }
@@ -1112,7 +1123,7 @@ fn calculate_unlock_timestamp(config: &Config, duration: u64) -> u64 {
     config.init_timestamp
         + config.deposit_window
         + config.withdrawal_window
-        + (duration * config.seconds_per_week)
+        + (duration * config.seconds_per_duration_unit)
 }
 
 // /// @dev Returns true if the user_info stuct's lockup_positions vector contains the lockup_id
@@ -1226,18 +1237,18 @@ fn calculate_mars_incentives_for_lockup(
 
 /// @dev Helper function. Returns effective weight for the amount to be used for calculating lockdrop rewards
 /// @params amount : Number of LP tokens
-/// @params duration : Number of weeks
-/// @config : Config with weekly multiplier and divider
+/// @params duration : Selected duration unit
+/// @config : Config struct
 fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> Uint128 {
-    if duration < 1u64 {
-        return Uint128::zero();
+    let mut boost = 1;
+    // get boost value for duration
+    for lockup_option in config.lockup_durations.clone() {
+        if lockup_option.0 == duration {
+            boost = lockup_option.1;
+            break;
+        }
     }
-    let lock_weight = Decimal::one()
-        + Decimal::from_ratio(
-            (duration - 1) * config.weekly_multiplier,
-            config.weekly_divider,
-        );
-    lock_weight * amount
+    amount.mul(Uint128::from(boost))
 }
 
 /// @dev Accrue xMARS rewards by updating the reward index

@@ -29,16 +29,10 @@ pub struct Config {
     pub deposit_window: u64,
     /// Withdrawal Window Length
     pub withdrawal_window: u64,
-    /// Min. no. of weeks allowed for lockup
-    pub min_lock_duration: u64,
-    /// Max. no. of weeks allowed for lockup
-    pub max_lock_duration: u64,
+    ///  Durations and boosties params
+    pub lockup_durations: Vec<(u64, u64)>,
     /// Number of seconds per week
-    pub seconds_per_week: u64,
-    /// Lockdrop Reward multiplier
-    pub weekly_multiplier: u64,
-    /// Lockdrop Reward divider
-    pub weekly_divider: u64,
+    pub seconds_per_duration_unit: u64,
     /// Total MARS lockdrop incentives to be distributed among the users
     pub lockdrop_incentives: Uint128,
 }

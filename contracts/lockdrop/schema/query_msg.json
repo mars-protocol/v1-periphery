@@ -91,6 +91,28 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "withdrawal_percent_allowed"
+      ],
+      "properties": {
+        "withdrawal_percent_allowed": {
+          "type": "object",
+          "properties": {
+            "timestamp": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }
