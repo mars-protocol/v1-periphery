@@ -65,12 +65,13 @@ pub enum ExecuteMsg {
     DepositMarsToAuction {
         amount: Uint128,
     },
-    // Facilitates MARS reward claim and optionally unlocking any lockup position, either once the lockup duration is over or make a forceful unlock
+    // Facilitates MARS reward claim and optionally unlocking any lockup position,
+    // either once the lockup duration is over or make a forceful unlock
     ClaimRewardsAndUnlock {
         lockup_to_unlock_duration: u64,
         forceful_unlock: bool,
     },
-    // Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable ASTRO withdrawals by users
+    // Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable MARS withdrawals by users
     EnableClaims {},
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),

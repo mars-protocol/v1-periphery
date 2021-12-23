@@ -378,7 +378,7 @@ pub fn handle_enable_claims(deps: DepsMut, info: MessageInfo) -> StdResult<Respo
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
-    // CHECK :: AUction contract should be set
+    // CHECK :: Auction contract should be set
     if config.auction_contract_address.is_none() {
         return Err(StdError::generic_err("Auction address in lockdrop not set"));
     }
@@ -546,7 +546,7 @@ pub fn handle_deposit_mars_to_auction(
         );
     }
 
-    // CHECK :: ASTRO to delegate cannot exceed user's unclaimed ASTRO balance
+    // CHECK :: MARS to delegate cannot exceed user's unclaimed MARS balance
     if amount > (user_info.total_mars_incentives - user_info.delegated_mars_incentives) {
         return Err(StdError::generic_err(format!("Amount cannot exceed user's unclaimed MARS balance. MARS to delegate = {}, Max delegatable MARS = {} ",amount, (user_info.total_mars_incentives - user_info.delegated_mars_incentives))));
     }
