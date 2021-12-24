@@ -2019,7 +2019,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 0u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2066,7 +2065,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 3u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2083,7 +2081,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 6u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2100,7 +2097,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 0u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2120,7 +2116,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 0u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2158,7 +2153,6 @@ fn test_claim_rewards_and_unlock() {
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration: 0u64,
-            forceful_unlock: false,
         },
         &[],
     )
@@ -2336,7 +2330,6 @@ fn test_claim_rewards_and_unlock() {
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration: 0u64,
-            forceful_unlock: false,
         },
         &[],
     )
@@ -2466,7 +2459,6 @@ fn test_claim_rewards_and_unlock() {
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration: 9u64,
-            forceful_unlock: false,
         },
         &[],
     )
@@ -2634,7 +2626,6 @@ fn test_claim_rewards_and_unlock() {
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration: 12u64,
-            forceful_unlock: true,
         },
         &[],
     )
@@ -2681,8 +2672,7 @@ fn test_claim_rewards_and_unlock() {
         user3_xmars_balance_after.balance
     );
     assert_eq!(
-        user3_mars_balance_before.balance + user_resp_before.total_mars_incentives
-            - lockup_before.lockdrop_reward,
+        user3_mars_balance_before.balance + user_resp_before.total_mars_incentives,
         user3_mars_balance_after.balance
     );
 }

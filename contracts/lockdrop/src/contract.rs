@@ -110,14 +110,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::DepositUstInRedBank {} => try_deposit_in_red_bank(deps, env, info),
         ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration,
-            forceful_unlock,
-        } => handle_claim_rewards_and_unlock_position(
-            deps,
-            env,
-            info,
-            lockup_to_unlock_duration,
-            forceful_unlock,
-        ),
+        } => handle_claim_rewards_and_unlock_position(deps, env, info, lockup_to_unlock_duration),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
 }
@@ -142,11 +135,9 @@ fn _handle_callback(
             user,
             prev_xmars_balance,
         } => update_state_on_claim(deps, env, user, prev_xmars_balance),
-        CallbackMsg::DissolvePosition {
-            user,
-            duration,
-            forceful_unlock,
-        } => try_dissolve_position(deps, env, user, duration, forceful_unlock),
+        CallbackMsg::DissolvePosition { user, duration } => {
+            try_dissolve_position(deps, env, user, duration)
+        }
     }
 }
 
@@ -597,13 +588,11 @@ pub fn handle_deposit_mars_to_auction(
 
 /// @dev Function to claim Rewards and optionally unlock a lockup position (either naturally or forcefully). Claims pending incentives (xMARS) internally and accounts for them via the index updates
 /// @params lockup_to_unlock_duration : Duration of the lockup to be unlocked. If 0 then no lockup is to be unlocked
-/// @params forceful_unlock : Boolean value indicating is the unlock is forceful or natural
 pub fn handle_claim_rewards_and_unlock_position(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     lockup_to_unlock_duration: u64,
-    forceful_unlock: bool,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
@@ -636,7 +625,7 @@ pub fn handle_claim_rewards_and_unlock_position(
             return Err(StdError::generic_err("Invalid lockup"));
         }
 
-        if !forceful_unlock && lockup_info.unlock_timestamp > env.block.time.seconds() {
+        if lockup_info.unlock_timestamp > env.block.time.seconds() {
             let time_remaining = lockup_info.unlock_timestamp - env.block.time.seconds();
             return Err(StdError::generic_err(format!(
                 "{} seconds to Unlock",
@@ -648,7 +637,6 @@ pub fn handle_claim_rewards_and_unlock_position(
             .add_attribute("action", "unlock_position")
             .add_attribute("ust_amount", lockup_info.ust_locked.to_string())
             .add_attribute("duration", lockup_info.duration.to_string())
-            .add_attribute("forceful_unlock", forceful_unlock.to_string())
     }
 
     // CHECKS ::
@@ -727,7 +715,6 @@ pub fn handle_claim_rewards_and_unlock_position(
         let callback_dissolve_position_msg = CallbackMsg::DissolvePosition {
             user: user_address.clone(),
             duration: lockup_to_unlock_duration,
-            forceful_unlock,
         }
         .to_cosmos_msg(&env.contract.address)?;
         response = response.add_message(callback_dissolve_position_msg);
@@ -852,13 +839,11 @@ pub fn update_state_on_claim(
 /// @dev  Callback function. Unlocks a lockup position. Either naturally after duration expiration or forcefully by returning MARS (lockdrop incentives)
 /// @params user : User address whose position is to be unlocked
 /// @params duration :Lockup duration of the position to be unlocked
-/// @params forceful_unlock : Boolean value indicating is the unlock is forceful or not
 pub fn try_dissolve_position(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     user: Addr,
     duration: u64,
-    forceful_unlock: bool,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
@@ -887,26 +872,6 @@ pub fn try_dissolve_position(
     remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone());
 
     let mut cosmos_msgs = vec![];
-
-    // If forceful unlock, user needs to return MARS Lockdrop rewards he received against this lockup position
-    if forceful_unlock {
-        // QUERY:: Mars Contract addresses
-        let mars_token_address = query_address(
-            &deps.querier,
-            config.address_provider.unwrap(),
-            MarsContract::MarsToken,
-        )?;
-        // COSMOS MSG :: Transfer MARS from user to itself
-        cosmos_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: mars_token_address.to_string(),
-            funds: vec![],
-            msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
-                owner: user.to_string(),
-                recipient: env.contract.address.to_string(),
-                amount: lockup_info.lockdrop_reward,
-            })?,
-        }));
-    }
 
     let maust_transfer_msg = build_transfer_cw20_token_msg(
         user.clone(),
