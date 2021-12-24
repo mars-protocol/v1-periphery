@@ -44,17 +44,17 @@ pub fn instantiate(
 
     for lockup_option in msg.lockup_durations.clone() {
         // CHECK :: Lockup duration limits
-        if lockup_option.0 < 3 || lockup_option.0 > 24 {
+        if lockup_option.duration < 3 || lockup_option.duration > 24 {
             return Err(StdError::generic_err(format!(
                 "Lockup duration needs to be b/w than 3 and 24 months, invalid {} option provided ",
-                lockup_option.0
+                lockup_option.duration
             )));
         }
         // CHECK :: Lockup Boosty limits
-        if lockup_option.1 > 24 {
+        if lockup_option.boost > 24 {
             return Err(StdError::generic_err(format!(
                 "Lockup boost needs to be less than 24, invalid {} option provided ",
-                lockup_option.1
+                lockup_option.boost
             )));
         }
     }
@@ -237,7 +237,7 @@ pub fn try_deposit_ust(
     // CHECK :: Valid Lockup Duration
     let mut is_duration_valid = false;
     for lockup_option in config.lockup_durations.clone() {
-        if lockup_option.0 == duration {
+        if lockup_option.duration == duration {
             is_duration_valid = true;
             break;
         }
@@ -1208,8 +1208,8 @@ fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> Uint128 
     let mut boost = 1;
     // get boost value for duration
     for lockup_option in config.lockup_durations.clone() {
-        if lockup_option.0 == duration {
-            boost = lockup_option.1;
+        if lockup_option.duration == duration {
+            boost = lockup_option.boost;
             break;
         }
     }

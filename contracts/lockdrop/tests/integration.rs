@@ -5,8 +5,8 @@ use cosmwasm_std::{attr, Addr, Coin, Decimal, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as CW20ExecuteMsg;
 use mars_periphery::lockdrop::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg, StateResponse,
-    UpdateConfigMsg, UserInfoResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, LockupDurationParams, QueryMsg,
+    StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -372,7 +372,28 @@ fn instantiate_lockdrop_contract(
         init_timestamp: 10_000_01,
         deposit_window: 5_000_00,
         withdrawal_window: 2_000_00,
-        lockup_durations: vec![(3, 1), (6, 2), (9, 3), (12, 4), (15, 5)],
+        lockup_durations: vec![
+            LockupDurationParams {
+                duration: 3,
+                boost: 1,
+            },
+            LockupDurationParams {
+                duration: 6,
+                boost: 2,
+            },
+            LockupDurationParams {
+                duration: 9,
+                boost: 3,
+            },
+            LockupDurationParams {
+                duration: 12,
+                boost: 4,
+            },
+            LockupDurationParams {
+                duration: 15,
+                boost: 5,
+            },
+        ],
         seconds_per_duration_unit: 7 * 86400 as u64,
         weekly_multiplier: 9u64,
         weekly_divider: 100u64,
@@ -2591,18 +2612,6 @@ fn test_claim_rewards_and_unlock() {
             &xmars_token_instance.clone().to_string(),
             &Cw20QueryMsg::Balance {
                 address: user3_address.clone().to_string(),
-            },
-        )
-        .unwrap();
-
-    // Check lockup
-    let lockup_before: LockUpInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &lockdrop_instance.clone().to_string(),
-            &QueryMsg::LockUpInfo {
-                address: user3_address.clone().to_string(),
-                duration: 12u64,
             },
         )
         .unwrap();

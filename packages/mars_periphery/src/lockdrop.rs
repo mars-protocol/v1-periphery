@@ -18,7 +18,7 @@ pub struct InstantiateMsg {
     /// Number of seconds for which lockup withdrawals will be allowed
     pub withdrawal_window: u64,
     /// Durations and boosties params
-    pub lockup_durations: Vec<(u64, u64)>,
+    pub lockup_durations: Vec<LockupDurationParams>,
     /// Number of seconds per week
     pub seconds_per_duration_unit: u64,
     /// Lockdrop Reward multiplier
@@ -129,7 +129,7 @@ pub struct ConfigResponse {
     /// Number of seconds for which lockup withdrawals will be allowed
     pub withdrawal_window: u64,
     /// Durations and boosties params
-    pub lockup_durations: Vec<(u64, u64)>,
+    pub lockup_durations: Vec<LockupDurationParams>,
     /// Number of seconds per week
     pub seconds_per_duration_unit: u64,
     /// Total MARS lockdrop incentives to be distributed among the users
@@ -181,4 +181,10 @@ pub struct LockUpInfoResponse {
     pub lockdrop_reward: Uint128,
     /// Timestamp beyond which this position can be unlocked
     pub unlock_timestamp: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LockupDurationParams {
+    pub duration: u64,
+    pub boost: u64,
 }

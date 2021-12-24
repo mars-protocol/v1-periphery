@@ -4,6 +4,8 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use mars_periphery::lockdrop::LockupDurationParams;
+
 pub const CONFIG_KEY: &str = "config";
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 
@@ -30,7 +32,7 @@ pub struct Config {
     /// Withdrawal Window Length
     pub withdrawal_window: u64,
     ///  Durations and boosties params
-    pub lockup_durations: Vec<(u64, u64)>,
+    pub lockup_durations: Vec<LockupDurationParams>,
     /// Number of seconds per week
     pub seconds_per_duration_unit: u64,
     /// Total MARS lockdrop incentives to be distributed among the users
