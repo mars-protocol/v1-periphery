@@ -236,7 +236,7 @@ pub fn try_deposit_ust(
 
     // CHECK :: Valid Lockup Duration
     let mut is_duration_valid = false;
-    for lockup_option in config.lockup_durations.clone() {
+    for lockup_option in config.clone().lockup_durations {
         if lockup_option.duration == duration {
             is_duration_valid = true;
             break;
@@ -274,7 +274,8 @@ pub fn try_deposit_ust(
 
     // STATE :: UPDATE --> SAVE
     state.total_ust_locked += native_token.amount;
-    state.total_deposits_weight += calculate_weight(native_token.amount, duration, &config);
+    state.total_deposits_weight +=
+        calculate_weight(native_token.amount, duration, &config).unwrap();
 
     STATE.save(deps.storage, &state)?;
     LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
@@ -353,7 +354,7 @@ pub fn try_withdraw_ust(
 
     // STATE :: UPDATE --> SAVE
     state.total_ust_locked -= withdraw_amount;
-    state.total_deposits_weight -= calculate_weight(withdraw_amount, duration, &config);
+    state.total_deposits_weight -= calculate_weight(withdraw_amount, duration, &config).unwrap();
 
     STATE.save(deps.storage, &state)?;
     LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
@@ -1196,7 +1197,7 @@ fn calculate_mars_incentives_for_lockup(
     if total_deposits_weight == Uint128::zero() {
         return Uint128::zero();
     }
-    let amount_weight = calculate_weight(deposited_ust, duration, config);
+    let amount_weight = calculate_weight(deposited_ust, duration, config).unwrap();
     config.lockdrop_incentives * Decimal::from_ratio(amount_weight, total_deposits_weight)
 }
 
@@ -1204,16 +1205,24 @@ fn calculate_mars_incentives_for_lockup(
 /// @params amount : Number of LP tokens
 /// @params duration : Selected duration unit
 /// @config : Config struct
-fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> Uint128 {
-    let mut boost = 1;
+fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResult<Uint128> {
+    let mut boost = 0;
     // get boost value for duration
-    for lockup_option in config.lockup_durations.clone() {
+    for lockup_option in config.clone().lockup_durations {
         if lockup_option.duration == duration {
             boost = lockup_option.boost;
             break;
         }
     }
-    amount.mul(Uint128::from(boost))
+
+    if boost == 0 {
+        Err(StdError::generic_err(format!(
+            "Boost not found for duration {}",
+            duration
+        )))
+    } else {
+        Ok(amount.mul(Uint128::from(boost)))
+    }
 }
 
 /// @dev Accrue xMARS rewards by updating the reward index
