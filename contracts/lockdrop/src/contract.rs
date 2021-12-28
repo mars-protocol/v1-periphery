@@ -217,22 +217,7 @@ pub fn try_deposit_ust(
         return Err(StdError::generic_err("Amount must be greater than 0"));
     }
 
-    // CHECK :: Valid Lockup Duration
-    let mut is_duration_valid = false;
-    for lockup_option in config.clone().lockup_durations {
-        if lockup_option.duration == duration {
-            is_duration_valid = true;
-            break;
-        }
-    }
-
-    // If duration is not valid
-    if !is_duration_valid {
-        return Err(StdError::generic_err(format!(
-            "{} lockup duration not supported",
-            duration
-        )));
-    }
+    let deposit_weight = calculate_weight(native_token.amount, duration, &config)?;
 
     // LOCKUP INFO :: RETRIEVE --> UPDATE
     let lockup_id = depositor_address.to_string() + &duration.to_string();
@@ -257,8 +242,7 @@ pub fn try_deposit_ust(
 
     // STATE :: UPDATE --> SAVE
     state.total_ust_locked += native_token.amount;
-    state.total_deposits_weight +=
-        calculate_weight(native_token.amount, duration, &config).unwrap();
+    state.total_deposits_weight += deposit_weight;
 
     STATE.save(deps.storage, &state)?;
     LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
@@ -337,7 +321,7 @@ pub fn try_withdraw_ust(
 
     // STATE :: UPDATE --> SAVE
     state.total_ust_locked -= withdraw_amount;
-    state.total_deposits_weight -= calculate_weight(withdraw_amount, duration, &config).unwrap();
+    state.total_deposits_weight -= calculate_weight(withdraw_amount, duration, &config)?;
 
     STATE.save(deps.storage, &state)?;
     LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;

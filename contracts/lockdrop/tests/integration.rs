@@ -735,7 +735,7 @@ fn test_deposit_ust() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: 1 lockup duration not supported"
+        "Generic error: Boost not found for duration 1"
     );
 
     let err = app
@@ -751,7 +751,7 @@ fn test_deposit_ust() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: 52 lockup duration not supported"
+        "Generic error: Boost not found for duration 52"
     );
 
     // ***
