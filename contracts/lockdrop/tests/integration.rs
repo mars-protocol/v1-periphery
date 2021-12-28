@@ -375,23 +375,23 @@ fn instantiate_lockdrop_contract(
         lockup_durations: vec![
             LockupDurationParams {
                 duration: 3,
-                boost: 1,
+                boost: Uint128::from(1_u64),
             },
             LockupDurationParams {
                 duration: 6,
-                boost: 2,
+                boost: Uint128::from(2_u64),
             },
             LockupDurationParams {
                 duration: 9,
-                boost: 3,
+                boost: Uint128::from(3_u64),
             },
             LockupDurationParams {
                 duration: 12,
-                boost: 4,
+                boost: Uint128::from(4_u64),
             },
             LockupDurationParams {
                 duration: 15,
-                boost: 5,
+                boost: Uint128::from(5_u64),
             },
         ],
         seconds_per_duration_unit: 7 * 86400 as u64,

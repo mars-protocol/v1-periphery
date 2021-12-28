@@ -186,5 +186,5 @@ pub struct LockUpInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct LockupDurationParams {
     pub duration: u64,
-    pub boost: u64,
+    pub boost: Uint128,
 }

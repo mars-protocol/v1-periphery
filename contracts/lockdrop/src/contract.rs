@@ -10,6 +10,7 @@ use mars_core::address_provider::helpers::{query_address, query_addresses};
 use mars_core::address_provider::MarsContract;
 use mars_core::incentives::msg::QueryMsg::UserUnclaimedRewards;
 use mars_core::tax::deduct_tax;
+
 use mars_periphery::auction::Cw20HookMsg as AuctionCw20HookMsg;
 use mars_periphery::helpers::{
     build_send_cw20_token_msg, build_send_native_asset_msg, build_transfer_cw20_token_msg,
@@ -1170,7 +1171,7 @@ fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResul
     // get boost value for duration
     for lockup_option in config.lockup_durations.iter() {
         if lockup_option.duration == duration {
-            return Ok(amount.mul(Uint128::from(lockup_option.boost)));
+            return Ok(amount.mul(lockup_option.boost));
         }
     }
 
