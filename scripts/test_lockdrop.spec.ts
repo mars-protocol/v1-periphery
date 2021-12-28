@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { join } from "path";
 import { LocalTerra, Wallet } from "@terra-money/terra.js";
 import { expect } from "chai";
+import dotenv from 'dotenv'
 import {
   uploadContract,
   deployContract,
@@ -30,11 +31,14 @@ import {
 } from "./helpers/mock_helpers.js";
 import { strict } from "yargs";
 
+dotenv.config();
+
 //----------------------------------------------------------------------------------------
 // Variables
 //----------------------------------------------------------------------------------------
 
 const ARTIFACTS_PATH = "../artifacts";
+const CW_PLUS_ARTIFACTS_PATH = process.env.CW_PLUS_ARTIFACTS_PATH!;
 const terra = new LocalTerra();
 
 const deployer = terra.wallets.test1;
