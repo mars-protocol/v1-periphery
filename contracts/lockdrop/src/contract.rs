@@ -316,7 +316,7 @@ pub fn try_withdraw_ust(
 
     user_info.total_ust_locked -= withdraw_amount;
     if lockup_info.ust_locked == Uint128::zero() {
-        remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone());
+        remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone())?;
     }
 
     // STATE :: UPDATE --> SAVE
@@ -837,7 +837,7 @@ pub fn try_dissolve_position(
 
     // DISSOLVE LOCKUP POSITION
     lockup_info.ust_locked = Uint128::zero();
-    remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone());
+    remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone())?;
 
     let mut cosmos_msgs = vec![];
 
@@ -919,16 +919,15 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
 
     // Calculate user's lockdrop incentive share if not finalized
     if user_info.total_mars_incentives == Uint128::zero() {
-        for lockup_id in user_info.lockup_positions.clone().iter() {
-            let lockup_info = LOCKUP_INFO
-                .load(deps.storage, lockup_id.as_bytes())
-                .unwrap();
+        for lockup_id in user_info.lockup_positions.iter() {
+            let lockup_info = LOCKUP_INFO.load(deps.storage, lockup_id.as_bytes())?;
+
             let position_rewards = calculate_mars_incentives_for_lockup(
                 lockup_info.ust_locked,
                 lockup_info.duration,
                 &config,
                 state.total_deposits_weight,
-            );
+            )?;
             user_info.total_mars_incentives += position_rewards;
         }
     }
@@ -946,16 +945,12 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
         let incentives_address = addresses_query.pop().unwrap();
 
         // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
-        let xmars_accured: Uint128 = deps
-            .querier
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: incentives_address.to_string(),
-                msg: to_binary(&UserUnclaimedRewards {
-                    user_address: env.contract.address.to_string(),
-                })
-                .unwrap(),
-            }))
-            .unwrap();
+        let xmars_accured: Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: incentives_address.to_string(),
+            msg: to_binary(&UserUnclaimedRewards {
+                user_address: env.contract.address.to_string(),
+            })?,
+        }))?;
 
         update_xmars_rewards_index(&mut state, xmars_accured);
         pending_xmars_to_claim = compute_user_accrued_reward(&state, &mut user_info);
@@ -1006,7 +1001,7 @@ pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<Loc
             lockup_response.duration,
             &config,
             state.total_deposits_weight,
-        );
+        )?;
     }
 
     Ok(lockup_response)
@@ -1059,24 +1054,23 @@ fn calculate_unlock_timestamp(config: &Config, duration: u64) -> u64 {
         + (duration * config.seconds_per_duration_unit)
 }
 
-// /// @dev Returns true if the user_info stuct's lockup_positions vector contains the lockup_id
-// /// @params lockup_id : Lockup Id which is to be checked if it is present in the list or not
-// fn is_lockup_present_in_user_info(user_info: &UserInfo, lockup_id: String) -> bool {
-//     if user_info.lockup_positions.iter().any(|id| id == &lockup_id) {
-//         return true;
-//     }
-//     false
-// }
-
 /// @dev Removes lockup position id from user info's lockup position list
 /// @params lockup_id : Lockup Id to be removed
-fn remove_lockup_pos_from_user_info(user_info: &mut UserInfo, lockup_id: String) {
-    let index = user_info
+fn remove_lockup_pos_from_user_info(user_info: &mut UserInfo, lockup_id: String) -> StdResult<()> {
+    let index_search = user_info
         .lockup_positions
         .iter()
-        .position(|x| *x == lockup_id)
-        .unwrap();
-    user_info.lockup_positions.remove(index);
+        .position(|x| *x == lockup_id);
+
+    if let Some(index) = index_search {
+        user_info.lockup_positions.remove(index);
+        Ok(())
+    } else {
+        Err(StdError::generic_err(format!(
+            "Lockup position not found for id {}",
+            lockup_id
+        )))
+    }
 }
 
 ///  @dev Helper function to calculate maximum % of UST deposited that can be withdrawn
@@ -1141,7 +1135,7 @@ fn update_mars_rewards_allocated_to_lockup_positions(
             lockup_info.duration,
             config,
             state.total_deposits_weight,
-        );
+        )?;
 
         lockup_info.lockdrop_reward = position_rewards;
         total_mars_rewards += position_rewards;
@@ -1160,12 +1154,12 @@ fn calculate_mars_incentives_for_lockup(
     duration: u64,
     config: &Config,
     total_deposits_weight: Uint128,
-) -> Uint128 {
+) -> StdResult<Uint128> {
     if total_deposits_weight == Uint128::zero() {
-        return Uint128::zero();
+        return Ok(Uint128::zero());
     }
-    let amount_weight = calculate_weight(deposited_ust, duration, config).unwrap();
-    config.lockdrop_incentives * Decimal::from_ratio(amount_weight, total_deposits_weight)
+    let amount_weight = calculate_weight(deposited_ust, duration, config)?;
+    Ok(config.lockdrop_incentives * Decimal::from_ratio(amount_weight, total_deposits_weight))
 }
 
 /// @dev Helper function. Returns effective weight for the amount to be used for calculating lockdrop rewards
