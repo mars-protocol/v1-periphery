@@ -21,7 +21,7 @@ use mars_periphery::lockdrop::{
     StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 
-use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
+use crate::state::{Config, LockupInfo, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 
 const UUSD_DENOM: &str = "uusd";
 //----------------------------------------------------------------------------------------
@@ -978,34 +978,51 @@ pub fn query_lockup_info(deps: Deps, user: String, duration: u64) -> StdResult<L
 
 /// @dev Returns summarized details regarding the user
 pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<LockUpInfoResponse> {
-    let lockup_info = LOCKUP_INFO
-        .may_load(deps.storage, lockup_id.as_bytes())?
-        .unwrap_or_default();
+    let lockup_info_query = LOCKUP_INFO.may_load(deps.storage, lockup_id.as_bytes())?;
     let state: State = STATE.load(deps.storage)?;
 
-    let mut lockup_response = LockUpInfoResponse {
-        duration: lockup_info.duration,
-        ust_locked: lockup_info.ust_locked,
-        maust_balance: calculate_ma_ust_share(
-            lockup_info.ust_locked,
-            state.final_ust_locked,
-            state.final_maust_locked,
-        ),
-        lockdrop_reward: lockup_info.lockdrop_reward,
-        unlock_timestamp: lockup_info.unlock_timestamp,
-    };
+    if let Some(lockup_info) = lockup_info_query {
+        let mut lockup_response = LockUpInfoResponse {
+            duration: lockup_info.duration,
+            ust_locked: lockup_info.ust_locked,
+            maust_balance: calculate_ma_ust_share(
+                lockup_info.ust_locked,
+                state.final_ust_locked,
+                state.final_maust_locked,
+            ),
+            lockdrop_reward: lockup_info.lockdrop_reward,
+            unlock_timestamp: lockup_info.unlock_timestamp,
+        };
 
-    if lockup_response.lockdrop_reward == Uint128::zero() {
-        let config = CONFIG.load(deps.storage)?;
-        lockup_response.lockdrop_reward = calculate_mars_incentives_for_lockup(
-            lockup_response.ust_locked,
-            lockup_response.duration,
-            &config,
-            state.total_deposits_weight,
-        )?;
+        if lockup_response.lockdrop_reward == Uint128::zero() {
+            let config = CONFIG.load(deps.storage)?;
+            lockup_response.lockdrop_reward = calculate_mars_incentives_for_lockup(
+                lockup_response.ust_locked,
+                lockup_response.duration,
+                &config,
+                state.total_deposits_weight,
+            )?;
+        }
+
+        Ok(lockup_response)
+    } else {
+        // NOTE(spikeonmars): Maybe there should be a better indicator
+        // for the query not returning an existing value
+        // than returning a default position
+        let lockup_info = LockupInfo::default();
+
+        Ok(LockUpInfoResponse {
+            duration: lockup_info.duration,
+            ust_locked: lockup_info.ust_locked,
+            maust_balance: calculate_ma_ust_share(
+                lockup_info.ust_locked,
+                state.final_ust_locked,
+                state.final_maust_locked,
+            ),
+            lockdrop_reward: lockup_info.lockdrop_reward,
+            unlock_timestamp: lockup_info.unlock_timestamp,
+        })
     }
-
-    Ok(lockup_response)
 }
 
 /// @dev Returns max withdrawable % for a position
