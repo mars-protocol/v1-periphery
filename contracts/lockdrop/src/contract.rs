@@ -1167,23 +1167,17 @@ fn calculate_mars_incentives_for_lockup(
 /// @params duration : Selected duration unit
 /// @config : Config struct
 fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResult<Uint128> {
-    let mut boost = 0;
     // get boost value for duration
-    for lockup_option in config.clone().lockup_durations {
+    for lockup_option in config.lockup_durations.iter() {
         if lockup_option.duration == duration {
-            boost = lockup_option.boost;
-            break;
+            return Ok(amount.mul(Uint128::from(lockup_option.boost)));
         }
     }
 
-    if boost == 0 {
-        Err(StdError::generic_err(format!(
-            "Boost not found for duration {}",
-            duration
-        )))
-    } else {
-        Ok(amount.mul(Uint128::from(boost)))
-    }
+    Err(StdError::generic_err(format!(
+        "Boost not found for duration {}",
+        duration
+    )))
 }
 
 /// @dev Accrue xMARS rewards by updating the reward index
