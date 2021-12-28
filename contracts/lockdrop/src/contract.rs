@@ -42,23 +42,6 @@ pub fn instantiate(
         )));
     }
 
-    for lockup_option in msg.lockup_durations.clone() {
-        // CHECK :: Lockup duration limits
-        if lockup_option.duration < 3 || lockup_option.duration > 24 {
-            return Err(StdError::generic_err(format!(
-                "Lockup duration needs to be b/w than 3 and 24 months, invalid {} option provided ",
-                lockup_option.duration
-            )));
-        }
-        // CHECK :: Lockup Boosty limits
-        if lockup_option.boost > 24 {
-            return Err(StdError::generic_err(format!(
-                "Lockup boost needs to be less than 24, invalid {} option provided ",
-                lockup_option.boost
-            )));
-        }
-    }
-
     let mut config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         address_provider: None,
