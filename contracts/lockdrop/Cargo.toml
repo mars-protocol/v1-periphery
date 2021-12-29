@@ -25,7 +25,7 @@ library = []
 
 
 [dependencies]
-mars-core = { path = "../../packages/mars-core", version = "1.0.0" }
+mars-core =  { path = "../../../mars-core/packages/mars-core" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
@@ -43,10 +43,10 @@ cosmwasm-schema = { version = "0.16.0" }
 mars-auction =  { path = "../auction" }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
 # For testcases
-mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
-mars-staking =  { path = "../mocks/mock_redbank/mars-staking" }
-mars-red-bank =  { path = "../mocks/mock_redbank/mars-red-bank" }
-mars-ma-token =  { path = "../mocks/mock_redbank/mars-ma-token" }
-mars-incentives =  { path = "../mocks/mock_redbank/mars-incentives" }
-mars-xmars-token =  { path = "../mocks/mock_redbank/mars-xmars-token" }
 
+mars-address-provider =  { path = "../../../mars-core/contracts/mars-address-provider"}
+mars-staking = { path = "../../../mars-core/contracts/mars-staking"}
+mars-red-bank = { path = "../../../mars-core/contracts/mars-red-bank"}
+mars-ma-token = { path = "../../../mars-core/contracts/mars-ma-token"}
+mars-incentives = { path = "../../../mars-core/contracts/mars-incentives"}
+mars-xmars-token = { path = "../../../mars-core/contracts/mars-xmars-token"}

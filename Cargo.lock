@@ -23,11 +23,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport"
+version = "0.3.1"
+source = "git+https://github.com/astroport-fi/astroport#7aa47b36d776f3aff83968aa2f64c21f67d89152"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20 0.8.1",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
 name = "astroport-factory"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=master#c28cd91aafc425d441eb331e60b7565a0f89d5ab"
 dependencies = [
- "astroport",
+ "astroport 0.2.0",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2 0.8.1",
@@ -42,7 +56,7 @@ name = "astroport-generator"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=master#c28cd91aafc425d441eb331e60b7565a0f89d5ab"
 dependencies = [
- "astroport",
+ "astroport 0.2.0",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2 0.8.1",
@@ -72,7 +86,7 @@ name = "astroport-pair"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=master#c28cd91aafc425d441eb331e60b7565a0f89d5ab"
 dependencies = [
- "astroport",
+ "astroport 0.2.0",
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -90,7 +104,7 @@ name = "astroport-token"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=master#c28cd91aafc425d441eb331e60b7565a0f89d5ab"
 dependencies = [
- "astroport",
+ "astroport 0.2.0",
  "cosmwasm-std",
  "cw2 0.8.1",
  "cw20 0.8.1",
@@ -105,7 +119,7 @@ name = "astroport-vesting"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=master#c28cd91aafc425d441eb331e60b7565a0f89d5ab"
 dependencies = [
- "astroport",
+ "astroport 0.2.0",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2 0.8.1",
@@ -683,7 +697,6 @@ checksum = "a2a5ac8f984bfcf3a823267e5fde638acc3325f6496633a5da6bb6eb2171e103"
 name = "mars-address-provider"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "mars-core",
@@ -695,7 +708,7 @@ dependencies = [
 name = "mars-airdrop"
 version = "1.0.0"
 dependencies = [
- "astroport",
+ "astroport 0.2.0",
  "astroport-pair",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -717,7 +730,7 @@ dependencies = [
 name = "mars-auction"
 version = "1.0.0"
 dependencies = [
- "astroport",
+ "astroport 0.2.0",
  "astroport-factory",
  "astroport-generator",
  "astroport-generator-proxy",
@@ -747,6 +760,7 @@ dependencies = [
 name = "mars-core"
 version = "1.0.0"
 dependencies = [
+ "astroport 0.3.1",
  "cosmwasm-std",
  "cw2 0.9.1",
  "cw20 0.9.1",
@@ -761,7 +775,6 @@ dependencies = [
 name = "mars-incentives"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "cw20 0.9.1",
@@ -818,7 +831,6 @@ dependencies = [
 name = "mars-ma-token"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "cw0 0.9.1",
@@ -844,7 +856,6 @@ dependencies = [
  "schemars",
  "serde",
  "terra-cosmwasm",
- "terraswap",
  "thiserror",
 ]
 
@@ -852,7 +863,6 @@ dependencies = [
 name = "mars-red-bank"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "cw20 0.9.1",
@@ -867,14 +877,13 @@ dependencies = [
 name = "mars-staking"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema",
+ "astroport 0.3.1",
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "cw20 0.9.1",
  "mars-core",
  "schemars",
  "serde",
- "terraswap",
  "thiserror",
 ]
 
@@ -882,7 +891,6 @@ dependencies = [
 name = "mars-xmars-token"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "cw0 0.9.1",
