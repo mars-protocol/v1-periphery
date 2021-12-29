@@ -717,7 +717,8 @@ pub fn handle_claim_rewards_and_unlock_position(
         &deps.querier.clone(),
         config.address_provider.unwrap(),
         mars_contracts,
-    )?;
+    )
+    .map_err(|_| StdError::generic_err("mars address provider query failed"))?;
     let xmars_address = addresses_query.pop().unwrap();
     let incentives_address = addresses_query.pop().unwrap();
 
@@ -814,7 +815,9 @@ pub fn update_state_on_claim(
         &deps.querier,
         config.address_provider.unwrap(),
         mars_contracts,
-    )?;
+    )
+    .map_err(|_| StdError::generic_err("mars address provider query failed"))?;
+
     let xmars_address = addresses_query.pop().unwrap();
     let mars_address = addresses_query.pop().unwrap();
 
@@ -1008,7 +1011,8 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
             &deps.querier,
             config.address_provider.unwrap(),
             mars_contracts,
-        )?;
+        )
+        .map_err(|_| StdError::generic_err("mars address provider query failed"))?;
         let incentives_address = addresses_query.pop().unwrap();
 
         // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
