@@ -627,7 +627,7 @@ pub fn handle_claim_rewards_and_unlock_position(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    lockup_to_unlock_duration: u64,
+    lockup_to_unlock_duration_option: Option<u64>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
@@ -647,10 +647,8 @@ pub fn handle_claim_rewards_and_unlock_position(
         "Auction::ExecuteMsg::ClaimRewardsAndUnlockPosition",
     );
 
-    // If a lockup is to be unlocked, then we check -
-    // 1. Is it a valid lockup position
-    // 2. Is is forceful unlock? If not, then can it be unlocked
-    if lockup_to_unlock_duration > 0u64 {
+    // If a lockup is to be unlocked, then we check that it is a valid lockup position
+    if let Some(lockup_to_unlock_duration) = lockup_to_unlock_duration_option {
         let lockup_id = user_address.to_string() + &lockup_to_unlock_duration.to_string();
         let lockup_info = LOCKUP_INFO
             .may_load(deps.storage, lockup_id.as_bytes())?
@@ -747,7 +745,7 @@ pub fn handle_claim_rewards_and_unlock_position(
     response = response.add_message(callback_msg);
 
     // CALLBACK MSG :: DISSOLVE LOCKUP POSITION
-    if lockup_to_unlock_duration > 0u64 {
+    if let Some(lockup_to_unlock_duration) = lockup_to_unlock_duration_option {
         let callback_dissolve_position_msg = CallbackMsg::DissolvePosition {
             user: user_address.clone(),
             duration: lockup_to_unlock_duration,

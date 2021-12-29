@@ -2236,7 +2236,7 @@ fn test_claim_rewards_and_unlock() {
             user1_address.clone(),
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
-                lockup_to_unlock_duration: 3u64,
+                lockup_to_unlock_duration: Some(3u64),
             },
             &[],
         )
@@ -2252,7 +2252,7 @@ fn test_claim_rewards_and_unlock() {
             user1_address.clone(),
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
-                lockup_to_unlock_duration: 6u64,
+                lockup_to_unlock_duration: Some(6u64),
             },
             &[],
         )
@@ -2268,7 +2268,7 @@ fn test_claim_rewards_and_unlock() {
             Addr::unchecked("not_user".to_string()),
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
-                lockup_to_unlock_duration: 0u64,
+                lockup_to_unlock_duration: None,
             },
             &[],
         )
@@ -2287,7 +2287,7 @@ fn test_claim_rewards_and_unlock() {
             user1_address.clone(),
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
-                lockup_to_unlock_duration: 0u64,
+                lockup_to_unlock_duration: None,
             },
             &[],
         )
@@ -2324,7 +2324,7 @@ fn test_claim_rewards_and_unlock() {
         user1_address.clone(),
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
-            lockup_to_unlock_duration: 0u64,
+            lockup_to_unlock_duration: None,
         },
         &[],
     )
@@ -2501,7 +2501,7 @@ fn test_claim_rewards_and_unlock() {
         user1_address.clone(),
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
-            lockup_to_unlock_duration: 0u64,
+            lockup_to_unlock_duration: None,
         },
         &[],
     )
@@ -2630,7 +2630,7 @@ fn test_claim_rewards_and_unlock() {
         user2_address.clone(),
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
-            lockup_to_unlock_duration: 9u64,
+            lockup_to_unlock_duration: Some(9u64),
         },
         &[],
     )
@@ -2785,7 +2785,7 @@ fn test_claim_rewards_and_unlock() {
         user3_address.clone(),
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
-            lockup_to_unlock_duration: 12u64,
+            lockup_to_unlock_duration: Some(12u64),
         },
         &[],
     )

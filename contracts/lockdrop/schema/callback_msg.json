@@ -56,7 +56,6 @@
           "type": "object",
           "required": [
             "duration",
-            "forceful_unlock",
             "user"
           ],
           "properties": {
@@ -64,9 +63,6 @@
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
-            },
-            "forceful_unlock": {
-              "type": "boolean"
             },
             "user": {
               "$ref": "#/definitions/Addr"

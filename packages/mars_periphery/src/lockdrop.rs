@@ -64,7 +64,7 @@ pub enum ExecuteMsg {
     },
     /// Facilitates MARS reward claim and optionally unlocking any lockup position once the lockup duration is over
     ClaimRewardsAndUnlock {
-        lockup_to_unlock_duration: u64,
+        lockup_to_unlock_duration: Option<u64>,
     },
     /// Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable MARS withdrawals by users
     EnableClaims {},
