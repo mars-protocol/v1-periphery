@@ -572,7 +572,7 @@ fn instantiate_pair(app: &mut App, owner: Addr, mars_token_instance: Addr) -> (A
         token_code_id: lp_token_code_id,
         fee_address: None,
         owner: owner.to_string(),
-        generator_address: String::from("generator"),
+        generator_address: Some(String::from("generator")),
     };
 
     let factory_instance = app
