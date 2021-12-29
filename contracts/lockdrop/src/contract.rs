@@ -18,11 +18,11 @@ use mars_periphery::helpers::{
     cw20_get_balance,
 };
 use mars_periphery::lockdrop::{
-    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse,
-    QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockupInfoQueryData,
+    LockupInfoResponse, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 
-use crate::state::{Config, LockupInfo, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
+use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 
 const UUSD_DENOM: &str = "uusd";
 //----------------------------------------------------------------------------------------
@@ -160,10 +160,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::UserInfo { address } => to_binary(&query_user_info(deps, env, address)?),
-        QueryMsg::LockUpInfo { address, duration } => {
+        QueryMsg::LockupInfo { address, duration } => {
             to_binary(&query_lockup_info(deps, address, duration)?)
         }
-        QueryMsg::LockUpInfoWithId { lockup_id } => {
+        QueryMsg::LockupInfoWithId { lockup_id } => {
             to_binary(&query_lockup_info_with_id(deps, lockup_id)?)
         }
         QueryMsg::WithdrawalPercentAllowed { timestamp } => {
@@ -1039,18 +1039,18 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
 }
 
 /// @dev Returns summarized details regarding the user
-pub fn query_lockup_info(deps: Deps, user: String, duration: u64) -> StdResult<LockUpInfoResponse> {
+pub fn query_lockup_info(deps: Deps, user: String, duration: u64) -> StdResult<LockupInfoResponse> {
     let lockup_id = user + &duration.to_string();
     query_lockup_info_with_id(deps, lockup_id)
 }
 
 /// @dev Returns summarized details regarding the user
-pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<LockUpInfoResponse> {
+pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<LockupInfoResponse> {
     let lockup_info_query = LOCKUP_INFO.may_load(deps.storage, lockup_id.as_bytes())?;
-    let state: State = STATE.load(deps.storage)?;
 
     if let Some(lockup_info) = lockup_info_query {
-        let mut lockup_response = LockUpInfoResponse {
+        let state: State = STATE.load(deps.storage)?;
+        let mut lockup_info_query_data = LockupInfoQueryData {
             duration: lockup_info.duration,
             ust_locked: lockup_info.ust_locked,
             maust_balance: calculate_ma_ust_share(
@@ -1062,34 +1062,21 @@ pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<Loc
             unlock_timestamp: lockup_info.unlock_timestamp,
         };
 
-        if lockup_response.lockdrop_reward == Uint128::zero() {
+        if lockup_info_query_data.lockdrop_reward == Uint128::zero() {
             let config = CONFIG.load(deps.storage)?;
-            lockup_response.lockdrop_reward = calculate_mars_incentives_for_lockup(
-                lockup_response.ust_locked,
-                lockup_response.duration,
+            lockup_info_query_data.lockdrop_reward = calculate_mars_incentives_for_lockup(
+                lockup_info_query_data.ust_locked,
+                lockup_info_query_data.duration,
                 &config,
                 state.total_deposits_weight,
             )?;
         }
 
-        Ok(lockup_response)
-    } else {
-        // NOTE(spikeonmars): Maybe there should be a better indicator
-        // for the query not returning an existing value
-        // than returning a default position
-        let lockup_info = LockupInfo::default();
-
-        Ok(LockUpInfoResponse {
-            duration: lockup_info.duration,
-            ust_locked: lockup_info.ust_locked,
-            maust_balance: calculate_ma_ust_share(
-                lockup_info.ust_locked,
-                state.final_ust_locked,
-                state.final_maust_locked,
-            ),
-            lockdrop_reward: lockup_info.lockdrop_reward,
-            unlock_timestamp: lockup_info.unlock_timestamp,
+        Ok(LockupInfoResponse {
+            lockup_info: Some(lockup_info_query_data),
         })
+    } else {
+        Ok(LockupInfoResponse { lockup_info: None })
     }
 }
 

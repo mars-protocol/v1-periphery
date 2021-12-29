@@ -112,8 +112,8 @@ pub enum QueryMsg {
     Config {},
     State {},
     UserInfo { address: String },
-    LockUpInfo { address: String, duration: u64 },
-    LockUpInfoWithId { lockup_id: String },
+    LockupInfo { address: String, duration: u64 },
+    LockupInfoWithId { lockup_id: String },
     WithdrawalPercentAllowed { timestamp: Option<u64> },
 }
 
@@ -175,7 +175,13 @@ pub struct UserInfoResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct LockUpInfoResponse {
+pub struct LockupInfoResponse {
+    /// returns lockup data if a match is found on a query, None otherwise
+    pub lockup_info: Option<LockupInfoQueryData>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LockupInfoQueryData {
     /// Lockup Duration
     pub duration: u64,
     /// UST locked as part of this lockup position

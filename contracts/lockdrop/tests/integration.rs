@@ -4,8 +4,8 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use mars_periphery::lockdrop::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse,
-    LockupDurationParams, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockupDurationParams,
+    LockupInfoResponse, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -818,24 +818,26 @@ fn test_deposit_ust() {
     .unwrap();
 
     // let's verify the Lockdrop
-    let mut lockdrop_resp: LockUpInfoResponse = app
+    let mut lockdrop_resp: LockupInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &lockdrop_instance,
-            &QueryMsg::LockUpInfo {
+            &QueryMsg::LockupInfo {
                 address: user1_address.clone().to_string(),
                 duration: 3u64,
             },
         )
         .unwrap();
-    assert_eq!(3u64, lockdrop_resp.duration);
-    assert_eq!(Uint128::from(10000u64), lockdrop_resp.ust_locked);
-    assert_eq!(Uint128::zero(), lockdrop_resp.maust_balance);
+
+    let lockup_query_data = lockdrop_resp.lockup_info.unwrap();
+    assert_eq!(3u64, lockup_query_data.duration);
+    assert_eq!(Uint128::from(10000u64), lockup_query_data.ust_locked);
+    assert_eq!(Uint128::zero(), lockup_query_data.maust_balance);
     assert_eq!(
         Uint128::from(1000000000000u64),
-        lockdrop_resp.lockdrop_reward
+        lockup_query_data.lockdrop_reward
     );
-    assert_eq!(3514401u64, lockdrop_resp.unlock_timestamp);
+    assert_eq!(3514401u64, lockup_query_data.unlock_timestamp);
 
     // let's verify the User
     let mut user_resp: UserInfoResponse = app
@@ -891,20 +893,22 @@ fn test_deposit_ust() {
         .wrap()
         .query_wasm_smart(
             &lockdrop_instance,
-            &QueryMsg::LockUpInfo {
+            &QueryMsg::LockupInfo {
                 address: user1_address.clone().to_string(),
                 duration: 15u64,
             },
         )
         .unwrap();
-    assert_eq!(15u64, lockdrop_resp.duration);
-    assert_eq!(Uint128::from(10000u64), lockdrop_resp.ust_locked);
-    assert_eq!(Uint128::zero(), lockdrop_resp.maust_balance);
+
+    let lockup_query_data = lockdrop_resp.lockup_info.unwrap();
+    assert_eq!(15u64, lockup_query_data.duration);
+    assert_eq!(Uint128::from(10000u64), lockup_query_data.ust_locked);
+    assert_eq!(Uint128::zero(), lockup_query_data.maust_balance);
     assert_eq!(
         Uint128::from(833333333333u64),
-        lockdrop_resp.lockdrop_reward
+        lockup_query_data.lockdrop_reward
     );
-    assert_eq!(10772001u64, lockdrop_resp.unlock_timestamp);
+    assert_eq!(10772001u64, lockup_query_data.unlock_timestamp);
 
     // let's verify the User
     user_resp = app
@@ -1062,18 +1066,20 @@ fn test_withdraw_ust() {
     assert_eq!(Uint128::from(19900u64), user_resp.total_ust_locked);
 
     // let's verify the Lockdrop
-    let mut lockdrop_resp: LockUpInfoResponse = app
+    let mut lockdrop_resp: LockupInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &lockdrop_instance,
-            &QueryMsg::LockUpInfo {
+            &QueryMsg::LockupInfo {
                 address: user1_address.clone().to_string(),
                 duration: 6u64,
             },
         )
         .unwrap();
-    assert_eq!(6u64, lockdrop_resp.duration);
-    assert_eq!(Uint128::from(9900u64), lockdrop_resp.ust_locked);
+
+    let lockup_query_data = lockdrop_resp.lockup_info.unwrap();
+    assert_eq!(6u64, lockup_query_data.duration);
+    assert_eq!(Uint128::from(9900u64), lockup_query_data.ust_locked);
 
     // close deposit window. Max 50% withdrawals allowed now
     app.update_block(|b| {
@@ -1135,14 +1141,16 @@ fn test_withdraw_ust() {
         .wrap()
         .query_wasm_smart(
             &lockdrop_instance,
-            &QueryMsg::LockUpInfo {
+            &QueryMsg::LockupInfo {
                 address: user1_address.clone().to_string(),
                 duration: 6u64,
             },
         )
         .unwrap();
-    assert_eq!(6u64, lockdrop_resp.duration);
-    assert_eq!(Uint128::from(4950u64), lockdrop_resp.ust_locked);
+
+    let lockup_query_data = lockdrop_resp.lockup_info.unwrap();
+    assert_eq!(6u64, lockup_query_data.duration);
+    assert_eq!(Uint128::from(4950u64), lockup_query_data.ust_locked);
 
     // ######    ERROR :: Max 1 withdrawal allowed during current window   ######
 
@@ -1221,13 +1229,16 @@ fn test_withdraw_ust() {
         .wrap()
         .query_wasm_smart(
             &lockdrop_instance,
-            &QueryMsg::LockUpInfo {
+            &QueryMsg::LockupInfo {
                 address: user1_address.clone().to_string(),
                 duration: 15u64,
             },
         )
         .unwrap();
-    assert_eq!(Uint128::from(9250u64), lockdrop_resp.ust_locked);
+    assert_eq!(
+        Uint128::from(9250u64),
+        lockdrop_resp.lockup_info.unwrap().ust_locked
+    );
 
     // // ######    ERROR :: Max 1 withdrawal allowed during current window   ######
 
@@ -2614,16 +2625,18 @@ fn test_claim_rewards_and_unlock() {
         .unwrap();
 
     // Check lockup
-    let lockup_before: LockUpInfoResponse = app
+    let lockup_response_before: LockupInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &lockdrop_instance.clone().to_string(),
-            &QueryMsg::LockUpInfo {
+            &QueryMsg::LockupInfo {
                 address: user2_address.clone().to_string(),
                 duration: 9u64,
             },
         )
         .unwrap();
+
+    let lockup_before = lockup_response_before.lockup_info.unwrap();
 
     // claim rewards & Unlock Position : xMars
     app.execute_contract(
@@ -2682,18 +2695,18 @@ fn test_claim_rewards_and_unlock() {
     );
 
     // Check lockup
-    let lockup_after: LockUpInfoResponse = app
+    let lockup_after_response: LockupInfoResponse = app
         .wrap()
         .query_wasm_smart(
             &lockdrop_instance.clone().to_string(),
-            &QueryMsg::LockUpInfo {
+            &QueryMsg::LockupInfo {
                 address: user2_address.clone().to_string(),
                 duration: 9u64,
             },
         )
         .unwrap();
-    assert_eq!(Uint128::zero(), lockup_after.ust_locked);
-    assert_eq!(Uint128::zero(), lockup_after.maust_balance);
+
+    assert_eq!(lockup_after_response.lockup_info, None);
 
     let user2_ma_token_balance_after: BalanceResponse = app
         .wrap()
