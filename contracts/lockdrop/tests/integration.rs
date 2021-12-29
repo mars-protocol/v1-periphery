@@ -4,8 +4,8 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use mars_periphery::lockdrop::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, LockupDurationParams, QueryMsg,
-    StateResponse, UpdateConfigMsg, UserInfoResponse, Cw20HookMsg
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse,
+    LockupDurationParams, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -2196,7 +2196,6 @@ fn test_claim_rewards_and_unlock() {
         }],
     )
     .unwrap();
-
 
     // *** Update Configuration ***
 
