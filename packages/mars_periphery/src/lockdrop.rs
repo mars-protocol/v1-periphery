@@ -17,12 +17,10 @@ pub struct InstantiateMsg {
     pub deposit_window: u64,
     /// Number of seconds for which lockup withdrawals will be allowed
     pub withdrawal_window: u64,
-    /// Min. no. of days allowed for lockup
-    pub min_duration: u64,
-    /// Max. no. of days allowed for lockup
-    pub max_duration: u64,
+    /// Durations and boosties params
+    pub lockup_durations: Vec<LockupDurationParams>,
     /// Number of seconds per week
-    pub seconds_per_week: u64,
+    pub seconds_per_duration_unit: u64,
     /// Lockdrop Reward multiplier
     pub weekly_multiplier: u64,
     /// Lockdrop Reward divider
@@ -45,32 +43,30 @@ pub struct UpdateConfigMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
-    // ADMIN Function ::: To update configuration
+
     UpdateConfig {
         new_config: UpdateConfigMsg,
     },
-    // Function to deposit UST in the contract locked for `duration` number of weeks, starting once the deposits/withdrawals are disabled
+    /// Function to deposit UST in the contract locked for `duration` number of weeks, starting once the deposits/withdrawals are disabled
     DepositUst {
         duration: u64,
     },
-    // Function to withdraw UST from the lockup position which is locked for `duration` number of weeks
+    /// Function to withdraw UST from the lockup position which is locked for `duration` number of weeks
     WithdrawUst {
         duration: u64,
         amount: Uint128,
     },
-    // ADMIN Function :: Deposits all UST into the Red Bank
+    /// ADMIN Function :: Deposits all UST into the Red Bank
     DepositUstInRedBank {},
-    // Deposit MARS to auction contract
+    /// Deposit MARS to auction contract
     DepositMarsToAuction {
         amount: Uint128,
     },
-    // Facilitates MARS reward claim and optionally unlocking any lockup position,
-    // either once the lockup duration is over or make a forceful unlock
+    /// Facilitates MARS reward claim and optionally unlocking any lockup position once the lockup duration is over
     ClaimRewardsAndUnlock {
         lockup_to_unlock_duration: u64,
-        forceful_unlock: bool,
     },
-    // Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable MARS withdrawals by users
+    /// Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable MARS withdrawals by users
     EnableClaims {},
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),
@@ -89,7 +85,6 @@ pub enum CallbackMsg {
     DissolvePosition {
         user: Addr,
         duration: u64,
-        forceful_unlock: bool,
     },
 }
 
@@ -138,14 +133,10 @@ pub struct ConfigResponse {
     pub deposit_window: u64,
     /// Number of seconds for which lockup withdrawals will be allowed
     pub withdrawal_window: u64,
-    /// Min. no. of weeks allowed for lockup
-    pub min_duration: u64,
-    /// Max. no. of weeks allowed for lockup
-    pub max_duration: u64,
-    /// Lockdrop Reward multiplier
-    pub weekly_multiplier: u64,
-    /// Lockdrop Reward divider
-    pub weekly_divider: u64,
+    /// Durations and boosties params
+    pub lockup_durations: Vec<LockupDurationParams>,
+    /// Number of seconds per week
+    pub seconds_per_duration_unit: u64,
     /// Total MARS lockdrop incentives to be distributed among the users
     pub lockdrop_incentives: Uint128,
 }
@@ -195,4 +186,10 @@ pub struct LockUpInfoResponse {
     pub lockdrop_reward: Uint128,
     /// Timestamp beyond which this position can be unlocked
     pub unlock_timestamp: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LockupDurationParams {
+    pub duration: u64,
+    pub boost: Uint128,
 }

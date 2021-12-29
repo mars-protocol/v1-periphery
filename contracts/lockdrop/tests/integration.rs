@@ -4,8 +4,8 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use mars_periphery::lockdrop::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg,
-    StateResponse, UpdateConfigMsg, UserInfoResponse,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse,
+    LockupDurationParams, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -383,9 +383,29 @@ fn instantiate_lockdrop_contract(
         init_timestamp: 10_000_01,
         deposit_window: 5_000_00,
         withdrawal_window: 2_000_00,
-        min_duration: 2,
-        max_duration: 51,
-        seconds_per_week: 7 * 86400 as u64,
+        lockup_durations: vec![
+            LockupDurationParams {
+                duration: 3,
+                boost: Uint128::from(1_u64),
+            },
+            LockupDurationParams {
+                duration: 6,
+                boost: Uint128::from(2_u64),
+            },
+            LockupDurationParams {
+                duration: 9,
+                boost: Uint128::from(3_u64),
+            },
+            LockupDurationParams {
+                duration: 12,
+                boost: Uint128::from(4_u64),
+            },
+            LockupDurationParams {
+                duration: 15,
+                boost: Uint128::from(5_u64),
+            },
+        ],
+        seconds_per_duration_unit: 7 * 86400 as u64,
         weekly_multiplier: 9u64,
         weekly_divider: 100u64,
     };
@@ -476,10 +496,11 @@ fn test_proper_initialization() {
     assert_eq!(init_msg.init_timestamp, resp.init_timestamp);
     assert_eq!(init_msg.deposit_window, resp.deposit_window);
     assert_eq!(init_msg.withdrawal_window, resp.withdrawal_window);
-    assert_eq!(init_msg.min_duration, resp.min_duration);
-    assert_eq!(init_msg.max_duration, resp.max_duration);
-    assert_eq!(init_msg.weekly_multiplier, resp.weekly_multiplier);
-    assert_eq!(init_msg.weekly_divider, resp.weekly_divider);
+    assert_eq!(init_msg.lockup_durations, resp.lockup_durations);
+    assert_eq!(
+        init_msg.seconds_per_duration_unit,
+        resp.seconds_per_duration_unit
+    );
 
     // Check state
     let resp: StateResponse = app
@@ -746,7 +767,7 @@ fn test_deposit_ust() {
     );
 
     // ***
-    // *** Test :: Error "Lockup duration needs to be between {} and {}" ***
+    // *** Test :: Error "{} lockup duration not supported" ***
     // ***
 
     let err = app
@@ -762,7 +783,7 @@ fn test_deposit_ust() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Lockup duration needs to be between 2 and 51"
+        "Generic error: Boost not found for duration 1"
     );
 
     let err = app
@@ -778,7 +799,7 @@ fn test_deposit_ust() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Lockup duration needs to be between 2 and 51"
+        "Generic error: Boost not found for duration 52"
     );
 
     // ***
@@ -788,7 +809,7 @@ fn test_deposit_ust() {
     app.execute_contract(
         user1_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &ExecuteMsg::DepositUst { duration: 3u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000u128),
@@ -803,18 +824,18 @@ fn test_deposit_ust() {
             &lockdrop_instance,
             &QueryMsg::LockUpInfo {
                 address: user1_address.clone().to_string(),
-                duration: 5u64,
+                duration: 3u64,
             },
         )
         .unwrap();
-    assert_eq!(5u64, lockdrop_resp.duration);
+    assert_eq!(3u64, lockdrop_resp.duration);
     assert_eq!(Uint128::from(10000u64), lockdrop_resp.ust_locked);
     assert_eq!(Uint128::zero(), lockdrop_resp.maust_balance);
     assert_eq!(
         Uint128::from(1000000000000u64),
         lockdrop_resp.lockdrop_reward
     );
-    assert_eq!(4724001u64, lockdrop_resp.unlock_timestamp);
+    assert_eq!(3514401u64, lockdrop_resp.unlock_timestamp);
 
     // let's verify the User
     let mut user_resp: UserInfoResponse = app
@@ -828,7 +849,7 @@ fn test_deposit_ust() {
         .unwrap();
     assert_eq!(Uint128::from(10000u64), user_resp.total_ust_locked);
     assert_eq!(Uint128::zero(), user_resp.total_maust_share);
-    assert_eq!(vec!["user15".to_string()], user_resp.lockup_position_ids);
+    assert_eq!(vec!["user13".to_string()], user_resp.lockup_position_ids);
     assert_eq!(
         Uint128::from(1000000000000u64),
         user_resp.total_mars_incentives
@@ -848,7 +869,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::zero(), state_resp.final_maust_locked);
     assert_eq!(Uint128::from(10000u64), state_resp.total_ust_locked);
     assert_eq!(Uint128::zero(), state_resp.total_maust_locked);
-    assert_eq!(Uint128::from(13600u64), state_resp.total_deposits_weight);
+    assert_eq!(Uint128::from(10000u64), state_resp.total_deposits_weight);
 
     // ***
     // *** Test #2 :: Successfully deposit UST  ***
@@ -880,7 +901,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::from(10000u64), lockdrop_resp.ust_locked);
     assert_eq!(Uint128::zero(), lockdrop_resp.maust_balance);
     assert_eq!(
-        Uint128::from(624309392265u64),
+        Uint128::from(833333333333u64),
         lockdrop_resp.lockdrop_reward
     );
     assert_eq!(10772001u64, lockdrop_resp.unlock_timestamp);
@@ -898,7 +919,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::from(20000u64), user_resp.total_ust_locked);
     assert_eq!(Uint128::zero(), user_resp.total_maust_share);
     assert_eq!(
-        vec!["user15".to_string(), "user115".to_string()],
+        vec!["user13".to_string(), "user115".to_string()],
         user_resp.lockup_position_ids
     );
     assert_eq!(
@@ -915,7 +936,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::zero(), state_resp.final_maust_locked);
     assert_eq!(Uint128::from(20000u64), state_resp.total_ust_locked);
     assert_eq!(Uint128::zero(), state_resp.total_maust_locked);
-    assert_eq!(Uint128::from(36200u64), state_resp.total_deposits_weight);
+    assert_eq!(Uint128::from(60000u64), state_resp.total_deposits_weight);
 }
 
 #[test]
@@ -990,7 +1011,7 @@ fn test_withdraw_ust() {
     app.execute_contract(
         user1_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &ExecuteMsg::DepositUst { duration: 6u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000u128),
@@ -1014,7 +1035,7 @@ fn test_withdraw_ust() {
         user1_address.clone(),
         lockdrop_instance.clone(),
         &ExecuteMsg::WithdrawUst {
-            duration: 5u64,
+            duration: 6u64,
             amount: Uint128::from(100u128),
         },
         &[],
@@ -1047,11 +1068,11 @@ fn test_withdraw_ust() {
             &lockdrop_instance,
             &QueryMsg::LockUpInfo {
                 address: user1_address.clone().to_string(),
-                duration: 5u64,
+                duration: 6u64,
             },
         )
         .unwrap();
-    assert_eq!(5u64, lockdrop_resp.duration);
+    assert_eq!(6u64, lockdrop_resp.duration);
     assert_eq!(Uint128::from(9900u64), lockdrop_resp.ust_locked);
 
     // close deposit window. Max 50% withdrawals allowed now
@@ -1068,7 +1089,7 @@ fn test_withdraw_ust() {
             lockdrop_instance.clone(),
             &ExecuteMsg::WithdrawUst {
                 amount: Uint128::from(9000u64),
-                duration: 5u64,
+                duration: 6u64,
             },
             &[],
         )
@@ -1085,7 +1106,7 @@ fn test_withdraw_ust() {
         lockdrop_instance.clone(),
         &ExecuteMsg::WithdrawUst {
             amount: Uint128::from(4950u64),
-            duration: 5u64,
+            duration: 6u64,
         },
         &[],
     )
@@ -1116,11 +1137,11 @@ fn test_withdraw_ust() {
             &lockdrop_instance,
             &QueryMsg::LockUpInfo {
                 address: user1_address.clone().to_string(),
-                duration: 5u64,
+                duration: 6u64,
             },
         )
         .unwrap();
-    assert_eq!(5u64, lockdrop_resp.duration);
+    assert_eq!(6u64, lockdrop_resp.duration);
     assert_eq!(Uint128::from(4950u64), lockdrop_resp.ust_locked);
 
     // ######    ERROR :: Max 1 withdrawal allowed during current window   ######
@@ -1131,7 +1152,7 @@ fn test_withdraw_ust() {
             lockdrop_instance.clone(),
             &ExecuteMsg::WithdrawUst {
                 amount: Uint128::from(10u64),
-                duration: 5u64,
+                duration: 6u64,
             },
             &[],
         )
@@ -1320,7 +1341,7 @@ fn test_deposit_mars_to_auction() {
     app.execute_contract(
         user1_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &ExecuteMsg::DepositUst { duration: 6u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000u128),
@@ -1619,7 +1640,7 @@ fn test_deposit_ust_in_red_bank() {
     app.execute_contract(
         user1_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &ExecuteMsg::DepositUst { duration: 6u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000u128),
@@ -1771,7 +1792,7 @@ fn test_deposit_ust_in_red_bank() {
     assert_eq!(Uint128::from(0u64), state_resp_after.total_mars_delegated);
     assert_eq!(false, state_resp_after.are_claims_allowed);
     assert_eq!(
-        Uint128::from(36200u64),
+        Uint128::from(70000u64),
         state_resp_after.total_deposits_weight
     );
     assert_eq!(Decimal::zero(), state_resp_after.xmars_rewards_index);
@@ -1896,7 +1917,7 @@ fn test_enable_claims() {
     app.execute_contract(
         user1_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &ExecuteMsg::DepositUst { duration: 6u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000u128),
@@ -2113,7 +2134,7 @@ fn test_claim_rewards_and_unlock() {
     app.execute_contract(
         user1_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &ExecuteMsg::DepositUst { duration: 6u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000u128),
@@ -2135,7 +2156,7 @@ fn test_claim_rewards_and_unlock() {
     app.execute_contract(
         user2_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 35u64 },
+        &ExecuteMsg::DepositUst { duration: 12u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(1000000u128),
@@ -2146,7 +2167,7 @@ fn test_claim_rewards_and_unlock() {
     app.execute_contract(
         user2_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 25u64 },
+        &ExecuteMsg::DepositUst { duration: 9u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(1000000u128),
@@ -2157,7 +2178,7 @@ fn test_claim_rewards_and_unlock() {
     app.execute_contract(
         user3_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 5u64 },
+        &ExecuteMsg::DepositUst { duration: 6u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(1000000u128),
@@ -2168,7 +2189,7 @@ fn test_claim_rewards_and_unlock() {
     app.execute_contract(
         user3_address.clone(),
         lockdrop_instance.clone(),
-        &ExecuteMsg::DepositUst { duration: 35u64 },
+        &ExecuteMsg::DepositUst { duration: 12u64 },
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(10000000u128),
@@ -2216,7 +2237,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 3u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2232,13 +2252,12 @@ fn test_claim_rewards_and_unlock() {
             user1_address.clone(),
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
-                lockup_to_unlock_duration: 5u64,
-                forceful_unlock: false,
+                lockup_to_unlock_duration: 6u64,
             },
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: 3723998 seconds to Unlock");
+    assert_eq!(err.to_string(), "Generic error: 4328798 seconds to Unlock");
 
     // ***
     // *** Test :: Error "No lockup to claim rewards for" ***
@@ -2250,7 +2269,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 0u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2270,7 +2288,6 @@ fn test_claim_rewards_and_unlock() {
             lockdrop_instance.clone(),
             &ExecuteMsg::ClaimRewardsAndUnlock {
                 lockup_to_unlock_duration: 0u64,
-                forceful_unlock: false,
             },
             &[],
         )
@@ -2299,7 +2316,7 @@ fn test_claim_rewards_and_unlock() {
         )
         .unwrap();
     assert_eq!(
-        Uint128::from(735530170u64),
+        Uint128::from(1426533522u64),
         user_resp_before.total_mars_incentives
     );
 
@@ -2308,7 +2325,6 @@ fn test_claim_rewards_and_unlock() {
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration: 0u64,
-            forceful_unlock: false,
         },
         &[],
     )
@@ -2356,7 +2372,7 @@ fn test_claim_rewards_and_unlock() {
         b.time = Timestamp::from_seconds(17_000_03)
     });
 
-    // mint MARS for to Incentives Contract
+    // mint MARS  to Incentives Contract
     mint_some_mars(
         &mut app,
         owner.clone(),
@@ -2486,7 +2502,6 @@ fn test_claim_rewards_and_unlock() {
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration: 0u64,
-            forceful_unlock: false,
         },
         &[],
     )
@@ -2571,7 +2586,7 @@ fn test_claim_rewards_and_unlock() {
         user_resp_before.pending_xmars_to_claim
     );
     assert_eq!(
-        Uint128::from(146699663931u64),
+        Uint128::from(142653352353u64),
         user_resp_before.total_mars_incentives
     );
     assert_eq!(false, user_resp_before.is_lockdrop_claimed);
@@ -2605,7 +2620,7 @@ fn test_claim_rewards_and_unlock() {
             &lockdrop_instance.clone().to_string(),
             &QueryMsg::LockUpInfo {
                 address: user2_address.clone().to_string(),
-                duration: 25u64,
+                duration: 9u64,
             },
         )
         .unwrap();
@@ -2615,8 +2630,7 @@ fn test_claim_rewards_and_unlock() {
         user2_address.clone(),
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
-            lockup_to_unlock_duration: 25u64,
-            forceful_unlock: false,
+            lockup_to_unlock_duration: 9u64,
         },
         &[],
     )
@@ -2635,7 +2649,7 @@ fn test_claim_rewards_and_unlock() {
     assert_eq!(Uint128::from(0u64), user_resp_after.pending_xmars_to_claim);
     assert_eq!(true, user_resp_after.is_lockdrop_claimed);
     assert_eq!(
-        vec!["user235".to_string()],
+        vec!["user212".to_string()],
         user_resp_after.lockup_position_ids
     );
 
@@ -2674,7 +2688,7 @@ fn test_claim_rewards_and_unlock() {
             &lockdrop_instance.clone().to_string(),
             &QueryMsg::LockUpInfo {
                 address: user2_address.clone().to_string(),
-                duration: 25u64,
+                duration: 9u64,
             },
         )
         .unwrap();
@@ -2726,7 +2740,7 @@ fn test_claim_rewards_and_unlock() {
         user_resp_before.pending_xmars_to_claim
     );
     assert_eq!(
-        Uint128::from(852564805896u64),
+        Uint128::from(855920114122u64),
         user_resp_before.total_mars_incentives
     );
     assert_eq!(false, user_resp_before.is_lockdrop_claimed);
@@ -2753,18 +2767,6 @@ fn test_claim_rewards_and_unlock() {
         )
         .unwrap();
 
-    // Check lockup
-    let lockup_before: LockUpInfoResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &lockdrop_instance.clone().to_string(),
-            &QueryMsg::LockUpInfo {
-                address: user3_address.clone().to_string(),
-                duration: 35u64,
-            },
-        )
-        .unwrap();
-
     // Increase allowance
     app.execute_contract(
         user3_address.clone(),
@@ -2783,8 +2785,7 @@ fn test_claim_rewards_and_unlock() {
         user3_address.clone(),
         lockdrop_instance.clone(),
         &ExecuteMsg::ClaimRewardsAndUnlock {
-            lockup_to_unlock_duration: 35u64,
-            forceful_unlock: true,
+            lockup_to_unlock_duration: 12u64,
         },
         &[],
     )
@@ -2803,7 +2804,7 @@ fn test_claim_rewards_and_unlock() {
     assert_eq!(Uint128::from(0u64), user_resp_after.pending_xmars_to_claim);
     assert_eq!(true, user_resp_after.is_lockdrop_claimed);
     assert_eq!(
-        vec!["user35".to_string()],
+        vec!["user36".to_string()],
         user_resp_after.lockup_position_ids
     );
 
@@ -2831,8 +2832,7 @@ fn test_claim_rewards_and_unlock() {
         user3_xmars_balance_after.balance
     );
     assert_eq!(
-        user3_mars_balance_before.balance + user_resp_before.total_mars_incentives
-            - lockup_before.lockdrop_reward,
+        user3_mars_balance_before.balance + user_resp_before.total_mars_incentives,
         user3_mars_balance_after.balance
     );
 }

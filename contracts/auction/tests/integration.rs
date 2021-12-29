@@ -9,6 +9,7 @@ use mars_periphery::auction::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse,
     UpdateConfigMsg, UserInfoResponse,
 };
+use mars_periphery::lockdrop::LockupDurationParams;
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 fn mock_app() -> App {
@@ -347,9 +348,29 @@ fn instantiate_airdrop_lockdrop_contracts(
         init_timestamp: 10_000_01,
         deposit_window: 5_000_00,
         withdrawal_window: 2_000_00,
-        min_duration: 2,
-        max_duration: 51,
-        seconds_per_week: 7 * 86400 as u64,
+        lockup_durations: vec![
+            LockupDurationParams {
+                duration: 3,
+                boost: Uint128::from(1_u64),
+            },
+            LockupDurationParams {
+                duration: 6,
+                boost: Uint128::from(2_u64),
+            },
+            LockupDurationParams {
+                duration: 9,
+                boost: Uint128::from(3_u64),
+            },
+            LockupDurationParams {
+                duration: 12,
+                boost: Uint128::from(4_u64),
+            },
+            LockupDurationParams {
+                duration: 15,
+                boost: Uint128::from(5_u64),
+            },
+        ],
+        seconds_per_duration_unit: 7 * 86400 as u64,
         weekly_multiplier: 9u64,
         weekly_divider: 100u64,
     };
