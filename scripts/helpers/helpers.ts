@@ -10,7 +10,6 @@ import {
   MsgInstantiateContract,
   MsgMigrateContract,
   MsgStoreCode,
-  StdFee,
   Wallet,
 } from "@terra-money/terra.js";
 import { readFileSync } from "fs";
@@ -30,7 +29,8 @@ export function getTimeoutDuration() {
 
 // LocalTerra doesn't estimate fees properly, so we set the fee in this environment sufficiently high to
 // ensure all transactions succeed.
-const LOCAL_TERRA_FEE = new StdFee(30000000, [new Coin("uusd", 45000000)]);
+//const LOCAL_TERRA_FEE = new StdFee(30000000, [new Coin("uusd", 45000000)]);
+const GAS_ADJUSTMENT = 1.2;
 
 export async function performTransaction(
   terra: LocalTerra | LCDClient,
@@ -39,12 +39,14 @@ export async function performTransaction(
 ) {
   let options: CreateTxOptions = {
     msgs: [msg],
-    gasPrices: [new Coin("uusd", 0.15)],
+    gasAdjustment: GAS_ADJUSTMENT,
   };
 
+  /*
   if (terra instanceof LocalTerra) {
     options.fee = LOCAL_TERRA_FEE;
   }
+  */
 
   const tx = await wallet.createAndSignTx(options);
 
@@ -68,9 +70,11 @@ export async function createTransaction(
     gasPrices: [new Coin("uusd", 0.15)],
   };
 
+  /*
   if (terra instanceof LocalTerra) {
     options.fee = LOCAL_TERRA_FEE;
   }
+  */
 
   return await wallet.createTx(options);
 }

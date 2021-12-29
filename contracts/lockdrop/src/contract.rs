@@ -1,15 +1,17 @@
+use std::ops::Mul;
+
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Uint128,
     WasmMsg, WasmQuery,
 };
 
-use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 use cw20::Cw20ReceiveMsg;
 use mars_core::address_provider::helpers::{query_address, query_addresses};
 use mars_core::address_provider::MarsContract;
 use mars_core::incentives::msg::QueryMsg::UserUnclaimedRewards;
 use mars_core::tax::deduct_tax;
+
 use mars_periphery::auction::Cw20HookMsg as AuctionCw20HookMsg;
 use mars_periphery::helpers::{
     build_send_cw20_token_msg, build_send_native_asset_msg, build_transfer_cw20_token_msg,
@@ -19,6 +21,8 @@ use mars_periphery::lockdrop::{
     CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse,
     QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
+
+use crate::state::{Config, LockupInfo, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 
 const UUSD_DENOM: &str = "uusd";
 //----------------------------------------------------------------------------------------
@@ -47,11 +51,6 @@ pub fn instantiate(
         return Err(StdError::generic_err("Invalid deposit / withdraw window"));
     }
 
-    // CHECK :: min_duration , max_duration need to be valid (min_duration < max_duration)
-    if msg.max_duration <= msg.min_duration {
-        return Err(StdError::generic_err("Invalid Lockup durations"));
-    }
-
     let mut config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         address_provider: None,
@@ -60,11 +59,8 @@ pub fn instantiate(
         init_timestamp: msg.init_timestamp,
         deposit_window: msg.deposit_window,
         withdrawal_window: msg.withdrawal_window,
-        min_duration: msg.min_duration,
-        max_duration: msg.max_duration,
-        seconds_per_week: msg.seconds_per_week,
-        weekly_multiplier: msg.weekly_multiplier,
-        weekly_divider: msg.weekly_divider,
+        lockup_durations: msg.lockup_durations,
+        seconds_per_duration_unit: msg.seconds_per_duration_unit,
         lockdrop_incentives: Uint128::zero(),
     };
 
@@ -107,14 +103,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::DepositUstInRedBank {} => try_deposit_in_red_bank(deps, env, info),
         ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration,
-            forceful_unlock,
-        } => handle_claim_rewards_and_unlock_position(
-            deps,
-            env,
-            info,
-            lockup_to_unlock_duration,
-            forceful_unlock,
-        ),
+        } => handle_claim_rewards_and_unlock_position(deps, env, info, lockup_to_unlock_duration),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
 }
@@ -139,11 +128,9 @@ fn _handle_callback(
             user,
             prev_xmars_balance,
         } => update_state_on_claim(deps, env, user, prev_xmars_balance),
-        CallbackMsg::DissolvePosition {
-            user,
-            duration,
-            forceful_unlock,
-        } => try_dissolve_position(deps, env, user, duration, forceful_unlock),
+        CallbackMsg::DissolvePosition { user, duration } => {
+            try_dissolve_position(deps, env, user, duration)
+        }
     }
 }
 
@@ -297,13 +284,7 @@ pub fn try_deposit_ust(
         return Err(StdError::generic_err("Amount must be greater than 0"));
     }
 
-    // CHECK :: Valid Lockup Duration
-    if duration > config.max_duration || duration < config.min_duration {
-        return Err(StdError::generic_err(format!(
-            "Lockup duration needs to be between {} and {}",
-            config.min_duration, config.max_duration
-        )));
-    }
+    let deposit_weight = calculate_weight(native_token.amount, duration, &config)?;
 
     // LOCKUP INFO :: RETRIEVE --> UPDATE
     let lockup_id = depositor_address.to_string() + &duration.to_string();
@@ -328,7 +309,7 @@ pub fn try_deposit_ust(
 
     // STATE :: UPDATE --> SAVE
     state.total_ust_locked += native_token.amount;
-    state.total_deposits_weight += calculate_weight(native_token.amount, duration, &config);
+    state.total_deposits_weight += deposit_weight;
 
     STATE.save(deps.storage, &state)?;
     LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
@@ -402,12 +383,12 @@ pub fn try_withdraw_ust(
 
     user_info.total_ust_locked -= withdraw_amount;
     if lockup_info.ust_locked == Uint128::zero() {
-        remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone());
+        remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone())?;
     }
 
     // STATE :: UPDATE --> SAVE
     state.total_ust_locked -= withdraw_amount;
-    state.total_deposits_weight -= calculate_weight(withdraw_amount, duration, &config);
+    state.total_deposits_weight -= calculate_weight(withdraw_amount, duration, &config)?;
 
     STATE.save(deps.storage, &state)?;
     LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
@@ -642,13 +623,11 @@ pub fn handle_deposit_mars_to_auction(
 
 /// @dev Function to claim Rewards and optionally unlock a lockup position (either naturally or forcefully). Claims pending incentives (xMARS) internally and accounts for them via the index updates
 /// @params lockup_to_unlock_duration : Duration of the lockup to be unlocked. If 0 then no lockup is to be unlocked
-/// @params forceful_unlock : Boolean value indicating is the unlock is forceful or natural
 pub fn handle_claim_rewards_and_unlock_position(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     lockup_to_unlock_duration: u64,
-    forceful_unlock: bool,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
@@ -681,7 +660,7 @@ pub fn handle_claim_rewards_and_unlock_position(
             return Err(StdError::generic_err("Invalid lockup"));
         }
 
-        if !forceful_unlock && lockup_info.unlock_timestamp > env.block.time.seconds() {
+        if lockup_info.unlock_timestamp > env.block.time.seconds() {
             let time_remaining = lockup_info.unlock_timestamp - env.block.time.seconds();
             return Err(StdError::generic_err(format!(
                 "{} seconds to Unlock",
@@ -693,7 +672,6 @@ pub fn handle_claim_rewards_and_unlock_position(
             .add_attribute("action", "unlock_position")
             .add_attribute("ust_amount", lockup_info.ust_locked.to_string())
             .add_attribute("duration", lockup_info.duration.to_string())
-            .add_attribute("forceful_unlock", forceful_unlock.to_string())
     }
 
     // CHECKS ::
@@ -772,7 +750,6 @@ pub fn handle_claim_rewards_and_unlock_position(
         let callback_dissolve_position_msg = CallbackMsg::DissolvePosition {
             user: user_address.clone(),
             duration: lockup_to_unlock_duration,
-            forceful_unlock,
         }
         .to_cosmos_msg(&env.contract.address)?;
         response = response.add_message(callback_dissolve_position_msg);
@@ -897,13 +874,11 @@ pub fn update_state_on_claim(
 /// @dev  Callback function. Unlocks a lockup position. Either naturally after duration expiration or forcefully by returning MARS (lockdrop incentives)
 /// @params user : User address whose position is to be unlocked
 /// @params duration :Lockup duration of the position to be unlocked
-/// @params forceful_unlock : Boolean value indicating is the unlock is forceful or not
 pub fn try_dissolve_position(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     user: Addr,
     duration: u64,
-    forceful_unlock: bool,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
@@ -929,29 +904,9 @@ pub fn try_dissolve_position(
 
     // DISSOLVE LOCKUP POSITION
     lockup_info.ust_locked = Uint128::zero();
-    remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone());
+    remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone())?;
 
     let mut cosmos_msgs = vec![];
-
-    // If forceful unlock, user needs to return MARS Lockdrop rewards he received against this lockup position
-    if forceful_unlock {
-        // QUERY:: Mars Contract addresses
-        let mars_token_address = query_address(
-            &deps.querier,
-            config.address_provider.unwrap(),
-            MarsContract::MarsToken,
-        )?;
-        // COSMOS MSG :: Transfer MARS from user to itself
-        cosmos_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: mars_token_address.to_string(),
-            funds: vec![],
-            msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
-                owner: user.to_string(),
-                recipient: env.contract.address.to_string(),
-                amount: lockup_info.lockdrop_reward,
-            })?,
-        }));
-    }
 
     let maust_transfer_msg = build_transfer_cw20_token_msg(
         user.clone(),
@@ -988,10 +943,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         init_timestamp: config.init_timestamp,
         deposit_window: config.deposit_window,
         withdrawal_window: config.withdrawal_window,
-        min_duration: config.min_duration,
-        max_duration: config.max_duration,
-        weekly_multiplier: config.weekly_multiplier,
-        weekly_divider: config.weekly_divider,
+        lockup_durations: config.lockup_durations,
+        seconds_per_duration_unit: config.seconds_per_duration_unit,
         lockdrop_incentives: config.lockdrop_incentives,
     })
 }
@@ -1033,16 +986,15 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
 
     // Calculate user's lockdrop incentive share if not finalized
     if user_info.total_mars_incentives == Uint128::zero() {
-        for lockup_id in user_info.lockup_positions.clone().iter() {
-            let lockup_info = LOCKUP_INFO
-                .load(deps.storage, lockup_id.as_bytes())
-                .unwrap();
+        for lockup_id in user_info.lockup_positions.iter() {
+            let lockup_info = LOCKUP_INFO.load(deps.storage, lockup_id.as_bytes())?;
+
             let position_rewards = calculate_mars_incentives_for_lockup(
                 lockup_info.ust_locked,
                 lockup_info.duration,
                 &config,
                 state.total_deposits_weight,
-            );
+            )?;
             user_info.total_mars_incentives += position_rewards;
         }
     }
@@ -1060,16 +1012,12 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
         let incentives_address = addresses_query.pop().unwrap();
 
         // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
-        let xmars_accured: Uint128 = deps
-            .querier
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: incentives_address.to_string(),
-                msg: to_binary(&UserUnclaimedRewards {
-                    user_address: env.contract.address.to_string(),
-                })
-                .unwrap(),
-            }))
-            .unwrap();
+        let xmars_accured: Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: incentives_address.to_string(),
+            msg: to_binary(&UserUnclaimedRewards {
+                user_address: env.contract.address.to_string(),
+            })?,
+        }))?;
 
         update_xmars_rewards_index(&mut state, xmars_accured);
         pending_xmars_to_claim = compute_user_accrued_reward(&state, &mut user_info);
@@ -1096,34 +1044,51 @@ pub fn query_lockup_info(deps: Deps, user: String, duration: u64) -> StdResult<L
 
 /// @dev Returns summarized details regarding the user
 pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<LockUpInfoResponse> {
-    let lockup_info = LOCKUP_INFO
-        .may_load(deps.storage, lockup_id.as_bytes())?
-        .unwrap_or_default();
+    let lockup_info_query = LOCKUP_INFO.may_load(deps.storage, lockup_id.as_bytes())?;
     let state: State = STATE.load(deps.storage)?;
 
-    let mut lockup_response = LockUpInfoResponse {
-        duration: lockup_info.duration,
-        ust_locked: lockup_info.ust_locked,
-        maust_balance: calculate_ma_ust_share(
-            lockup_info.ust_locked,
-            state.final_ust_locked,
-            state.final_maust_locked,
-        ),
-        lockdrop_reward: lockup_info.lockdrop_reward,
-        unlock_timestamp: lockup_info.unlock_timestamp,
-    };
+    if let Some(lockup_info) = lockup_info_query {
+        let mut lockup_response = LockUpInfoResponse {
+            duration: lockup_info.duration,
+            ust_locked: lockup_info.ust_locked,
+            maust_balance: calculate_ma_ust_share(
+                lockup_info.ust_locked,
+                state.final_ust_locked,
+                state.final_maust_locked,
+            ),
+            lockdrop_reward: lockup_info.lockdrop_reward,
+            unlock_timestamp: lockup_info.unlock_timestamp,
+        };
 
-    if lockup_response.lockdrop_reward == Uint128::zero() {
-        let config = CONFIG.load(deps.storage)?;
-        lockup_response.lockdrop_reward = calculate_mars_incentives_for_lockup(
-            lockup_response.ust_locked,
-            lockup_response.duration,
-            &config,
-            state.total_deposits_weight,
-        );
+        if lockup_response.lockdrop_reward == Uint128::zero() {
+            let config = CONFIG.load(deps.storage)?;
+            lockup_response.lockdrop_reward = calculate_mars_incentives_for_lockup(
+                lockup_response.ust_locked,
+                lockup_response.duration,
+                &config,
+                state.total_deposits_weight,
+            )?;
+        }
+
+        Ok(lockup_response)
+    } else {
+        // NOTE(spikeonmars): Maybe there should be a better indicator
+        // for the query not returning an existing value
+        // than returning a default position
+        let lockup_info = LockupInfo::default();
+
+        Ok(LockUpInfoResponse {
+            duration: lockup_info.duration,
+            ust_locked: lockup_info.ust_locked,
+            maust_balance: calculate_ma_ust_share(
+                lockup_info.ust_locked,
+                state.final_ust_locked,
+                state.final_maust_locked,
+            ),
+            lockdrop_reward: lockup_info.lockdrop_reward,
+            unlock_timestamp: lockup_info.unlock_timestamp,
+        })
     }
-
-    Ok(lockup_response)
 }
 
 /// @dev Returns max withdrawable % for a position
@@ -1170,27 +1135,26 @@ fn calculate_unlock_timestamp(config: &Config, duration: u64) -> u64 {
     config.init_timestamp
         + config.deposit_window
         + config.withdrawal_window
-        + (duration * config.seconds_per_week)
+        + (duration * config.seconds_per_duration_unit)
 }
-
-// /// @dev Returns true if the user_info stuct's lockup_positions vector contains the lockup_id
-// /// @params lockup_id : Lockup Id which is to be checked if it is present in the list or not
-// fn is_lockup_present_in_user_info(user_info: &UserInfo, lockup_id: String) -> bool {
-//     if user_info.lockup_positions.iter().any(|id| id == &lockup_id) {
-//         return true;
-//     }
-//     false
-// }
 
 /// @dev Removes lockup position id from user info's lockup position list
 /// @params lockup_id : Lockup Id to be removed
-fn remove_lockup_pos_from_user_info(user_info: &mut UserInfo, lockup_id: String) {
-    let index = user_info
+fn remove_lockup_pos_from_user_info(user_info: &mut UserInfo, lockup_id: String) -> StdResult<()> {
+    let index_search = user_info
         .lockup_positions
         .iter()
-        .position(|x| *x == lockup_id)
-        .unwrap();
-    user_info.lockup_positions.remove(index);
+        .position(|x| *x == lockup_id);
+
+    if let Some(index) = index_search {
+        user_info.lockup_positions.remove(index);
+        Ok(())
+    } else {
+        Err(StdError::generic_err(format!(
+            "Lockup position not found for id {}",
+            lockup_id
+        )))
+    }
 }
 
 ///  @dev Helper function to calculate maximum % of UST deposited that can be withdrawn
@@ -1255,7 +1219,7 @@ fn update_mars_rewards_allocated_to_lockup_positions(
             lockup_info.duration,
             config,
             state.total_deposits_weight,
-        );
+        )?;
 
         lockup_info.lockdrop_reward = position_rewards;
         total_mars_rewards += position_rewards;
@@ -1274,28 +1238,30 @@ fn calculate_mars_incentives_for_lockup(
     duration: u64,
     config: &Config,
     total_deposits_weight: Uint128,
-) -> Uint128 {
+) -> StdResult<Uint128> {
     if total_deposits_weight == Uint128::zero() {
-        return Uint128::zero();
+        return Ok(Uint128::zero());
     }
-    let amount_weight = calculate_weight(deposited_ust, duration, config);
-    config.lockdrop_incentives * Decimal::from_ratio(amount_weight, total_deposits_weight)
+    let amount_weight = calculate_weight(deposited_ust, duration, config)?;
+    Ok(config.lockdrop_incentives * Decimal::from_ratio(amount_weight, total_deposits_weight))
 }
 
 /// @dev Helper function. Returns effective weight for the amount to be used for calculating lockdrop rewards
 /// @params amount : Number of LP tokens
-/// @params duration : Number of weeks
-/// @config : Config with weekly multiplier and divider
-fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> Uint128 {
-    if duration < 1u64 {
-        return Uint128::zero();
+/// @params duration : Selected duration unit
+/// @config : Config struct
+fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResult<Uint128> {
+    // get boost value for duration
+    for lockup_option in config.lockup_durations.iter() {
+        if lockup_option.duration == duration {
+            return Ok(amount.mul(lockup_option.boost));
+        }
     }
-    let lock_weight = Decimal::one()
-        + Decimal::from_ratio(
-            (duration - 1) * config.weekly_multiplier,
-            config.weekly_divider,
-        );
-    lock_weight * amount
+
+    Err(StdError::generic_err(format!(
+        "Boost not found for duration {}",
+        duration
+    )))
 }
 
 /// @dev Accrue xMARS rewards by updating the reward index

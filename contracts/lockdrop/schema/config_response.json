@@ -6,11 +6,9 @@
     "deposit_window",
     "init_timestamp",
     "lockdrop_incentives",
-    "max_duration",
-    "min_duration",
+    "lockup_durations",
     "owner",
-    "weekly_divider",
-    "weekly_multiplier",
+    "seconds_per_duration_unit",
     "withdrawal_window"
   ],
   "properties": {
@@ -56,6 +54,27 @@
         }
       ]
     },
+    "lockup_durations": {
+      "description": "Durations and boosties params",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
+      }
+    },
     "ma_ust_token": {
       "description": "maUST token address - Minted upon UST deposits into red bank",
       "anyOf": [
@@ -67,30 +86,12 @@
         }
       ]
     },
-    "max_duration": {
-      "description": "Max. no. of weeks allowed for lockup",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "min_duration": {
-      "description": "Min. no. of weeks allowed for lockup",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "owner": {
       "description": "Account who can update config",
       "type": "string"
     },
-    "weekly_divider": {
-      "description": "Lockdrop Reward divider",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "weekly_multiplier": {
-      "description": "Lockdrop Reward multiplier",
+    "seconds_per_duration_unit": {
+      "description": "Number of seconds per week",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

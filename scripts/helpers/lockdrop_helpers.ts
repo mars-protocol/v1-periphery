@@ -1,5 +1,5 @@
 import {executeContract,  queryContract, toEncodedBinary} from "./helpers.js"
-import { Coins, Coin,StdFee, LocalTerra, LCDClient, Wallet } from "@terra-money/terra.js"
+import { Coins, Coin, LocalTerra, LCDClient, Wallet } from "@terra-money/terra.js"
 
 //-----------------------------------------------------
 // ------ ExecuteContract :: Function signatures ------
