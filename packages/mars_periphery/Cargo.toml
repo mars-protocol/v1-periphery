@@ -24,7 +24,6 @@ cw20-base = { version = "0.9", features = ["library"] }
 
 cosmwasm-bignumber = "2.2.0"
 terra-cosmwasm = "2.1.0"
-terraswap = "2.3.0"
 
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

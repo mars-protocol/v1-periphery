@@ -35,7 +35,7 @@ library = []
 
 [dependencies]
 astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "master"}
-mars-core =  { path = "../../packages/mars-core" }
+mars-core =  { path = "../../../mars-core/packages/mars-core" }
 mars-periphery = { path = "../../packages/mars_periphery" }
 
 cw20 = { version = "0.9" }
@@ -54,13 +54,13 @@ terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", bran
 # needed for intergration testing
 generator-proxy-to-mars = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "generator-proxy-to-mars"}
 astroport-generator-proxy = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "astroport-generator-proxy"}
-astroport-vesting = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-vesting"}
+astroport-vesting = { git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-vesting"}
 astroport-generator = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-generator"}
 astroport-factory =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-factory"}
 astroport-pair =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-pair"}
 astroport-token =  {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-token"}
 
-mars-address-provider =  { path = "../mocks/mock_redbank/mars-address-provider" }
+mars-address-provider =  { path = "../../../mars-core/contracts/mars-address-provider"}
 
 mars-airdrop =  { path = "../airdrop" }
 mars-lockdrop =  { path = "../lockdrop" }
