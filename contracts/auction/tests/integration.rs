@@ -194,7 +194,6 @@ fn instantiate_auction_contract(
         airdrop_contract_address: airdrop_instance.to_string(),
         lockdrop_contract_address: lockdrop_instance.to_string(),
         generator_contract: generator_instance.to_string(),
-        mars_rewards: Uint128::from(10000000_000000u64),
         mars_vesting_duration: 259200u64,
         lp_tokens_vesting_duration: 7776000u64,
         init_timestamp: 17_000_00,
@@ -214,6 +213,18 @@ fn instantiate_auction_contract(
             None,
         )
         .unwrap();
+
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(10000000000000u64),
+            contract: auction_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     (auction_instance, auction_instantiate_msg)
 }
@@ -362,7 +373,6 @@ fn instantiate_airdrop_lockdrop_contracts(
         seconds_per_duration_unit: 7 * 86400 as u64,
         weekly_multiplier: 9u64,
         weekly_divider: 100u64,
-        lockdrop_incentives: Uint128::from(1000000000000u64),
     };
 
     let lockdrop_instance = app
@@ -391,14 +401,26 @@ fn instantiate_airdrop_lockdrop_contracts(
     )
     .unwrap();
 
-    // Send MARS to Lockdrop
     mint_some_tokens(
         app,
         owner.clone(),
         mars_token_instance.clone(),
-        Uint128::new(1000000000000u128),
+        Uint128::new(100000000000000u128),
         owner.to_string(),
     );
+
+    // Send MARS to Lockdrop
+    app.execute_contract(
+        owner.clone(),
+        mars_token_instance.clone(),
+        &Cw20ExecuteMsg::Send {
+            amount: Uint128::from(1000000000000u64),
+            contract: lockdrop_instance.to_string(),
+            msg: to_binary(&Cw20HookMsg::IncreaseMarsIncentives {}).unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
 
     (airdrop_instance, lockdrop_instance)
 }
@@ -746,7 +768,7 @@ fn proper_initialization_only_auction_astro() {
         resp.lockdrop_contract_address
     );
     assert_eq!(auction_init_msg.generator_contract, resp.generator_contract);
-    assert_eq!(auction_init_msg.mars_rewards, resp.mars_rewards);
+    assert_eq!(Uint128::from(10000000000000u64), resp.mars_rewards);
     assert_eq!(
         auction_init_msg.mars_vesting_duration,
         resp.mars_vesting_duration

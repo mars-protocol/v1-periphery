@@ -1,11 +1,12 @@
 use std::ops::Mul;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 
+use cw20::Cw20ReceiveMsg;
 use mars_core::address_provider::helpers::{query_address, query_addresses};
 use mars_core::address_provider::MarsContract;
 use mars_core::incentives::msg::QueryMsg::UserUnclaimedRewards;
@@ -17,8 +18,8 @@ use mars_periphery::helpers::{
     cw20_get_balance,
 };
 use mars_periphery::lockdrop::{
-    CallbackMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg,
-    StateResponse, UpdateConfigMsg, UserInfoResponse,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockUpInfoResponse,
+    QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 
 use crate::state::{Config, LockupInfo, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
@@ -42,6 +43,13 @@ pub fn instantiate(
             env.block.time.seconds()
         )));
     }
+    // CHECK :: deposit_window,withdrawal_window need to be valid (withdrawal_window < deposit_window)
+    if msg.deposit_window == 0u64
+        || msg.withdrawal_window == 0u64
+        || msg.deposit_window <= msg.withdrawal_window
+    {
+        return Err(StdError::generic_err("Invalid deposit / withdraw window"));
+    }
 
     let mut config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
@@ -53,7 +61,7 @@ pub fn instantiate(
         withdrawal_window: msg.withdrawal_window,
         lockup_durations: msg.lockup_durations,
         seconds_per_duration_unit: msg.seconds_per_duration_unit,
-        lockdrop_incentives: msg.lockdrop_incentives,
+        lockdrop_incentives: Uint128::zero(),
     };
 
     if msg.address_provider.is_some() {
@@ -82,6 +90,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::UpdateConfig { new_config } => update_config(deps, env, info, new_config),
         ExecuteMsg::DepositUst { duration } => try_deposit_ust(deps, env, info, duration),
         ExecuteMsg::WithdrawUst { duration, amount } => {
@@ -125,6 +134,26 @@ fn _handle_callback(
     }
 }
 
+pub fn receive_cw20(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    cw20_msg: Cw20ReceiveMsg,
+) -> Result<Response, StdError> {
+    // CHECK :: Tokens sent > 0
+    if cw20_msg.amount == Uint128::zero() {
+        return Err(StdError::generic_err(
+            "Number of tokens sent should be > 0 ",
+        ));
+    }
+
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::IncreaseMarsIncentives {} => {
+            handle_increase_mars_incentives(deps, env, info, cw20_msg.amount)
+        }
+    }
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -146,6 +175,43 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 //----------------------------------------------------------------------------------------
 // Handle Functions
 //----------------------------------------------------------------------------------------
+
+/// @dev Facilitates increasing MARS incentives that are to be distributed as Lockdrop participation reward
+/// @params amount : Number of MARS tokens which are to be added to current incentives
+pub fn handle_increase_mars_incentives(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<Response, StdError> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if config.address_provider.is_none() {
+        return Err(StdError::generic_err("Address provider not set"));
+    }
+
+    let mars_token_address = query_address(
+        &deps.querier,
+        config.address_provider.clone().unwrap(),
+        MarsContract::MarsToken,
+    )?;
+
+    if info.sender != mars_token_address {
+        return Err(StdError::generic_err("Only mars tokens are received!"));
+    }
+
+    if env.block.time.seconds()
+        >= config.init_timestamp + config.deposit_window + config.withdrawal_window
+    {
+        return Err(StdError::generic_err("MARS is already being distributed"));
+    };
+
+    config.lockdrop_incentives += amount;
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new()
+        .add_attribute("action", "mars_incentives_increased")
+        .add_attribute("amount", amount))
+}
 
 /// @dev ADMIN Function. Facilitates state update. Will be used to set address_provider / maUST token address most probably, based on deployment schedule
 /// @params new_config : New configuration struct

@@ -55,7 +55,7 @@ pub fn instantiate(
         astroport_lp_pool: None,
         mars_lp_staking_contract: None,
         generator_contract: deps.api.addr_validate(&msg.generator_contract)?,
-        mars_rewards: msg.mars_rewards,
+        mars_rewards: Uint128::zero(),
         mars_vesting_duration: msg.mars_vesting_duration,
         lp_tokens_vesting_duration: msg.lp_tokens_vesting_duration,
         init_timestamp: msg.init_timestamp,
