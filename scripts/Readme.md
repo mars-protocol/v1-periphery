@@ -20,3 +20,11 @@
   export LCD_CLIENT_URL="https://lcd.terra.dev"
   export CHAIN_ID="columbus-5"
   ```
+
+Run deployment scripts: inside `scripts` folder,
+
+```bash
+cd scripts
+
+node --experimental-json-modules --loader ts-node/esm testnet_deploy_periphery_contracts.ts
+```
