@@ -809,7 +809,6 @@ dependencies = [
  "cw20-base 0.9.1",
  "mars-address-provider",
  "mars-auction",
- "mars-core",
  "mars-incentives",
  "mars-ma-token",
  "mars-periphery",
