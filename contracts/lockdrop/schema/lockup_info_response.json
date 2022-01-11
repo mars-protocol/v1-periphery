@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LockupInfoResponse",
+  "type": "object",
+  "properties": {
+    "lockup_info": {
+      "description": "returns lockup data if a match is found on a query, None otherwise",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/LockupInfoQueryData"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "LockupInfoQueryData": {
+      "type": "object",
+      "required": [
+        "duration",
+        "lockdrop_reward",
+        "maust_balance",
+        "unlock_timestamp",
+        "ust_locked"
+      ],
+      "properties": {
+        "duration": {
+          "description": "Lockup Duration",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "lockdrop_reward": {
+          "description": "Lockdrop incentive distributed to this position",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
+        },
+        "maust_balance": {
+          "description": "MA-UST share",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
+        },
+        "unlock_timestamp": {
+          "description": "Timestamp beyond which this position can be unlocked",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "ust_locked": {
+          "description": "UST locked as part of this lockup position",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
+        }
+      }
+    },
+    "Uint128": {
+      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+      "type": "string"
+    }
+  }
+}
