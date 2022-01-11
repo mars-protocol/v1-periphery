@@ -727,7 +727,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.8.1",
+ "cw-storage-plus 0.9.1",
  "cw2 0.9.1",
  "cw20 0.9.1",
  "cw20-base 0.9.1",
@@ -755,7 +755,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.8.1",
+ "cw-storage-plus 0.9.1",
  "cw20 0.9.1",
  "cw20-base 0.9.1",
  "generator-proxy-to-mars",
@@ -786,6 +786,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mars-core-deps"
+version = "1.0.0"
+dependencies = [
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "mars-incentives"
 version = "1.0.0"
 dependencies = [
@@ -804,11 +812,13 @@ version = "1.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus 0.8.1",
+ "cw-storage-plus 0.9.1",
  "cw20 0.9.1",
  "cw20-base 0.9.1",
  "mars-address-provider",
  "mars-auction",
+ "mars-core",
+ "mars-core-deps",
  "mars-incentives",
  "mars-ma-token",
  "mars-periphery",
@@ -830,10 +840,9 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
- "cw-storage-plus 0.8.1",
+ "cw-storage-plus 0.9.1",
  "cw20 0.9.1",
  "cw20-base 0.9.1",
- "mars-core",
  "mars-periphery",
  "schemars",
  "serde",

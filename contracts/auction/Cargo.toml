@@ -24,11 +24,11 @@ library = []
 
 [dependencies]
 astroport = {git = "https://github.com/astroport-fi/astroport-core.git", package="astroport", tag = "v1.0.0"}
-mars-periphery = { path = "../../packages/mars_periphery" }
+mars-periphery = { path = "../../packages/mars-periphery" }
 
 cw20 = { version = "0.9" }
 cosmwasm-std = { version = "0.16.0" }
-cw-storage-plus = { version = "0.8.0" }
+cw-storage-plus = { version = "0.9.0" }
 serde = { version = "1.0.127", default-features = false, features = ["derive"] }
 cw20-base = { version = "0.9", features = ["library"] }
 schemars = "0.8.3"
@@ -38,7 +38,7 @@ cosmwasm-bignumber = "2.2.0"
 cosmwasm-schema = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
-mars-core =  { path = "../../../mars-core/packages/mars-core" }
+mars-core-dev =  { package = "mars-core", path = "../../../mars-core/packages/mars-core" }
 
 # needed for intergration testing
 generator-proxy-to-mars = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "generator-proxy-to-mars"}
