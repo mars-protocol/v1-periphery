@@ -20,7 +20,7 @@ This repo contains the contracts which facilitates MARS tokens airdrop, lockdrop
 - [LocalTerra](https://github.com/terra-project/LocalTerra)
 - Node.js v16
 
-NOTE: A local version of mars-core is needed to run these contracts (dependencies will be replaced with actual repo when mars protocol's repos become public)
+NOTE: A local version of mars-core is needed to run the contract tests (dependencies will be replaced with actual repo when mars protocol's repos become public)
 
 ### Envrionment Setup
 

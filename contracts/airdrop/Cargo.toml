@@ -22,10 +22,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-mars-periphery = { path = "../../packages/mars_periphery" }
+mars-periphery = { path = "../../packages/mars-periphery" }
 
 cosmwasm-std = { version = "0.16.0" }
-cw-storage-plus = { version = "0.8" }
+cw-storage-plus = { version = "0.9" }
 
 cw20-base = { version = "0.9", features = ["library"] }
 cw20 = { version = "0.9" }

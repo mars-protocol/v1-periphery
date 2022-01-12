@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use mars_periphery::lockdrop::{
-    CallbackMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, LockUpInfoResponse, QueryMsg,
+    CallbackMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, LockupInfoResponse, QueryMsg,
     UpdateConfigMsg, UserInfoResponse,
 };
 
@@ -23,7 +23,7 @@ fn main() {
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(ConfigResponse), &out_dir);
     export_schema(&schema_for!(UserInfoResponse), &out_dir);
-    export_schema(&schema_for!(LockUpInfoResponse), &out_dir);
+    export_schema(&schema_for!(LockupInfoResponse), &out_dir);
 
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(State), &out_dir);

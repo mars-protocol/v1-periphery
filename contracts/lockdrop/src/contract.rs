@@ -7,10 +7,14 @@ use cosmwasm_std::{
 };
 
 use cw20::Cw20ReceiveMsg;
-use mars_core::address_provider::helpers::{query_address, query_addresses};
-use mars_core::address_provider::MarsContract;
-use mars_core::incentives::msg::QueryMsg::UserUnclaimedRewards;
-use mars_core::tax::deduct_tax;
+
+// TODO: Change to mars_core when repo and dependencies become public and replace package
+// with the mars_core one
+use mars_core_deps::address_provider::msg::QueryMsg as AddressProviderQueryMsg;
+use mars_core_deps::address_provider::MarsContract;
+use mars_core_deps::incentives::msg::ExecuteMsg as IncentivesExecuteMsg;
+use mars_core_deps::incentives::msg::QueryMsg as IncentivesQueryMsg;
+use mars_core_deps::red_bank::msg::ExecuteMsg as RedBankExecuteMsg;
 
 use mars_periphery::auction::Cw20HookMsg as AuctionCw20HookMsg;
 use mars_periphery::helpers::{
@@ -21,6 +25,7 @@ use mars_periphery::lockdrop::{
     CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockupInfoQueryData,
     LockupInfoResponse, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
+use mars_periphery::tax::deduct_tax;
 
 use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 
@@ -1016,7 +1021,7 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
         // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
         let xmars_accured: Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: incentives_address.to_string(),
-            msg: to_binary(&UserUnclaimedRewards {
+            msg: to_binary(&IncentivesQueryMsg::UserUnclaimedRewards {
                 user_address: env.contract.address.to_string(),
             })?,
         }))?;
@@ -1308,13 +1313,49 @@ pub fn query_pending_mars_to_be_claimed(
     let response = querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: incentives_address,
-            msg: to_binary(&UserUnclaimedRewards {
+            msg: to_binary(&IncentivesQueryMsg::UserUnclaimedRewards {
                 user_address: contract_addr,
             })
             .unwrap(),
         }))
         .unwrap();
     Ok(response)
+}
+
+fn query_address(
+    querier: &QuerierWrapper,
+    address_provider_address: Addr,
+    contract: MarsContract,
+) -> StdResult<Addr> {
+    let query: Addr = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: address_provider_address.to_string(),
+        msg: to_binary(&AddressProviderQueryMsg::Address { contract })?,
+    }))?;
+
+    Ok(query)
+}
+
+fn query_addresses(
+    querier: &QuerierWrapper,
+    address_provider_address: Addr,
+    contracts: Vec<MarsContract>,
+) -> StdResult<Vec<Addr>> {
+    let expected_len = contracts.len();
+
+    let query: Vec<Addr> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: address_provider_address.to_string(),
+        msg: to_binary(&AddressProviderQueryMsg::Addresses { contracts })?,
+    }))?;
+
+    if query.len() != expected_len {
+        return Err(StdError::generic_err(format!(
+            "Expected {} addresses, got {}",
+            query.len(),
+            expected_len
+        )));
+    }
+
+    Ok(query)
 }
 
 //-----------------------------
@@ -1340,7 +1381,7 @@ fn build_deposit_into_redbank_msg(
                 amount,
             },
         )?],
-        msg: to_binary(&mars_core::red_bank::msg::ExecuteMsg::DepositNative {
+        msg: to_binary(&RedBankExecuteMsg::DepositNative {
             denom: denom_stable,
         })?,
     }))
@@ -1351,6 +1392,6 @@ fn build_claim_xmars_rewards(incentives_contract: Addr) -> StdResult<CosmosMsg> 
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: incentives_contract.to_string(),
         funds: vec![],
-        msg: to_binary(&mars_core::incentives::msg::ExecuteMsg::ClaimRewards {})?,
+        msg: to_binary(&IncentivesExecuteMsg::ClaimRewards {})?,
     }))
 }

@@ -1,9 +1,8 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use mars_core::helpers::{option_string_to_addr, zero_address};
 
 use mars_periphery::lp_staking::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
@@ -517,4 +516,21 @@ fn build_send_cw20_token_msg(
         })?,
         funds: vec![],
     }))
+}
+
+/// Used when unwrapping an optional address sent in a contract call by a user.
+/// Validates addreess if present, otherwise uses a given default value.
+fn option_string_to_addr(
+    api: &dyn Api,
+    option_string: Option<String>,
+    default: Addr,
+) -> StdResult<Addr> {
+    match option_string {
+        Some(input_addr) => api.addr_validate(&input_addr),
+        None => Ok(default),
+    }
+}
+
+fn zero_address() -> Addr {
+    Addr::unchecked("")
 }
