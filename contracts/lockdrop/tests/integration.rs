@@ -215,9 +215,9 @@ fn instantiate_red_bank(app: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, 
                 incentives_address: Some(red_bank_incentives_instance.to_string()),
                 safety_fund_address: None,
                 mars_token_address: Some(mars_token_instance.to_string()),
-                oracle_address: None,
+                oracle_address: Some("oracle".to_string()),
                 protocol_admin_address: Some("protocol_admin_address".to_string()),
-                protocol_rewards_collector_address: None,
+                protocol_rewards_collector_address: Some("protocol_rewards_collector".to_string()),
                 red_bank_address: Some(money_market_contract_instance.to_string()),
                 staking_address: Some(mars_staking_instance.to_string()),
                 treasury_address: None,
@@ -408,8 +408,6 @@ fn instantiate_lockdrop_contract(
             },
         ],
         seconds_per_duration_unit: 7 * 86400 as u64,
-        weekly_multiplier: 9u64,
-        weekly_divider: 100u64,
     };
     if address_provider.is_some() {
         lockdrop_instantiate_msg.address_provider = Some(address_provider.unwrap().to_string());

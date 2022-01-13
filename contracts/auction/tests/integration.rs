@@ -371,8 +371,6 @@ fn instantiate_airdrop_lockdrop_contracts(
             },
         ],
         seconds_per_duration_unit: 7 * 86400 as u64,
-        weekly_multiplier: 9u64,
-        weekly_divider: 100u64,
     };
 
     let lockdrop_instance = app

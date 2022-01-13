@@ -21,10 +21,6 @@ pub struct InstantiateMsg {
     pub lockup_durations: Vec<LockupDurationParams>,
     /// Number of seconds per week
     pub seconds_per_duration_unit: u64,
-    /// Lockdrop Reward multiplier
-    pub weekly_multiplier: u64,
-    /// Lockdrop Reward divider
-    pub weekly_divider: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
