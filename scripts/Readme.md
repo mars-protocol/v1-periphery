@@ -21,10 +21,18 @@
   export CHAIN_ID="columbus-5"
   ```
 
-Run deployment scripts: inside `scripts` folder,
+- Run deployment scripts: inside `scripts` folder,
 
 ```bash
 cd scripts
 
 node --experimental-json-modules --loader ts-node/esm testnet_deploy_periphery_contracts.ts
+```
+
+- Create airdrop JSON for testing,
+
+```bash
+cd scripts
+
+node --experimental-json-modules --loader ts-node/esm create_airdrop_json.ts
 ```
