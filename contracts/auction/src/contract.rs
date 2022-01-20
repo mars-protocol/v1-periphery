@@ -368,7 +368,7 @@ pub fn handle_withdraw_ust(
         .unwrap_or_default();
 
     // CHECK :: Has the user already withdrawn during the current window
-    if user_info.ust_withdrawn {
+    if user_info.ust_withdrawn_flag {
         return Err(StdError::generic_err(
             "Max 1 withdrawal allowed during current window",
         ));
@@ -387,7 +387,7 @@ pub fn handle_withdraw_ust(
 
     // After UST deposit window is closed, we allow to withdraw only once
     if env.block.time.seconds() > config.init_timestamp + config.ust_deposit_window {
-        user_info.ust_withdrawn = true;
+        user_info.ust_withdrawn_flag = true;
     }
 
     // UPDATE STATE
@@ -412,7 +412,7 @@ pub fn handle_withdraw_ust(
         .add_attributes(vec![
             attr("action", "Auction::ExecuteMsg::withdraw_ust"),
             attr("user", user_address.to_string()),
-            attr("ust_withdrawn", amount),
+            attr("ust_withdrawn_flag", amount),
         ]))
 }
 
@@ -1048,7 +1048,7 @@ fn query_user_info(deps: Deps, env: Env, user_address: String) -> StdResult<User
     Ok(UserInfoResponse {
         mars_deposited: user_info.mars_deposited,
         ust_deposited: user_info.ust_deposited,
-        ust_withdrawn_flag: user_info.ust_withdrawn,
+        ust_withdrawn_flag: user_info.ust_withdrawn_flag,
         lp_shares: user_info.lp_shares,
         withdrawn_lp_shares: user_info.withdrawn_lp_shares,
         withdrawable_lp_shares,
