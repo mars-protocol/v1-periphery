@@ -1065,6 +1065,7 @@ pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<Loc
             ),
             lockdrop_reward: lockup_info.lockdrop_reward,
             unlock_timestamp: lockup_info.unlock_timestamp,
+            withdrawal_flag: lockup_info.withdrawal_flag
         };
 
         if lockup_info_query_data.lockdrop_reward == Uint128::zero() {

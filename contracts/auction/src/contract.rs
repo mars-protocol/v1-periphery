@@ -1048,6 +1048,7 @@ fn query_user_info(deps: Deps, env: Env, user_address: String) -> StdResult<User
     Ok(UserInfoResponse {
         mars_deposited: user_info.mars_deposited,
         ust_deposited: user_info.ust_deposited,
+        ust_withdrawn_flag: user_info.ust_withdrawn,
         lp_shares: user_info.lp_shares,
         withdrawn_lp_shares: user_info.withdrawn_lp_shares,
         withdrawable_lp_shares,

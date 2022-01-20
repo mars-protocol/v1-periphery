@@ -188,6 +188,8 @@ pub struct LockupInfoQueryData {
     pub lockdrop_reward: Uint128,
     /// Timestamp beyond which this position can be unlocked
     pub unlock_timestamp: u64,
+    /// Boolean value indicating if the user's has withdrawn funds post the only 1 withdrawal limit cutoff
+    pub withdrawal_flag: bool
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
