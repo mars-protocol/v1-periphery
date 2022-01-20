@@ -954,7 +954,7 @@ fn test_delegate_mars_tokens_from_airdrop() {
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_lp_shares);
     assert_eq!(Uint128::from(0u64), user_resp.withdrawable_lp_shares);
     assert_eq!(
-        Uint128::from(10000000000000u64),
+        Uint128::from(5000000000000u64),
         user_resp.total_auction_incentives
     );
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_auction_incentives);
@@ -999,7 +999,7 @@ fn test_delegate_mars_tokens_from_airdrop() {
     assert_eq!(Uint128::from(200000000u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
     assert_eq!(
-        Uint128::from(10000000000000u64),
+        Uint128::from(5000000000000u64),
         user_resp.total_auction_incentives
     );
 
@@ -1138,7 +1138,7 @@ fn test_delegate_mars_tokens_from_lockdrop() {
     assert_eq!(Uint128::from(100000000u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(0u64), user_resp.ust_deposited);
     assert_eq!(
-        Uint128::from(10000000000000u64),
+        Uint128::from(5000000000000u64),
         user_resp.total_auction_incentives
     );
 
@@ -1170,7 +1170,7 @@ fn test_delegate_mars_tokens_from_lockdrop() {
         .unwrap();
     assert_eq!(Uint128::from(200000000u64), user_resp.mars_deposited);
     assert_eq!(
-        Uint128::from(10000000000000u64),
+        Uint128::from(5000000000000u64),
         user_resp.total_auction_incentives
     );
 
@@ -1390,7 +1390,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::from(0u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(10000u64), user_resp.ust_deposited);
     assert_eq!(Uint128::zero(), user_resp.lp_shares);
-    assert_eq!(Uint128::from(0u64), user_resp.total_auction_incentives);
+    assert_eq!(Uint128::from(5000000000000u64), user_resp.total_auction_incentives);
 
     // ######    SUCCESS :: UST Successfully deposited again     ######
     app.execute_contract(
@@ -1421,7 +1421,7 @@ fn test_deposit_ust() {
     assert_eq!(Uint128::from(0u64), user_resp.mars_deposited);
     assert_eq!(Uint128::from(20000u64), user_resp.ust_deposited);
     assert_eq!(Uint128::zero(), user_resp.lp_shares);
-    assert_eq!(Uint128::from(00u64), user_resp.total_auction_incentives);
+    assert_eq!(Uint128::from(5000000000000u64), user_resp.total_auction_incentives);
 
     // finish claim period for deposit failure
     app.update_block(|b| {
@@ -1870,11 +1870,11 @@ fn test_add_liquidity_to_astroport_pool() {
         user1info_resp.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint128::from(4128989738527u64),
+        Uint128::from(2395583595557u64),
         user1info_resp.total_auction_incentives
     );
     assert_eq!(
-        Uint128::from(4128989738527u64),
+        Uint128::from(2395583595557u64),
         user1info_resp.withdrawable_auction_incentives
     );
 
@@ -2121,12 +2121,12 @@ fn test_stake_lp_tokens_and_claim_rewards() {
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_lp_shares);
     assert_eq!(Uint128::from(24u64), user_resp.withdrawable_lp_shares);
     assert_eq!(
-        Uint128::from(4128989738527u64),
+        Uint128::from(2395583595557u64),
         user_resp.total_auction_incentives
     );
     assert_eq!(Uint128::from(0u64), user_resp.withdrawn_auction_incentives);
     assert_eq!(
-        Uint128::from(318594887u64),
+        Uint128::from(184844413u64),
         user_resp.withdrawable_auction_incentives
     );
     assert_eq!(Decimal::zero(), user_resp.mars_reward_index);
@@ -2156,7 +2156,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_before_claim.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint128::from(1274379548u64),
+        Uint128::from(739377652u64),
         user_resp_before_claim.withdrawable_auction_incentives
     );
     assert_eq!(
@@ -2206,7 +2206,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_after_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint128::from(1274379548u64),
+        Uint128::from(739377652u64),
         user_resp_after_claim.withdrawn_auction_incentives
     );
     assert_eq!(
@@ -2263,7 +2263,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_after_claim.withdrawable_auction_incentives
     );
     assert_eq!(
-        Uint128::from(1274379548u64),
+        Uint128::from(739377652u64),
         user_resp_after_claim.withdrawn_auction_incentives
     );
     assert_eq!(
@@ -2338,7 +2338,7 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         .instantiate_contract(
             generator_proxy_to_mars_code_id,
             Addr::unchecked(auction_init_msg.owner.clone()),
-            &astroport_generator_proxy::generator_proxy::InstantiateMsg {
+            &astroport::generator_proxy::InstantiateMsg {
                 generator_contract_addr: generator_instance.clone().to_string(),
                 pair_addr: pool_instance.clone().to_string(),
                 lp_token_addr: lp_token_instance.clone().to_string(),
@@ -2426,11 +2426,11 @@ fn test_stake_lp_tokens_and_claim_rewards() {
         user_resp_before_claim.withdrawable_lp_shares
     );
     assert_eq!(
-        Uint128::from(1274379548u64),
+        Uint128::from(739377652u64),
         user_resp_before_claim.withdrawn_auction_incentives
     );
     assert_eq!(
-        Uint128::from(2548759098u64),
+        Uint128::from(1478755306u64),
         user_resp_before_claim.withdrawable_auction_incentives
     );
     assert_eq!(
