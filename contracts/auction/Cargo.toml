@@ -37,12 +37,11 @@ cosmwasm-bignumber = "2.2.0"
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
-terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", branch="main"}
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.8.0-terra1"}
 mars-core-dev =  { package = "mars-core", path = "../../../mars-core/packages/mars-core" }
 
 # needed for intergration testing
 generator-proxy-to-mars = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "generator-proxy-to-mars"}
-astroport-generator-proxy = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts.git", branch = "main", package = "astroport-generator-proxy"}
 astroport-generator = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-generator"}
 
 astroport-vesting = { git = "https://github.com/astroport-fi/astroport.git", tag = "v1.0.0", package = "astroport-vesting"}
