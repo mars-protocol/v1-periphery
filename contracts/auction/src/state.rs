@@ -94,7 +94,7 @@ pub struct UserInfo {
     // Total UST deposited by the user
     pub ust_deposited: Uint128,
     // Withdrawal counter to capture if the user already withdrew UST during the "only withdrawals" window
-    pub ust_withdrawn: bool,
+    pub ust_withdrawn_flag: bool,
     // User's LP share balance
     pub lp_shares: Uint128,
     // LP shares withdrawn by the user
@@ -118,7 +118,7 @@ impl Default for UserInfo {
         UserInfo {
             mars_deposited: Uint128::zero(),
             ust_deposited: Uint128::zero(),
-            ust_withdrawn: false,
+            ust_withdrawn_flag: false,
             lp_shares: Uint128::zero(),
             withdrawn_lp_shares: Uint128::zero(),
             total_auction_incentives: Uint128::zero(),

@@ -132,6 +132,7 @@ pub struct StateResponse {
 pub struct UserInfoResponse {
     pub mars_deposited: Uint128,
     pub ust_deposited: Uint128,
+    pub ust_withdrawn_flag: bool,
     pub lp_shares: Uint128,
     pub withdrawn_lp_shares: Uint128,
     pub withdrawable_lp_shares: Uint128,
