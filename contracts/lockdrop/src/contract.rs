@@ -389,15 +389,17 @@ pub fn try_withdraw_ust(
     user_info.total_ust_locked -= withdraw_amount;
     if lockup_info.ust_locked == Uint128::zero() {
         remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone())?;
+        LOCKUP_INFO.remove(deps.storage, lockup_id.as_bytes());
     }
+    else {
+        LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
+    }
+    USER_INFO.save(deps.storage, &withdrawer_address, &user_info)?;
 
     // STATE :: UPDATE --> SAVE
     state.total_ust_locked -= withdraw_amount;
     state.total_deposits_weight -= calculate_weight(withdraw_amount, duration, &config)?;
-
     STATE.save(deps.storage, &state)?;
-    LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
-    USER_INFO.save(deps.storage, &withdrawer_address, &user_info)?;
 
     // COSMOS_MSG ::TRANSFER WITHDRAWN UST
     let withdraw_msg = build_send_native_asset_msg(
