@@ -1089,24 +1089,30 @@ fn calculate_user_lp_share(state: &State, user_info: &UserInfo) -> Uint128 {
     user_total_share_percent.div(Uint128::from(2u64)) * state.lp_shares_minted
 }
 
-/// @dev Calculates MARS tokens receivable by a user for delegating MARS in the bootstraping phase of the MARS-UST Pool
+/// @dev Calculates MARS tokens receivable by a user for delegating MARS & depositing UST in the bootstraping phase of the MARS-UST Pool
 /// Formula -
 /// user's MARS share %  = user's MARS deposits / Total MARS deposited
-/// user's Auction Reward  = user's MARS share % * Total Auction Incentives
+/// user's UST share %  = user's UST deposits / Total UST deposited
+/// user's Auction Reward  = ( user's MARS share % + user's UST share % ) / 2 * Total Auction Incentives
 /// @param total_mars_rewards : Total MARS tokens to be distributed as auction participation reward
 fn calculate_auction_reward_for_user(
     state: &State,
     user_info: &UserInfo,
     total_mars_rewards: Uint128,
 ) -> Uint128 {
-    if user_info.mars_deposited == Uint128::zero() || state.total_mars_deposited == Uint128::zero()
-    {
-        return Uint128::zero();
-    }
+    let mut user_mars_shares_percent = Decimal::zero();
+    let mut user_ust_shares_percent = Decimal::zero();
 
-    let user_mars_shares_percent =
-        Decimal::from_ratio(user_info.mars_deposited, state.total_mars_deposited);
-    user_mars_shares_percent * total_mars_rewards
+    if user_info.mars_deposited > Uint128::zero() {
+        user_mars_shares_percent =
+            Decimal::from_ratio(user_info.mars_deposited, state.total_mars_deposited);
+    }
+    if user_info.ust_deposited > Uint128::zero() {
+        user_ust_shares_percent =
+            Decimal::from_ratio(user_info.ust_deposited, state.total_ust_deposited);
+    }
+    let user_total_share_percent = user_mars_shares_percent + user_ust_shares_percent;
+    user_total_share_percent.div(Uint128::from(2u64)) * total_mars_rewards
 }
 
 /// @dev Returns LP Balance that a user can withdraw based on the vesting schedule
