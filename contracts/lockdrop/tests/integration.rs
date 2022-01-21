@@ -1018,6 +1018,56 @@ fn test_withdraw_ust() {
         &ExecuteMsg::DepositUst { duration: 6u64 },
         &[Coin {
             denom: "uusd".to_string(),
+            amount: Uint128::from(5000u128),
+        }],
+    )
+    .unwrap();
+
+    // Check user response
+    let mut user_resp: UserInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(Uint128::from(5000u128), user_resp.total_ust_locked);
+    assert_eq!(vec!["user16"], user_resp.lockup_position_ids);
+
+
+    // ######    SUCCESS :: All UST Successfully withdrawn and lockup position removed from state     ######
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::WithdrawUst {
+            duration: 6u64,
+            amount: Uint128::from(5000u128),
+        },
+        &[],
+    )
+    .unwrap();
+    user_resp = app
+    .wrap()
+    .query_wasm_smart(
+        &lockdrop_instance,
+        &QueryMsg::UserInfo {
+            address: user1_address.to_string(),
+        },
+    )
+    .unwrap();
+    assert_eq!(Uint128::from(0u128), user_resp.total_ust_locked);
+    assert_eq!(true, user_resp.lockup_position_ids.is_empty());
+
+
+
+    app.execute_contract(
+        user1_address.clone(),
+        lockdrop_instance.clone(),
+        &ExecuteMsg::DepositUst { duration: 6u64 },
+        &[Coin {
+            denom: "uusd".to_string(),
             amount: Uint128::from(10000u128),
         }],
     )
