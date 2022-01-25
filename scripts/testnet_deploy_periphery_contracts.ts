@@ -9,9 +9,9 @@ import { getMerkleRoots } from "./helpers/airdrop_helpers/merkle_tree_utils.js";
 import { bombay_testnet, mainnet, Config } from "./deploy_configs.js";
 import { join } from "path";
 
-const LOCKDROP_INCENTIVES = 75_000_000_000000; // 7.5 Million = 7.5%
-const AIRDROP_INCENTIVES = 25_000_000_000000; // 2.5 Million = 2.5%
-const AUCTION_INCENTIVES = 10_000_000_000000; // 1.0 Million = 1%
+const LOCKDROP_INCENTIVES = 50_000_000_000000; // 50 Million = 5%
+const AIRDROP_INCENTIVES = 10_000_000_000000; // 10 Million = 1%
+const AUCTION_INCENTIVES = 10_000_000_000000; // 10 Million = 1%
 
 const ARTIFACTS_PATH = "../artifacts";
 

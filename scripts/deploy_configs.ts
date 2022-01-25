@@ -10,14 +10,14 @@ export const mainnet: Config = {
       deposit_window: 86400 * 5,
       withdrawal_window: 86400 * 2,
       lockup_durations: [
-        { duration: 6, boost: "1" },
-        { duration: 12, boost: "2" },
-        { duration: 18, boost: "3" },
-        { duration: 24, boost: "4" },
+        { duration: 3, boost: "10" },
+        { duration: 6, boost: "28" },
+        { duration: 9, boost: "52" },
+        { duration: 12, boost: "80" },
+        { duration: 15, boost: "112" },
+        { duration: 18, boost: "147" },
       ],
       seconds_per_duration_unit: 86400 * 7,
-      weekly_multiplier: 3,
-      weekly_divider: 51,
     },
   },
 
@@ -39,10 +39,10 @@ export const mainnet: Config = {
       airdrop_contract_address: "",
       lockdrop_contract_address: "",
       generator_contract: "",
-      mars_vesting_duration: 86400 * 90,
+      mars_vesting_duration: 86400 * 30,
       lp_tokens_vesting_duration: 86400 * 90,
       init_timestamp: mainnet_init_timestamp + 86400 * 7,
-      mars_deposit_window: 86400 * 5,
+      mars_deposit_window: 86400 * 3,
       ust_deposit_window: 86400 * 5,
       withdrawal_window: 86400 * 2,
     },
@@ -61,14 +61,14 @@ export const bombay_testnet: Config = {
       deposit_window: 3600 * 5,
       withdrawal_window: 3600 * 2,
       lockup_durations: [
-        { duration: 6, boost: "1" },
-        { duration: 12, boost: "2" },
-        { duration: 18, boost: "3" },
-        { duration: 24, boost: "4" },
+        { duration: 3, boost: "10" },
+        { duration: 6, boost: "28" },
+        { duration: 9, boost: "52" },
+        { duration: 12, boost: "80" },
+        { duration: 15, boost: "112" },
+        { duration: 18, boost: "147" },
       ],
       seconds_per_duration_unit: 3600,
-      weekly_multiplier: 3,
-      weekly_divider: 51,
     },
   },
 
@@ -80,12 +80,12 @@ export const bombay_testnet: Config = {
       airdrop_contract_address: "",
       lockdrop_contract_address: "",
       generator_contract: "",
-      mars_vesting_duration: 3600 * 90,
+      mars_vesting_duration: 3600 * 30,
       lp_tokens_vesting_duration: 3600 * 90,
       init_timestamp: bombay_init_timestamp + 3600 * 7,
-      mars_deposit_window: 3600 * 1,
-      ust_deposit_window: Number(3600 * 1.5),
-      withdrawal_window: 3600 * 1,
+      mars_deposit_window: 3600 * 3,
+      ust_deposit_window: 3600 * 5,
+      withdrawal_window: 3600 * 2,
     },
   },
 
@@ -127,8 +127,6 @@ interface LockdropInitMsg {
     withdrawal_window: number;
     lockup_durations: any;
     seconds_per_duration_unit: number;
-    weekly_multiplier: number;
-    weekly_divider: number;
   };
 }
 
