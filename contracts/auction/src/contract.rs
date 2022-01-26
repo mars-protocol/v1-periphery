@@ -1228,8 +1228,8 @@ fn are_windows_closed(current_timestamp: u64, config: &Config) -> bool {
 }
 
 ///  @dev Helper function to calculate maximum % of their total UST deposited that can be withdrawn.  Returns % UST that can be withdrawn
-/// Returns % UST that can be withdrawn and 'more_withdrawals_allowed' boolean which indicates whether more withdrawls by the user
-/// will be allowed or not
+/// @params current_timestamp : Current block timestamp
+/// @params config : Contract configuration
 fn allowed_withdrawal_percent(current_timestamp: u64, config: &Config) -> Decimal {
     let ust_withdrawal_cutoff_init_point = config.init_timestamp + config.ust_deposit_window;
 
