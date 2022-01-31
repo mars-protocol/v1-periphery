@@ -309,10 +309,16 @@ pub fn query_state(deps: Deps, env: Env, timestamp: Option<u64>) -> StdResult<St
 
     match timestamp {
         Some(timestamp) => {
+            
+            // Timestamp cannot be from a past value
+            if timestamp < env.block.time.seconds() {
+                return Err(StdError::generic_err("Provided timestamp has passed"));
+            }
+
             compute_reward(
                 &config,
                 &mut state,
-                std::cmp::max(timestamp, env.block.time.seconds()),
+                timestamp,
             );
         }
         None => {
@@ -346,6 +352,12 @@ pub fn query_staker_info(
 
     match timestamp {
         Some(timestamp) => {
+
+            // Timestamp cannot be from a past value
+            if timestamp < env.block.time.seconds() {
+                return Err(StdError::generic_err("Provided timestamp has passed"));
+            }
+            
             compute_reward(
                 &config,
                 &mut state,
