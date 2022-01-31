@@ -2063,6 +2063,12 @@ fn test_enable_claims() {
         .unwrap();
     assert_eq!(false, state_resp_before.are_claims_allowed);
 
+    // for successful deposit
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(17_000_03)
+    });
+
     app.execute_contract(
         auction_instance.clone(),
         lockdrop_instance.clone(),
@@ -2351,6 +2357,14 @@ fn test_claim_rewards_and_unlock() {
         )
         .unwrap_err();
     assert_eq!(err.to_string(), "Generic error: Claim not allowed");
+
+
+    // for successful deposit
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(17_000_03)
+    });
+
 
     // Enable claims
     app.execute_contract(
