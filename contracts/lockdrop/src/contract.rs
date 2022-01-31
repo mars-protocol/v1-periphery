@@ -104,7 +104,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::DepositMarsToAuction { amount } => {
             handle_deposit_mars_to_auction(deps, env, info, amount)
         }
-        ExecuteMsg::EnableClaims {} => handle_enable_claims(deps, info),
+        ExecuteMsg::EnableClaims {} => handle_enable_claims(deps, env, info),
         ExecuteMsg::DepositUstInRedBank {} => try_deposit_in_red_bank(deps, env, info),
         ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration,
@@ -419,7 +419,7 @@ pub fn try_withdraw_ust(
 }
 
 /// @dev Function callable only by Auction contract to enable MARS Claims by users. Called along-with Bootstrap Auction contract's LP Pool provide liquidity tx
-pub fn handle_enable_claims(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
+pub fn handle_enable_claims(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
@@ -429,8 +429,15 @@ pub fn handle_enable_claims(deps: DepsMut, info: MessageInfo) -> StdResult<Respo
     }
 
     // CHECK :: ONLY AUCTION CONTRACT CAN CALL THIS FUNCTION
-    if info.sender != config.auction_contract_address.unwrap() {
+    if info.sender != config.auction_contract_address.clone().unwrap() {
         return Err(StdError::generic_err("Unauthorized"));
+    }
+
+    // CHECK :: Claims can only be enabled after the deposit / withdrawal windows are closed
+    if is_withdraw_open(env.block.time.seconds(), &config) {
+        return Err(StdError::generic_err(
+            "Claims can only be enabled after the deposit / withdrawal windows are closed",
+        ));
     }
 
     // CHECK ::: Claims are only enabled once
