@@ -847,12 +847,12 @@ pub fn update_state_on_claim(
     // Calculate XMARS Claimed as rewards
     let cur_xmars_balance =
         cw20_get_balance(&deps.querier, xmars_address.clone(), env.contract.address)?;
-    let xmars_accured = cur_xmars_balance - prev_xmars_balance;
-    response = response.add_attribute("total_xmars_claimed", xmars_accured.to_string());
+    let xmas_accrued = cur_xmars_balance - prev_xmars_balance;
+    response = response.add_attribute("total_xmars_claimed", xmas_accrued.to_string());
 
     // UPDATE :: GLOBAL & USER INDEX (XMARS rewards tracker)
-    if xmars_accured > Uint128::zero() {
-        update_xmars_rewards_index(&mut state, xmars_accured);
+    if xmas_accrued > Uint128::zero() {
+        update_xmars_rewards_index(&mut state, xmas_accrued);
     }
 
     // COSMOS MSG :: SEND X-MARS (DEPOSIT INCENTIVES) IF > 0
@@ -1037,14 +1037,14 @@ pub fn query_user_info(deps: Deps, env: Env, user_address_: String) -> StdResult
         let incentives_address = addresses_query.pop().unwrap();
 
         // QUERY :: XMARS REWARDS TO BE CLAIMED  ?
-        let xmars_accured: Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        let xmas_accrued: Uint128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: incentives_address.to_string(),
             msg: to_binary(&IncentivesQueryMsg::UserUnclaimedRewards {
                 user_address: env.contract.address.to_string(),
             })?,
         }))?;
 
-        update_xmars_rewards_index(&mut state, xmars_accured);
+        update_xmars_rewards_index(&mut state, xmas_accrued);
         pending_xmars_to_claim = compute_user_accrued_reward(&state, &mut user_info);
     }
 
@@ -1279,13 +1279,13 @@ fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResul
 
 /// @dev Accrue xMARS rewards by updating the reward index
 /// @params state : Global state struct
-/// @params xmars_accured : xMARS tokens claimed as rewards from the incentives contract
-fn update_xmars_rewards_index(state: &mut State, xmars_accured: Uint128) {
+/// @params xmas_accrued : xMARS tokens claimed as rewards from the incentives contract
+fn update_xmars_rewards_index(state: &mut State, xmas_accrued: Uint128) {
     if state.total_maust_locked == Uint128::zero() {
         return;
     }
     let xmars_rewards_index_increment =
-        Decimal::from_ratio(xmars_accured, state.total_maust_locked);
+        Decimal::from_ratio(xmas_accrued, state.total_maust_locked);
     state.xmars_rewards_index = state.xmars_rewards_index + xmars_rewards_index_increment;
 }
 
