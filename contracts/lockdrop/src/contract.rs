@@ -48,6 +48,7 @@ pub fn instantiate(
             env.block.time.seconds()
         )));
     }
+
     // CHECK :: deposit_window,withdrawal_window need to be valid (withdrawal_window < deposit_window)
     if msg.deposit_window == 0u64
         || msg.withdrawal_window == 0u64
@@ -55,6 +56,15 @@ pub fn instantiate(
     {
         return Err(StdError::generic_err("Invalid deposit / withdraw window"));
     }
+
+    // CHECK :: init_timestamp needs to be valid
+    if msg.seconds_per_duration_unit == 0u64 {
+        return Err(StdError::generic_err(
+            "seconds_per_duration_unit cannot be 0",
+        ));
+    }
+
+
 
     let mut config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,

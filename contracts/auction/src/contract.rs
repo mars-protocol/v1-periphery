@@ -35,15 +35,34 @@ const UUSD_DENOM: &str = "uusd";
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+
+    // CHECK :: init_timestamp needs to be valid
+    if msg.init_timestamp < env.block.time.seconds() {
+        return Err(StdError::generic_err(format!(
+            "Invalid timestamp. Current timestamp : {}",
+            env.block.time.seconds()
+        )));
+    }
+
+
     if msg.mars_deposit_window > msg.ust_deposit_window {
         return Err(StdError::generic_err(
             "UST deposit window cannot be less than MARS deposit window",
         ));
     }
+
+
+    // CHECK :: mars_vesting_duration needs to be valid
+    if msg.mars_vesting_duration == 0u64 {
+        return Err(StdError::generic_err(
+            "mars_vesting_duration cannot be 0",
+        ));
+    }
+
 
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
