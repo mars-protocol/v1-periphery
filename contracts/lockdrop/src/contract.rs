@@ -390,8 +390,7 @@ pub fn try_withdraw_ust(
     if lockup_info.ust_locked == Uint128::zero() {
         remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone())?;
         LOCKUP_INFO.remove(deps.storage, lockup_id.as_bytes());
-    }
-    else {
+    } else {
         LOCKUP_INFO.save(deps.storage, lockup_id.as_bytes(), &lockup_info)?;
     }
     USER_INFO.save(deps.storage, &withdrawer_address, &user_info)?;
@@ -464,12 +463,12 @@ pub fn try_deposit_in_red_bank(deps: DepsMut, env: Env, info: MessageInfo) -> St
         return Err(StdError::generic_err("maUST not set"));
     }
 
-    // CHECK :: Lockdrop deposit window should be closed
+    // CHECK :: Lockdrop withdrawal window should be closed
     if env.block.time.seconds() < config.init_timestamp
-        || is_deposit_open(env.block.time.seconds(), &config)
+        || is_withdraw_open(env.block.time.seconds(), &config)
     {
         return Err(StdError::generic_err(
-            "Lockdrop deposits haven't concluded yet",
+            "Lockdrop withdrawals haven't concluded yet",
         ));
     }
 
@@ -1067,7 +1066,7 @@ pub fn query_lockup_info_with_id(deps: Deps, lockup_id: String) -> StdResult<Loc
             ),
             lockdrop_reward: lockup_info.lockdrop_reward,
             unlock_timestamp: lockup_info.unlock_timestamp,
-            withdrawal_flag: lockup_info.withdrawal_flag
+            withdrawal_flag: lockup_info.withdrawal_flag,
         };
 
         if lockup_info_query_data.lockdrop_reward == Uint128::zero() {

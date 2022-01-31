@@ -1036,7 +1036,6 @@ fn test_withdraw_ust() {
     assert_eq!(Uint128::from(5000u128), user_resp.total_ust_locked);
     assert_eq!(vec!["user16"], user_resp.lockup_position_ids);
 
-
     // ######    SUCCESS :: All UST Successfully withdrawn and lockup position removed from state     ######
     app.execute_contract(
         user1_address.clone(),
@@ -1049,18 +1048,16 @@ fn test_withdraw_ust() {
     )
     .unwrap();
     user_resp = app
-    .wrap()
-    .query_wasm_smart(
-        &lockdrop_instance,
-        &QueryMsg::UserInfo {
-            address: user1_address.to_string(),
-        },
-    )
-    .unwrap();
+        .wrap()
+        .query_wasm_smart(
+            &lockdrop_instance,
+            &QueryMsg::UserInfo {
+                address: user1_address.to_string(),
+            },
+        )
+        .unwrap();
     assert_eq!(Uint128::from(0u128), user_resp.total_ust_locked);
     assert_eq!(true, user_resp.lockup_position_ids.is_empty());
-
-
 
     app.execute_contract(
         user1_address.clone(),
@@ -1805,7 +1802,7 @@ fn test_deposit_ust_in_red_bank() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Lockdrop deposits haven't concluded yet"
+        "Generic error: Lockdrop withdrawals haven't concluded yet"
     );
 
     // ######    SUCCESSFULLY DEPOSITED IN RED BANK ######
