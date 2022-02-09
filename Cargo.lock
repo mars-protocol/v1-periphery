@@ -834,7 +834,6 @@ dependencies = [
 name = "mars-lp-staking"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",

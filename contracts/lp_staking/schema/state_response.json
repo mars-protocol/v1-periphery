@@ -3,48 +3,21 @@
   "title": "StateResponse",
   "type": "object",
   "required": [
-    "current_cycle",
-    "current_cycle_rewards",
     "global_reward_index",
     "last_distributed",
     "total_bond_amount"
   ],
   "properties": {
-    "current_cycle": {
-      "description": "Timestamp at which the current reward cycle begin",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "current_cycle_rewards": {
-      "description": "MARS rewards to be distributed in the current cycle",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
-    },
     "global_reward_index": {
-      "description": "total MARS rewards / total_bond_amount ratio. Used to calculate MARS rewards accured over time elapsed",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Decimal"
-        }
-      ]
+      "$ref": "#/definitions/Decimal"
     },
     "last_distributed": {
-      "description": "Timestamp at which the global_reward_index was last updated",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "total_bond_amount": {
-      "description": "Total number of MARS-UST LP tokens deposited in the contract",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
+      "$ref": "#/definitions/Uint128"
     }
   },
   "definitions": {

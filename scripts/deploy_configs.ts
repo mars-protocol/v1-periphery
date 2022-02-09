@@ -47,6 +47,19 @@ export const mainnet: Config = {
       withdrawal_window: 86400 * 2,
     },
   },
+
+  staking_InitMsg: {
+    config: {
+      owner: undefined,
+      mars_token: undefined,
+      staking_token: undefined,
+      init_timestamp: 1639465200,
+      till_timestamp: 1639465200 + 86400 * 365,
+      cycle_rewards: "100000000",
+      cycle_duration: 86400 * 365,
+      reward_increase: "0",
+    },
+  },
 };
 
 let bombay_init_timestamp = 1639465200;
@@ -89,6 +102,19 @@ export const bombay_testnet: Config = {
     },
   },
 
+  staking_InitMsg: {
+    config: {
+      owner: undefined,
+      mars_token: undefined,
+      staking_token: undefined,
+      init_timestamp: 1639465200,
+      till_timestamp: 1639465200 + 86400 * 365,
+      cycle_rewards: "100000000",
+      cycle_duration: 86400 * 365,
+      reward_increase: "0",
+    },
+  },
+
   airdrop_InitMsg: {
     config: {
       owner: undefined,
@@ -117,6 +143,19 @@ interface AuctionInitMsg {
   };
 }
 
+interface StakingInitMsg {
+  config: {
+    owner?: string;
+    mars_token?: string;
+    staking_token?: string;
+    init_timestamp: number;
+    till_timestamp: number;
+    cycle_rewards: string;
+    cycle_duration: number;
+    reward_increase?: string;
+  };
+}
+
 interface LockdropInitMsg {
   config: {
     owner?: string;
@@ -142,6 +181,7 @@ interface AirdropInitMsg {
 
 export interface Config {
   auction_InitMsg: AuctionInitMsg;
+  staking_InitMsg: StakingInitMsg;
   lockdrop_InitMsg: LockdropInitMsg;
   airdrop_InitMsg: AirdropInitMsg;
 }

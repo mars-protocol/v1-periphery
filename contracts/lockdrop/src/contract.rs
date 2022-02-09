@@ -895,7 +895,7 @@ pub fn update_state_on_claim(
 }
 
 // CALLBACK :: CALLED BY try_unlock_position FUNCTION --> DELETES LOCKUP POSITION
-/// @dev  Callback function. Unlocks a lockup position. Either naturally after duration expiration or forcefully by returning MARS (lockdrop incentives)
+/// @dev  Callback function. Unlocks a lockup position after the lockup duration has expired
 /// @params user : User address whose position is to be unlocked
 /// @params duration :Lockup duration of the position to be unlocked
 pub fn try_dissolve_position(
@@ -923,7 +923,7 @@ pub fn try_dissolve_position(
     state.total_maust_locked -= maust_to_withdraw;
 
     // UPDATE USER INFO
-    // user_info.total_ust_locked = user_info.total_ust_locked - lockup_info.ust_locked;
+    user_info.total_ust_locked = user_info.total_ust_locked - lockup_info.ust_locked;
     user_info.total_maust_share -= maust_to_withdraw;
 
     // DISSOLVE LOCKUP POSITION

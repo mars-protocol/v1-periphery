@@ -35,10 +35,9 @@ backtraces = ["cosmwasm-std/backtraces"]
 mars-periphery = { path = "../../packages/mars-periphery" }
 
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
+cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
 cw20 = { version = "0.9.0" } 
 cw-storage-plus = "0.9"
-
-cosmwasm-bignumber = "2.2.0"
 
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

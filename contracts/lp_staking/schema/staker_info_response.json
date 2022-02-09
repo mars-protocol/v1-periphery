@@ -10,31 +10,15 @@
   ],
   "properties": {
     "bond_amount": {
-      "description": "MARS-UST LP tokens deposited by the user",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
+      "$ref": "#/definitions/Uint128"
     },
     "pending_reward": {
-      "description": "Pending MARS rewards which are yet to be claimed",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
+      "$ref": "#/definitions/Uint128"
     },
     "reward_index": {
-      "description": "MARS rewards / bond_amount ratio.  Used to calculate MARS rewards accured over time elapsed",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Decimal"
-        }
-      ]
+      "$ref": "#/definitions/Decimal"
     },
     "staker": {
-      "description": "User address",
       "type": "string"
     }
   },

@@ -3,48 +3,21 @@
   "title": "State",
   "type": "object",
   "required": [
-    "current_cycle",
-    "current_cycle_rewards",
     "global_reward_index",
     "last_distributed",
     "total_bond_amount"
   ],
   "properties": {
-    "current_cycle": {
-      "description": "Keeps track of the MARS distribution cycle",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "current_cycle_rewards": {
-      "description": "Number of MARS tokens to be distributed during the current cycle",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
-    },
     "global_reward_index": {
-      "description": "Used to calculate MARS rewards accured over time elapsed. Ratio =  Total distributed MARS tokens / total bond amount",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Decimal"
-        }
-      ]
+      "$ref": "#/definitions/Decimal"
     },
     "last_distributed": {
-      "description": "Timestamp at which the global_reward_index was last updated",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "total_bond_amount": {
-      "description": "Total number of MARS-UST LP tokens staked with the contract",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
+      "$ref": "#/definitions/Uint128"
     }
   },
   "definitions": {

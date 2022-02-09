@@ -1,19 +1,24 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    from_binary, to_binary, Addr, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use mars_periphery::lp_staking::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    StakerInfoResponse, StateResponse, TimeResponse, UpdateConfigMsg,
+    StakerInfoResponse, StateResponse, 
 };
 
-use crate::state::{Config, StakerInfo, State, CONFIG, STAKER_INFO, STATE};
+use crate::{
+    state::{
+        Config, StakerInfo, State, read_config, store_config, read_state, store_state, read_staker_info, store_staker_info, remove_staker_info
+    },
+};
 
-//----------------------------------------------------------------------------------------
-// Entry Points
-//----------------------------------------------------------------------------------------
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use std::collections::BTreeMap;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -22,33 +27,20 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    if msg.init_timestamp < env.block.time.seconds() || msg.till_timestamp < msg.init_timestamp {
-        return Err(StdError::generic_err("Invalid timestamps"));
-    }
+    store_config(
+        deps.storage,
+        &Config {
+            owner: deps.api.addr_canonicalize(&msg.owner)?,
+            mars_token: deps.api.addr_canonicalize(&msg.mars_token)?,
+            staking_token: deps.api.addr_canonicalize(&msg.staking_token)?,
+            distribution_schedule: msg.distribution_schedule,
+        },
+    )?;
 
-    if msg.cycle_duration == 0u64 {
-        return Err(StdError::generic_err("Invalid cycle duration"));
-    }
-
-    let config = Config {
-        owner: deps.api.addr_validate(&msg.owner.unwrap())?,
-        mars_token: deps.api.addr_validate(&msg.mars_token)?,
-        staking_token: option_string_to_addr(deps.api, msg.staking_token, zero_address())?,
-        init_timestamp: msg.init_timestamp,
-        till_timestamp: msg.till_timestamp,
-        cycle_duration: msg.cycle_duration,
-        reward_increase: msg.reward_increase.unwrap_or_else(Decimal::zero),
-    };
-
-    config.validate()?;
-    CONFIG.save(deps.storage, &config)?;
-
-    STATE.save(
+    store_state(
         deps.storage,
         &State {
-            current_cycle: 0u64,
-            current_cycle_rewards: msg.cycle_rewards.unwrap_or_else(Uint128::zero),
-            last_distributed: msg.init_timestamp,
+            last_distributed: env.block.time.seconds(),
             total_bond_amount: Uint128::zero(),
             global_reward_index: Decimal::zero(),
         },
@@ -60,52 +52,34 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::UpdateConfig { new_config } => update_config(deps, env, info, new_config),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Unbond {
-            amount,
-            withdraw_pending_reward,
-        } => unbond(deps, env, info, amount, withdraw_pending_reward),
-        ExecuteMsg::Claim {} => try_claim(deps, env, info),
+        ExecuteMsg::Unbond { amount, withdraw_pending_reward } => unbond(deps, env, info, amount, withdraw_pending_reward),
+        ExecuteMsg::Claim {} => withdraw(deps, env, info),
+        ExecuteMsg::MigrateStaking {
+            new_staking_contract,
+        } => migrate_staking(deps, env, info, new_staking_contract),
+        ExecuteMsg::UpdateConfig {
+            new_owner, 
+            distribution_schedule,
+        } => update_config(deps, env, info, new_owner, distribution_schedule),
     }
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::State { timestamp } => to_binary(&query_state(deps, _env, timestamp)?),
-        QueryMsg::StakerInfo { staker, timestamp } => {
-            to_binary(&query_staker_info(deps, _env, staker, timestamp)?)
-        }
-        QueryMsg::Timestamp {} => to_binary(&query_timestamp(_env)?),
-    }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Err(StdError::generic_err("unimplemented"))
-}
-//----------------------------------------------------------------------------------------
-// Handle Functions
-//----------------------------------------------------------------------------------------
-
-/// Only MARS-UST LP Token can be sent to this contract via the Cw20ReceiveMsg Hook
-/// @dev Increases user's staked LP Token balance via the Bond Function
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config: Config = read_config(deps.storage)?;
 
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::Bond {}) => {
             // only staking token contract can execute this message
-            if config.staking_token != info.sender.as_str() {
+            if config.staking_token != deps.api.addr_canonicalize(info.sender.as_str())? {
                 return Err(StdError::generic_err("unauthorized"));
             }
+
             let cw20_sender = deps.api.addr_validate(&cw20_msg.sender)?;
             bond(deps, env, cw20_sender, cw20_msg.amount)
         }
@@ -113,263 +87,352 @@ pub fn receive_cw20(
     }
 }
 
-/// @dev Called by receive_cw20(). Increases user's staked LP Token balance
-/// @params sender_addr : User Address who sent the LP Tokens
-/// @params amount : Number of LP Tokens transferred to the contract
 pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint128) -> StdResult<Response> {
-    let config: Config = CONFIG.load(deps.storage)?;
-    let mut state: State = STATE.load(deps.storage)?;
-    let mut staker_info = STAKER_INFO
-        .may_load(deps.storage, &sender_addr)?
-        .unwrap_or_default();
+    let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(sender_addr.as_str())?;
 
-    compute_reward(&config, &mut state, env.block.time.seconds()); // Compute global reward
-    compute_staker_reward(&state, &mut staker_info)?; // Compute staker reward
-    increase_bond_amount(&mut state, &mut staker_info, amount); // Increase bond_amount
-
-    // Store updated state with staker's staker_info
-    STAKER_INFO.save(deps.storage, &sender_addr, &staker_info)?;
-    STATE.save(deps.storage, &state)?;
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "Staking::ExecuteMsg::Bond"),
-        ("user", sender_addr.as_str()),
-        ("amount", amount.to_string().as_str()),
-        ("total_bonded", staker_info.bond_amount.to_string().as_str()),
-    ]))
-}
-
-/// @dev Only owner can call this function. Updates the config
-/// @dev init_timestamp : can only be updated before it gets elapsed
-/// @dev till_timestamp : can only be updated before it gets elapsed
-/// @params new_config : New config object
-pub fn update_config(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    new_config: UpdateConfigMsg,
-) -> StdResult<Response> {
-    let mut config = CONFIG.load(deps.storage)?;
-    let mut state = STATE.load(deps.storage)?;
-
-    // ONLY OWNER CAN UPDATE CONFIG
-    if info.sender != config.owner {
-        return Err(StdError::generic_err("Only owner can update configuration"));
-    }
-
-    // ACCURE CURRENT REWARDS IN-CASE `reward_increase` / `current_cycle_rewards` ARE UPDATED
-    compute_reward(&config, &mut state, env.block.time.seconds()); // Compute global reward & staker reward
-
-    // UPDATE :: ADDRESSES IF PROVIDED
-    config.staking_token =
-        option_string_to_addr(deps.api, new_config.staking_token, config.staking_token)?;
-    config.owner = option_string_to_addr(deps.api, new_config.owner, config.owner)?;
-
-    // UPDATE :: VALUES IF PROVIDED
-    if let Some(new_increase_ratio) = new_config.reward_increase {
-        if new_increase_ratio < Decimal::one() {
-            config.reward_increase = new_increase_ratio;
-        } else {
-            return Err(StdError::generic_err("Invalid reward increase ratio"));
-        }
-    }
-
-    state.current_cycle_rewards = new_config
-        .cycle_rewards
-        .unwrap_or(state.current_cycle_rewards);
-
-    CONFIG.save(deps.storage, &config)?;
-    STATE.save(deps.storage, &state)?;
-
-    Ok(Response::new().add_attribute("action", "staking::ExecuteMsg::UpdateConfig"))
-}
-
-/// @dev Reduces user's staked position. MARS Rewards are transferred along-with unstaked LP Tokens
-/// @params amount :  Number of LP Tokens transferred to be unstaked
-pub fn unbond(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    amount: Uint128,
-    withdraw_pending_reward: Option<bool>,
-) -> StdResult<Response> {
-    let sender_addr = info.sender;
-    let config: Config = CONFIG.load(deps.storage)?;
-    let mut state: State = STATE.load(deps.storage)?;
-    let mut staker_info: StakerInfo = STAKER_INFO
-        .may_load(deps.storage, &sender_addr)?
-        .unwrap_or_default();
-
-    if staker_info.bond_amount < amount {
-        return Err(StdError::generic_err("Cannot unbond more than bond amount"));
-    }
-
-    compute_reward(&config, &mut state, env.block.time.seconds()); // Compute global reward & staker reward
-    compute_staker_reward(&state, &mut staker_info)?; // Compute staker reward
-    decrease_bond_amount(&mut state, &mut staker_info, amount); // Decrease bond_amount
-    let mut messages = vec![];
-    let mut claimed_rewards = Uint128::zero();
-
-    if let Some(withdraw_pending_reward) = withdraw_pending_reward {
-        if withdraw_pending_reward {
-            claimed_rewards = staker_info.pending_reward;
-            if claimed_rewards > Uint128::zero() {
-                staker_info.pending_reward = Uint128::zero();
-                messages.push(build_send_cw20_token_msg(
-                    sender_addr.clone(),
-                    config.mars_token,
-                    claimed_rewards,
-                )?);
-            }
-        }
-    }
-
-    // Store Staker info, depends on the left bond amount
-    STAKER_INFO.save(deps.storage, &sender_addr, &staker_info)?;
-    STATE.save(deps.storage, &state)?;
-
-    messages.push(build_send_cw20_token_msg(
-        sender_addr.clone(),
-        config.staking_token,
-        amount,
-    )?);
-
-    // UNBOND STAKED TOKEN , TRANSFER $MARS
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        ("action", "Staking::ExecuteMsg::Unbond"),
-        ("user", sender_addr.as_str()),
-        ("amount", amount.to_string().as_str()),
-        ("total_bonded", staker_info.bond_amount.to_string().as_str()),
-        ("claimed_rewards", claimed_rewards.to_string().as_str()),
-    ]))
-}
-
-/// @dev Function to claim accrued MARS Rewards
-pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
-    let sender_addr = info.sender;
-    let config: Config = CONFIG.load(deps.storage)?;
-    let mut state: State = STATE.load(deps.storage)?;
-    let mut staker_info = STAKER_INFO
-        .may_load(deps.storage, &sender_addr)?
-        .unwrap_or_default();
+    let config: Config = read_config(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
+    let mut staker_info: StakerInfo = read_staker_info(deps.storage, &sender_addr_raw)?;
 
     // Compute global reward & staker reward
     compute_reward(&config, &mut state, env.block.time.seconds());
     compute_staker_reward(&state, &mut staker_info)?;
 
-    let accrued_rewards = staker_info.pending_reward;
-    staker_info.pending_reward = Uint128::zero();
+    // Increase bond_amount
+    increase_bond_amount(&mut state, &mut staker_info, amount);
 
-    STAKER_INFO.save(deps.storage, &sender_addr, &staker_info)?; // Update Staker Info
-    STATE.save(deps.storage, &state)?; // Store updated state
+    // Store updated state with staker's staker_info
+    store_staker_info(deps.storage, &sender_addr_raw, &staker_info)?;
+    store_state(deps.storage, &state)?;
 
-    let mut messages = vec![];
-
-    if accrued_rewards == Uint128::zero() {
-        return Err(StdError::generic_err("No rewards to claim"));
-    } else {
-        messages.push(build_send_cw20_token_msg(
-            sender_addr.clone(),
-            config.mars_token,
-            accrued_rewards,
-        )?);
-    }
-
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        ("action", "Staking::ExecuteMsg::Claim"),
-        ("user", sender_addr.as_str()),
-        ("claimed_rewards", accrued_rewards.to_string().as_str()),
+    Ok(Response::new().add_attributes(vec![
+        ("action", "bond"),
+        ("owner", sender_addr.as_str()),
+        ("amount", amount.to_string().as_str()),
     ]))
 }
 
-//----------------------------------------------------------------------------------------
-// Query Functions
-//----------------------------------------------------------------------------------------
+pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128, withdraw_pending_reward: Option<bool>) -> StdResult<Response> {
+    let config: Config = read_config(deps.storage)?;
+    let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
 
-/// @dev Returns the contract's configuration
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
+    let mut staker_info: StakerInfo = read_staker_info(deps.storage, &sender_addr_raw)?;
+    let mut reward_amount = Uint128::zero();
 
-    Ok(ConfigResponse {
-        owner: config.owner.to_string(),
-        mars_token: config.mars_token.to_string(),
-        staking_token: config.staking_token.to_string(),
-        init_timestamp: config.init_timestamp,
-        till_timestamp: config.till_timestamp,
-        cycle_duration: config.cycle_duration,
-        reward_increase: config.reward_increase,
-    })
+    if staker_info.bond_amount < amount {
+        return Err(StdError::generic_err("Cannot unbond more than bond amount"));
+    }
+
+    // Compute global reward & staker reward
+    compute_reward(&config, &mut state, env.block.time.seconds());
+    compute_staker_reward(&state, &mut staker_info)?;
+
+    // Decrease bond_amount
+    decrease_bond_amount(&mut state, &mut staker_info, amount)?;
+
+    let mut msgs = vec![]; 
+
+    // Cosmos Msg to transfer staked LP tokens to the user 
+    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: deps.api.addr_humanize(&config.staking_token)?.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: info.sender.to_string(),
+            amount,
+        })?,
+        funds: vec![],
+    }));
+
+    // Cosmos Msg to transfer MARS rewards to the user 
+    if withdraw_pending_reward.is_some() && withdraw_pending_reward.unwrap() && staker_info.pending_reward > Uint128::zero() {
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.mars_token)?.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount: staker_info.pending_reward,
+            })?,
+            funds: vec![],
+        }));
+        reward_amount = staker_info.pending_reward;
+        staker_info.pending_reward = Uint128::zero();
+    }
+
+    // Store or remove updated rewards info
+    // depends on the left pending reward and bond amount
+    if staker_info.pending_reward.is_zero() && staker_info.bond_amount.is_zero() {
+        remove_staker_info(deps.storage, &sender_addr_raw);
+    } else {
+        store_staker_info(deps.storage, &sender_addr_raw, &staker_info)?;
+    }
+
+    // Store updated state
+    store_state(deps.storage, &state)?;
+
+    Ok(Response::new()
+        .add_messages(msgs)
+        .add_attributes(vec![
+            ("action", "unbond"),
+            ("owner", info.sender.as_str()),
+            ("unbond_amount", amount.to_string().as_str()),
+            ("reward_amount", reward_amount.to_string().as_str()),
+        ]))
 }
 
-/// @dev Returns the contract's simulated state at a certain timestamp
-/// /// @param timestamp : Option parameter. Contract's Simulated state is retrieved if the timestamp is provided   
-pub fn query_state(deps: Deps, env: Env, timestamp: Option<u64>) -> StdResult<StateResponse> {
-    let mut state: State = STATE.load(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
+// withdraw rewards to executor
+pub fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+    let sender_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
-    match timestamp {
-        Some(timestamp) => {
-            
-            // Timestamp cannot be from a past value
-            if timestamp < env.block.time.seconds() {
-                return Err(StdError::generic_err("Provided timestamp has passed"));
-            }
+    let config: Config = read_config(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
+    let mut staker_info = read_staker_info(deps.storage, &sender_addr_raw)?;
 
-            compute_reward(
-                &config,
-                &mut state,
-                timestamp,
-            );
-        }
-        None => {
-            compute_reward(&config, &mut state, env.block.time.seconds());
+    // Compute global reward & staker reward
+    compute_reward(&config, &mut state, env.block.time.seconds());
+    compute_staker_reward(&state, &mut staker_info)?;
+
+    let amount = staker_info.pending_reward;
+    staker_info.pending_reward = Uint128::zero();
+
+    // Store or remove updated rewards info
+    // depends on the left pending reward and bond amount
+    if staker_info.bond_amount.is_zero() {
+        remove_staker_info(deps.storage, &sender_addr_raw);
+    } else {
+        store_staker_info(deps.storage, &sender_addr_raw, &staker_info)?;
+    }
+
+    // Store updated state
+    store_state(deps.storage, &state)?;
+
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.mars_token)?.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        })])
+        .add_attributes(vec![
+            ("action", "withdraw"),
+            ("owner", info.sender.as_str()),
+            ("reward_amount", amount.to_string().as_str()),
+        ]))
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    owner: Option<String>,
+    distribution_schedule: Vec<(u64, u64, Uint128)>,
+) -> StdResult<Response> {
+    // get gov address by querying anc token minter
+    let config: Config = read_config(deps.storage)?;
+    let state: State = read_state(deps.storage)?;
+    let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
+
+    //  Only owner can execute this function
+    if sender_addr_raw != config.owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut new_owner = config.owner.clone();
+
+    // If owner is to be updated
+    if owner.is_some() {
+        new_owner = deps.api.addr_canonicalize(&owner.unwrap())?;
+    }
+
+    assert_new_schedules(&config, &state, distribution_schedule.clone())?;
+
+    let new_config = Config {
+        owner: new_owner,
+        mars_token: config.mars_token,
+        staking_token: config.staking_token,
+        distribution_schedule,
+    };
+    store_config(deps.storage, &new_config)?;
+
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+}
+
+pub fn migrate_staking(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    new_staking_contract: String,
+) -> StdResult<Response> {
+    let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let mut config: Config = read_config(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
+    let mars_token: Addr = deps.api.addr_humanize(&config.mars_token)?;
+
+    // get gov address by querying anc token minter
+    if sender_addr_raw != config.owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    // compute global reward, sets last_distributed_seconds to env.block.time.seconds
+    compute_reward(&config, &mut state, env.block.time.seconds());
+
+    let total_distribution_amount: Uint128 =
+        config.distribution_schedule.iter().map(|item| item.2).sum();
+
+    let timestamp = env.block.time.seconds();
+    // eliminate distribution slots that have not started
+    config
+        .distribution_schedule
+        .retain(|slot| slot.0 < timestamp);
+
+    let mut distributed_amount = Uint128::zero();
+    for s in config.distribution_schedule.iter_mut() {
+        if s.1 < timestamp {
+            // all distributed
+            distributed_amount += s.2;
+        } else {
+            // partially distributed slot
+            let whole_time = s.1 - s.0;
+            let distribution_amount_per_second: Decimal = Decimal::from_ratio(s.2, whole_time);
+
+            let passed_time = timestamp - s.0;
+            let distributed_amount_on_slot =
+                distribution_amount_per_second * Uint128::from(passed_time as u128);
+            distributed_amount += distributed_amount_on_slot;
+
+            // modify distribution slot
+            s.1 = timestamp;
+            s.2 = distributed_amount_on_slot;
         }
     }
 
+    // update config
+    store_config(deps.storage, &config)?;
+    // update state
+    store_state(deps.storage, &state)?;
+
+    let remaining_anc = total_distribution_amount.checked_sub(distributed_amount)?;
+
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: mars_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: new_staking_contract,
+                amount: remaining_anc,
+            })?,
+            funds: vec![],
+        })])
+        .add_attributes(vec![
+            ("action", "migrate_staking"),
+            ("distributed_amount", &distributed_amount.to_string()),
+            ("remaining_amount", &remaining_anc.to_string()),
+        ]))
+}
+
+fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {
+    state.total_bond_amount += amount;
+    staker_info.bond_amount += amount;
+}
+
+fn decrease_bond_amount(
+    state: &mut State,
+    staker_info: &mut StakerInfo,
+    amount: Uint128,
+) -> StdResult<()> {
+    state.total_bond_amount = state.total_bond_amount.checked_sub(amount)?;
+    staker_info.bond_amount = staker_info.bond_amount.checked_sub(amount)?;
+    Ok(())
+}
+
+// compute distributed rewards and update global reward index
+fn compute_reward(config: &Config, state: &mut State, timestamp: u64) {
+    if state.total_bond_amount.is_zero() {
+        state.last_distributed = timestamp;
+        return;
+    }
+
+    let mut distributed_amount: Uint128 = Uint128::zero();
+    for s in config.distribution_schedule.iter() {
+        if s.0 > timestamp || s.1 < state.last_distributed {
+            continue;
+        }
+
+        // min(s.1, timestamp) - max(s.0, last_distributed)
+        let passed_time =
+            std::cmp::min(s.1, timestamp) - std::cmp::max(s.0, state.last_distributed);
+
+        let time = s.1 - s.0;
+        let distribution_amount_per_second: Decimal = Decimal::from_ratio(s.2, time);
+        distributed_amount += distribution_amount_per_second * Uint128::from(passed_time as u128);
+    }
+
+    state.last_distributed = timestamp;
+    state.global_reward_index = state.global_reward_index
+        + Decimal::from_ratio(distributed_amount, state.total_bond_amount);
+}
+
+// withdraw reward to pending reward
+fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResult<()> {
+    let pending_reward = (staker_info.bond_amount * state.global_reward_index)
+        .checked_sub(staker_info.bond_amount * staker_info.reward_index)?;
+
+    staker_info.reward_index = state.global_reward_index;
+    staker_info.pending_reward += pending_reward;
+    Ok(())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::State { timestamp } => to_binary(&query_state(deps, timestamp)?),
+        QueryMsg::StakerInfo { staker, timestamp } => {
+            to_binary(&query_staker_info(deps, staker, timestamp)?)
+        }
+    }
+}
+
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config = read_config(deps.storage)?;
+    let resp = ConfigResponse {
+        owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        mars_token: deps.api.addr_humanize(&config.mars_token)?.to_string(),
+        staking_token: deps.api.addr_humanize(&config.staking_token)?.to_string(),
+        distribution_schedule: config.distribution_schedule,
+    };
+
+    Ok(resp)
+}
+
+pub fn query_state(deps: Deps, timestamp: Option<u64>) -> StdResult<StateResponse> {
+    let mut state: State = read_state(deps.storage)?;
+    if let Some(timestamp) = timestamp {
+        let config = read_config(deps.storage)?;
+        compute_reward(&config, &mut state, timestamp);
+    }
+
     Ok(StateResponse {
-        current_cycle: state.current_cycle,
-        current_cycle_rewards: state.current_cycle_rewards,
         last_distributed: state.last_distributed,
         total_bond_amount: state.total_bond_amount,
         global_reward_index: state.global_reward_index,
     })
 }
 
-/// @dev Returns the User's simulated state at a certain timestamp
-/// @param staker : User address whose state is to be retrieved
-/// @param timestamp : Option parameter. User's Simulated state is retrieved if the timestamp is provided   
 pub fn query_staker_info(
     deps: Deps,
-    env: Env,
     staker: String,
     timestamp: Option<u64>,
 ) -> StdResult<StakerInfoResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let mut state = STATE.load(deps.storage)?;
-    let mut staker_info = STAKER_INFO
-        .may_load(deps.storage, &deps.api.addr_validate(&staker)?)?
-        .unwrap_or_default();
+    let staker_raw = deps.api.addr_canonicalize(&staker)?;
 
-    match timestamp {
-        Some(timestamp) => {
+    let mut staker_info: StakerInfo = read_staker_info(deps.storage, &staker_raw)?;
+    if let Some(timestamp) = timestamp {
+        let config = read_config(deps.storage)?;
+        let mut state = read_state(deps.storage)?;
 
-            // Timestamp cannot be from a past value
-            if timestamp < env.block.time.seconds() {
-                return Err(StdError::generic_err("Provided timestamp has passed"));
-            }
-            
-            compute_reward(
-                &config,
-                &mut state,
-                std::cmp::max(timestamp, env.block.time.seconds()),
-            );
-        }
-        None => {
-            compute_reward(&config, &mut state, env.block.time.seconds());
-        }
+        compute_reward(&config, &mut state, timestamp);
+        compute_staker_reward(&state, &mut staker_info)?;
     }
-
-    compute_staker_reward(&state, &mut staker_info)?;
 
     Ok(StakerInfoResponse {
         staker,
@@ -379,170 +442,53 @@ pub fn query_staker_info(
     })
 }
 
-/// @dev Returns the current timestamp
-pub fn query_timestamp(env: Env) -> StdResult<TimeResponse> {
-    Ok(TimeResponse {
-        timestamp: env.block.time.seconds(),
-    })
-}
-
-//----------------------------------------------------------------------------------------
-// Helper Functions
-//----------------------------------------------------------------------------------------
-
-/// @dev Increases total LP shares and user's staked LP shares by `amount`
-fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {
-    state.total_bond_amount += amount;
-    staker_info.bond_amount += amount;
-}
-
-/// @dev Decreases total LP shares and user's staked LP shares by `amount`
-fn decrease_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {
-    state.total_bond_amount = state
-        .total_bond_amount
-        .checked_sub(amount)
-        .expect("total_bond_amount :: overflow on subtraction");
-    staker_info.bond_amount = staker_info
-        .bond_amount
-        .checked_sub(amount)
-        .expect("bond_amount :: overflow on subtraction");
-}
-
-/// @dev Computes total accrued rewards
-fn compute_reward(config: &Config, state: &mut State, cur_timestamp: u64) {
-    // If the reward distribution period is over
-    if state.last_distributed == config.till_timestamp {
-        return;
+pub fn assert_new_schedules(
+    config: &Config,
+    state: &State,
+    distribution_schedule: Vec<(u64, u64, Uint128)>,
+) -> StdResult<()> {
+    if distribution_schedule.len() < config.distribution_schedule.len() {
+        return Err(StdError::generic_err(
+            "cannot update; the new schedule must support all of the previous schedule",
+        ));
     }
 
-    let mut last_distribution_cycle = state.current_cycle;
-    state.current_cycle = calculate_cycles_elapsed(
-        cur_timestamp,
-        config.init_timestamp,
-        config.cycle_duration,
-        config.till_timestamp,
-    );
-    let mut rewards_to_distribute = Uint128::zero();
-    let mut last_distribution_next_timestamp: u64; // 0 as u64;
-
-    while state.current_cycle >= last_distribution_cycle {
-        last_distribution_next_timestamp = std::cmp::min(
-            config.till_timestamp,
-            calculate_init_timestamp_for_cycle(
-                config.init_timestamp,
-                last_distribution_cycle + 1,
-                config.cycle_duration,
-            ),
-        );
-        rewards_to_distribute += rewards_distributed_for_cycle(
-            Decimal::from_ratio(state.current_cycle_rewards, config.cycle_duration),
-            std::cmp::max(state.last_distributed, config.init_timestamp),
-            std::cmp::min(cur_timestamp, last_distribution_next_timestamp),
-        );
-        state.current_cycle_rewards = calculate_cycle_rewards(
-            state.current_cycle_rewards,
-            config.reward_increase,
-            state.current_cycle == last_distribution_cycle,
-        );
-        state.last_distributed = std::cmp::min(cur_timestamp, last_distribution_next_timestamp);
-        last_distribution_cycle += 1;
+    let mut existing_counts: BTreeMap<(u64, u64, Uint128), u32> = BTreeMap::new();
+    for schedule in config.distribution_schedule.clone() {
+        let counter = existing_counts.entry(schedule).or_insert(0);
+        *counter += 1;
     }
 
-    if state.last_distributed == config.till_timestamp {
-        state.current_cycle_rewards = Uint128::zero();
+    let mut new_counts: BTreeMap<(u64, u64, Uint128), u32> = BTreeMap::new();
+    for schedule in distribution_schedule.clone() {
+        let counter = new_counts.entry(schedule).or_insert(0);
+        *counter += 1;
     }
 
-    if state.total_bond_amount == Uint128::zero() || config.init_timestamp > cur_timestamp {
-        return;
+    for (schedule, count) in existing_counts.into_iter() {
+        // if began ensure its in the new schedule
+        if schedule.0 <= state.last_distributed {
+            if count > *new_counts.get(&schedule).unwrap_or(&0u32) {
+                return Err(StdError::generic_err(
+                    "new schedule removes already started distribution",
+                ));
+            }
+            // after this new_counts will only contain the newly added schedules
+            *new_counts.get_mut(&schedule).unwrap() -= count;
+        }
     }
 
-    state.global_reward_index = state.global_reward_index
-        + Decimal::from_ratio(rewards_to_distribute, state.total_bond_amount)
-}
-
-fn calculate_cycles_elapsed(
-    current_timestamp: u64,
-    config_init_timestamp: u64,
-    cycle_duration: u64,
-    config_till_timestamp: u64,
-) -> u64 {
-    if config_init_timestamp >= current_timestamp {
-        return 0u64;
+    for (schedule, count) in new_counts.into_iter() {
+        if count > 0 && schedule.0 <= state.last_distributed {
+            return Err(StdError::generic_err(
+                "new schedule adds an already started distribution",
+            ));
+        }
     }
-    let max_cycles = (config_till_timestamp - config_init_timestamp) / cycle_duration;
-
-    let time_elapsed = current_timestamp - config_init_timestamp;
-    std::cmp::min(max_cycles, time_elapsed / cycle_duration)
-}
-
-fn calculate_init_timestamp_for_cycle(
-    config_init_timestamp: u64,
-    current_cycle: u64,
-    cycle_duration: u64,
-) -> u64 {
-    config_init_timestamp + (current_cycle * cycle_duration)
-}
-
-fn rewards_distributed_for_cycle(
-    rewards_per_sec: Decimal,
-    from_timestamp: u64,
-    till_timestamp: u64,
-) -> Uint128 {
-    if till_timestamp <= from_timestamp {
-        return Uint128::zero();
-    }
-    rewards_per_sec * Uint128::from(till_timestamp - from_timestamp)
-}
-
-fn calculate_cycle_rewards(
-    current_cycle_rewards: Uint128,
-    reward_increase_percent: Decimal,
-    is_same_cycle: bool,
-) -> Uint128 {
-    if is_same_cycle {
-        return current_cycle_rewards;
-    }
-    current_cycle_rewards + (current_cycle_rewards * reward_increase_percent)
-}
-
-/// @dev Computes user's accrued rewards
-fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResult<()> {
-    let pending_reward = (staker_info.bond_amount * state.global_reward_index)
-        - (staker_info.bond_amount * staker_info.reward_index);
-    staker_info.reward_index = state.global_reward_index;
-    staker_info.pending_reward += pending_reward;
     Ok(())
 }
 
-/// @dev Helper function to build `CosmosMsg` to send cw20 tokens to a recipient address
-fn build_send_cw20_token_msg(
-    recipient: Addr,
-    token_contract_address: Addr,
-    amount: Uint128,
-) -> StdResult<CosmosMsg> {
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_contract_address.into(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: recipient.into(),
-            amount,
-        })?,
-        funds: vec![],
-    }))
-}
-
-/// Used when unwrapping an optional address sent in a contract call by a user.
-/// Validates addreess if present, otherwise uses a given default value.
-fn option_string_to_addr(
-    api: &dyn Api,
-    option_string: Option<String>,
-    default: Addr,
-) -> StdResult<Addr> {
-    match option_string {
-        Some(input_addr) => api.addr_validate(&input_addr),
-        None => Ok(default),
-    }
-}
-
-fn zero_address() -> Addr {
-    Addr::unchecked("")
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
