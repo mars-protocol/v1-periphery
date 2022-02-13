@@ -871,16 +871,16 @@ pub fn update_state_on_claim(
             .add_attribute("user_xmars_claimed", pending_xmars_rewards.to_string());
     }
 
+    let mars_to_transfer =
+    user_info.total_mars_incentives - user_info.delegated_mars_incentives;
+
     // COSMOS MSG :: SEND MARS (LOCKDROP REWARD) IF > 0
-    if !user_info.lockdrop_claimed {
-        let mars_to_transfer =
-            user_info.total_mars_incentives - user_info.delegated_mars_incentives;
+    if !user_info.lockdrop_claimed && mars_to_transfer > Uint128::zero()   {
         let transfer_mars_msg = build_transfer_cw20_token_msg(
             user.clone(),
             mars_address.to_string(),
             mars_to_transfer,
         )?;
-
         user_info.lockdrop_claimed = true;
         response = response
             .add_message(transfer_mars_msg)
