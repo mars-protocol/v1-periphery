@@ -25,14 +25,13 @@ async function main() {
   );
 
   // network : stores contract addresses
-  let terra_config_chainID = "bombay-12_14_feb";
-  let network = readArtifact(terra_config_chainID);
+  let network = readArtifact(terra.config.chainID);
   console.log("network:", network);
 
-  // if (terra.config.chainID != "bombay-12") {
-  //   console.log("Network is not testnet. Wrong script... terminating ... ");
-  //   return;
-  // }
+  if (terra.config.chainID != "bombay-12") {
+    console.log("Network is not testnet. Wrong script... terminating ... ");
+    return;
+  }
 
   // MARS Token addresss should be set
   if (!network.mars_token_address) {
@@ -48,13 +47,13 @@ async function main() {
 
   const LOCKDROP_INIT_TIMESTAMP =
     parseInt((Date.now() / 1000).toFixed(0)) + 150;
-  const LOCKDROP_DEPOSIT_WINDOW = Number(5 * _1_day);
-  const LOCKDROP_WITHDRAWAL_WINDOW = Number(2 * _1_day);
-  const SECONDS_PER_MONTH = Number(30 * _1_day);
+  const LOCKDROP_DEPOSIT_WINDOW = Number(5 * 1800);
+  const LOCKDROP_WITHDRAWAL_WINDOW = Number(2 * 1800);
+  const SECONDS_PER_MONTH = Number(7 * 1800);
 
-  const AUCTION_MARS_DEPOSIT_WINDOW = Number(3 * _1_day);
-  const AUCTION_UST_DEPOSIT_WINDOW = Number(5 * _1_day);
-  const AUCTION_WITHDRAWAL_WINDOW = Number(2 * _1_day);
+  const AUCTION_MARS_DEPOSIT_WINDOW = Number(3 * 1800);
+  const AUCTION_UST_DEPOSIT_WINDOW = Number(5 * 1800);
+  const AUCTION_WITHDRAWAL_WINDOW = Number(2 * 1800);
 
   // LOCKDROP :: CONFIG
   CONFIGURATION.lockdrop_InitMsg.config.init_timestamp =
@@ -105,7 +104,7 @@ async function main() {
       CONFIGURATION.lockdrop_InitMsg.config,
       "MARS Protocol -::- Phase 1 -::- Lockdrop"
     );
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
     console.log(
       `${terra.config.chainID} :: Lockdrop Contract Address : ${network.lockdrop_address} \n`
     );
@@ -134,7 +133,7 @@ async function main() {
     console.log(
       `${terra.config.chainID} :: Airdrop Contract Address : ${network.airdrop_address} \n`
     );
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
   }
 
   /*************************************** DEPLOYMENT :: AUCTION CONTRACT  *****************************************/
@@ -167,7 +166,7 @@ async function main() {
     console.log(
       `${terra.config.chainID} :: Auction Contract Address : ${network.auction_address} \n`
     );
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
   }
 
   //  UpdateConfig :: SET Auction Contract in Lockdrop
@@ -195,7 +194,7 @@ async function main() {
       `Lockdrop :: Auction Contract address set successfully set ${tx.txhash}\n`
     );
     network.auction_set_in_lockdrop = true;
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
   }
 
   // UpdateConfig :: Set Auction address in airdrop
@@ -221,7 +220,7 @@ async function main() {
       `${terra.config.chainID} :: Setting auction contract address in MARS Airdrop contract,  ${out.txhash}`
     );
     network.auction_set_in_airdrop = true;
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
   }
 
   // MARS::Send::Lockdrop::IncreaseMarsIncentives:: Transfer MARS to Lockdrop and set total incentives
@@ -247,7 +246,7 @@ async function main() {
       `${terra.config.chainID} :: Transferring MARS Token and setting incentives in Lockdrop... ${increase_mars_incentives.txhash}`
     );
     network.lockdrop_mars_token_transferred = true;
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
   }
 
   // MARS::Send::Airdrop::IncreaseMarsIncentives:: Transfer MARS to Airdrop
@@ -273,7 +272,7 @@ async function main() {
       `${terra.config.chainID} :: Transferring MARS Token and setting incentives in Airdrop... ${tx.txhash}`
     );
     network.airdrop_mars_token_transferred = true;
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
   }
 
   // MARS::Send::Airdrop::IncreaseMarsIncentives::Transfer MARS to Auction
@@ -300,7 +299,7 @@ async function main() {
       `${terra.config.chainID} :: Transferring MARS Token and setting incentives in Auction... ${out.txhash}`
     );
     network.auction_mars_token_transferred = true;
-    writeArtifact(network, terra_config_chainID);
+    writeArtifact(network, terra.config.chainID);
   }
 }
 
