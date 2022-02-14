@@ -146,3 +146,7 @@ pub struct UserInfoResponse {
     pub withdrawable_astro_incentives: Uint128,
     pub withdrawn_astro_incentives: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
+

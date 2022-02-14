@@ -41,7 +41,7 @@ mars-core-deps = { path = "../../packages/mars-core-deps" }
 
 cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
 cw-storage-plus = "0.9"
-
+cw2 = "0.9"
 cw20 = { version = "0.9" }
 cw20-base = { version = "0.9", features = ["library"] }
 

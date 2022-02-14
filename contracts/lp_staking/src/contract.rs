@@ -3,6 +3,7 @@ use cosmwasm_std::{
     MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw2::set_contract_version;
 
 use mars_periphery::lp_staking::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
@@ -10,6 +11,11 @@ use mars_periphery::lp_staking::{
 };
 
 use crate::state::{Config, StakerInfo, State, CONFIG, STAKER_INFO, STATE};
+
+// version info for migration info
+const CONTRACT_NAME: &str = "mars_lp_staking";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -22,6 +28,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     if msg.init_timestamp < env.block.time.seconds() || msg.till_timestamp < msg.init_timestamp {
         return Err(StdError::generic_err("Invalid timestamps"));
     }
