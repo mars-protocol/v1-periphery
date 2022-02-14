@@ -10,7 +10,7 @@ use cosmwasm_std::{
 
 use mars_periphery::airdrop::ExecuteMsg::EnableClaims as AirdropEnableClaims;
 use mars_periphery::auction::{
-    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, MigrateMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse,
     UpdateConfigMsg, UserInfoResponse,
 };
 
@@ -19,6 +19,7 @@ use mars_periphery::helpers::{
     cw20_get_balance, option_string_to_addr,
 };
 use mars_periphery::lockdrop::ExecuteMsg::EnableClaims as LockdropEnableClaims;
+use cw2::set_contract_version;
 
 use astroport::asset::{Asset, AssetInfo};
 use astroport::generator::{PendingTokenResponse, QueryMsg as GenQueryMsg};
@@ -27,6 +28,11 @@ use crate::state::{Config, State, UserInfo, CONFIG, STATE, USERS};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 const UUSD_DENOM: &str = "uusd";
+
+// version info for migration info
+const CONTRACT_NAME: &str = "mars_auction";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 
 //----------------------------------------------------------------------------------------
 // Entry points
@@ -39,6 +45,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // CHECK :: init_timestamp needs to be valid
     if msg.init_timestamp < env.block.time.seconds() {
@@ -201,6 +208,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::UserInfo { address } => to_binary(&query_user_info(deps, env, address)?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 //----------------------------------------------------------------------------------------

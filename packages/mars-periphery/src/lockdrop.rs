@@ -197,3 +197,6 @@ pub struct LockupDurationParams {
     pub duration: u64,
     pub boost: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

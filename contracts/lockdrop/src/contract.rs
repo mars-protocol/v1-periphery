@@ -15,6 +15,7 @@ use mars_core_deps::address_provider::MarsContract;
 use mars_core_deps::incentives::msg::ExecuteMsg as IncentivesExecuteMsg;
 use mars_core_deps::incentives::msg::QueryMsg as IncentivesQueryMsg;
 use mars_core_deps::red_bank::msg::ExecuteMsg as RedBankExecuteMsg;
+use cw2::set_contract_version;
 
 use mars_periphery::auction::Cw20HookMsg as AuctionCw20HookMsg;
 use mars_periphery::helpers::{
@@ -22,7 +23,7 @@ use mars_periphery::helpers::{
     cw20_get_balance,
 };
 use mars_periphery::lockdrop::{
-    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockupInfoQueryData,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, MigrateMsg, ExecuteMsg, InstantiateMsg, LockupInfoQueryData,
     LockupInfoResponse, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 use mars_periphery::tax::deduct_tax;
@@ -30,6 +31,13 @@ use mars_periphery::tax::deduct_tax;
 use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
 
 const UUSD_DENOM: &str = "uusd";
+
+// version info for migration info
+const CONTRACT_NAME: &str = "mars_lockdrop";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+
+
 //----------------------------------------------------------------------------------------
 // Entry Points
 //----------------------------------------------------------------------------------------
@@ -41,6 +49,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     // CHECK :: init_timestamp needs to be valid
     if msg.init_timestamp < env.block.time.seconds() {
         return Err(StdError::generic_err(format!(
@@ -148,6 +158,12 @@ fn _handle_callback(
         }
     }
 }
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
+} 
+
 
 pub fn receive_cw20(
     deps: DepsMut,

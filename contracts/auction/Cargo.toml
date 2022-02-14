@@ -37,6 +37,7 @@ library = []
 astroport = {git = "https://github.com/astroport-fi/astroport-core.git", package="astroport", tag = "v1.0.0"}
 mars-periphery = { path = "../../packages/mars-periphery" }
 
+cw2 = { version = "0.9" } 
 cw20 = { version = "0.9" }
 cosmwasm-std = { version = "0.16.0" }
 cw-storage-plus = { version = "0.9.0" }
