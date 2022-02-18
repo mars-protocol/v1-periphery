@@ -72,3 +72,7 @@ node --experimental-json-modules --loader ts-node/esm test_airdrop.spec.ts
 node --loader ts-node/esm test_lp_staking.spec.ts
 node --loader ts-node/esm test_lockdrop.spec.ts
 ```
+
+## License
+
+Contents of this repository are open source under [GNU General Public License v3](https://www.gnu.org/licenses/gpl-3.0.en.html) or later.
