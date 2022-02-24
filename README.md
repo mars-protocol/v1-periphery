@@ -10,6 +10,9 @@ This repo contains the contracts which facilitates MARS tokens airdrop, lockdrop
 
 - **LP Staking Contract** : Facilitates MARS-UST LP Token staking and reward distribution.
 
+## Bug bounty
+A bug bounty is currently open for these contracts. See details at: https://immunefi.com/bounty/marsprotocol/
+
 ## Development
 
 ### Dependencies
