@@ -10,16 +10,16 @@ use cosmwasm_std::{
 
 use mars_periphery::airdrop::ExecuteMsg::EnableClaims as AirdropEnableClaims;
 use mars_periphery::auction::{
-    CallbackMsg, ConfigResponse, Cw20HookMsg, MigrateMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse,
-    UpdateConfigMsg, UserInfoResponse,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 
+use cw2::set_contract_version;
 use mars_periphery::helpers::{
     build_approve_cw20_msg, build_send_cw20_token_msg, build_transfer_cw20_token_msg,
     cw20_get_balance, option_string_to_addr,
 };
 use mars_periphery::lockdrop::ExecuteMsg::EnableClaims as LockdropEnableClaims;
-use cw2::set_contract_version;
 
 use astroport::asset::{Asset, AssetInfo};
 use astroport::generator::{PendingTokenResponse, QueryMsg as GenQueryMsg};
@@ -32,7 +32,6 @@ const UUSD_DENOM: &str = "uusd";
 // version info for migration info
 const CONTRACT_NAME: &str = "mars_auction";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 
 //----------------------------------------------------------------------------------------
 // Entry points
@@ -55,21 +54,16 @@ pub fn instantiate(
         )));
     }
 
-
     if msg.mars_deposit_window > msg.ust_deposit_window {
         return Err(StdError::generic_err(
             "UST deposit window cannot be less than MARS deposit window",
         ));
     }
 
-
     // CHECK :: mars_vesting_duration needs to be valid
     if msg.mars_vesting_duration == 0u64 {
-        return Err(StdError::generic_err(
-            "mars_vesting_duration cannot be 0",
-        ));
+        return Err(StdError::generic_err("mars_vesting_duration cannot be 0"));
     }
-
 
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
@@ -1159,18 +1153,19 @@ pub fn calculate_withdrawable_lp_shares(
     state: &State,
     user_info: &UserInfo,
 ) -> Uint128 {
-    if state.pool_init_timestamp == 0u64 {
-        return Uint128::zero();
-    }
-    let time_elapsed = cur_timestamp - state.pool_init_timestamp;
+    user_info.lp_shares - user_info.withdrawn_lp_shares
+    // if state.pool_init_timestamp == 0u64 {
+    //     return Uint128::zero();
+    // }
+    // let time_elapsed = cur_timestamp - state.pool_init_timestamp;
 
-    if time_elapsed >= config.lp_tokens_vesting_duration {
-        return user_info.lp_shares - user_info.withdrawn_lp_shares;
-    }
+    // if time_elapsed >= config.lp_tokens_vesting_duration {
+    //     return user_info.lp_shares - user_info.withdrawn_lp_shares;
+    // }
 
-    let withdrawable_lp_balance =
-        user_info.lp_shares * Decimal::from_ratio(time_elapsed, config.lp_tokens_vesting_duration);
-    withdrawable_lp_balance - user_info.withdrawn_lp_shares
+    // let withdrawable_lp_balance =
+    //     user_info.lp_shares * Decimal::from_ratio(time_elapsed, config.lp_tokens_vesting_duration);
+    // withdrawable_lp_balance - user_info.withdrawn_lp_shares
 }
 
 /// @dev Returns MARS auction incentives that a user can withdraw based on the vesting schedule
