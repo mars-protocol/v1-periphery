@@ -10,12 +10,12 @@ use cw20::Cw20ReceiveMsg;
 
 // TODO: Change to mars_core when repo and dependencies become public and replace package
 // with the mars_core one
+use cw2::set_contract_version;
 use mars_core_deps::address_provider::msg::QueryMsg as AddressProviderQueryMsg;
 use mars_core_deps::address_provider::MarsContract;
 use mars_core_deps::incentives::msg::ExecuteMsg as IncentivesExecuteMsg;
 use mars_core_deps::incentives::msg::QueryMsg as IncentivesQueryMsg;
 use mars_core_deps::red_bank::msg::ExecuteMsg as RedBankExecuteMsg;
-use cw2::set_contract_version;
 
 use mars_periphery::auction::Cw20HookMsg as AuctionCw20HookMsg;
 use mars_periphery::helpers::{
@@ -23,8 +23,8 @@ use mars_periphery::helpers::{
     cw20_get_balance,
 };
 use mars_periphery::lockdrop::{
-    CallbackMsg, ConfigResponse, Cw20HookMsg, MigrateMsg, ExecuteMsg, InstantiateMsg, LockupInfoQueryData,
-    LockupInfoResponse, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockupInfoQueryData,
+    LockupInfoResponse, MigrateMsg, QueryMsg, StateResponse, UpdateConfigMsg, UserInfoResponse,
 };
 use mars_periphery::tax::deduct_tax;
 
@@ -35,8 +35,6 @@ const UUSD_DENOM: &str = "uusd";
 // version info for migration info
 const CONTRACT_NAME: &str = "mars_lockdrop";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -73,8 +71,6 @@ pub fn instantiate(
             "seconds_per_duration_unit cannot be 0",
         ));
     }
-
-
 
     let mut config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
@@ -162,8 +158,7 @@ fn _handle_callback(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
-} 
-
+}
 
 pub fn receive_cw20(
     deps: DepsMut,
@@ -697,13 +692,13 @@ pub fn handle_claim_rewards_and_unlock_position(
             return Err(StdError::generic_err("Invalid lockup"));
         }
 
-        if lockup_info.unlock_timestamp > env.block.time.seconds() {
-            let time_remaining = lockup_info.unlock_timestamp - env.block.time.seconds();
-            return Err(StdError::generic_err(format!(
-                "{} seconds to Unlock",
-                time_remaining
-            )));
-        }
+        // if lockup_info.unlock_timestamp > env.block.time.seconds() {
+        //     let time_remaining = lockup_info.unlock_timestamp - env.block.time.seconds();
+        //     return Err(StdError::generic_err(format!(
+        //         "{} seconds to Unlock",
+        //         time_remaining
+        //     )));
+        // }
 
         response = response
             .add_attribute("action", "unlock_position")
@@ -887,11 +882,10 @@ pub fn update_state_on_claim(
             .add_attribute("user_xmars_claimed", pending_xmars_rewards.to_string());
     }
 
-    let mars_to_transfer =
-    user_info.total_mars_incentives - user_info.delegated_mars_incentives;
+    let mars_to_transfer = user_info.total_mars_incentives - user_info.delegated_mars_incentives;
 
     // COSMOS MSG :: SEND MARS (LOCKDROP REWARD) IF > 0
-    if !user_info.lockdrop_claimed && mars_to_transfer > Uint128::zero()   {
+    if !user_info.lockdrop_claimed && mars_to_transfer > Uint128::zero() {
         let transfer_mars_msg = build_transfer_cw20_token_msg(
             user.clone(),
             mars_address.to_string(),
@@ -1300,8 +1294,7 @@ fn update_xmars_rewards_index(state: &mut State, xmas_accrued: Uint128) {
     if state.total_maust_locked == Uint128::zero() {
         return;
     }
-    let xmars_rewards_index_increment =
-        Decimal::from_ratio(xmas_accrued, state.total_maust_locked);
+    let xmars_rewards_index_increment = Decimal::from_ratio(xmas_accrued, state.total_maust_locked);
     state.xmars_rewards_index = state.xmars_rewards_index + xmars_rewards_index_increment;
 }
 
