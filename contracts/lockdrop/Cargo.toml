@@ -1,6 +1,6 @@
 [package]
 name = "mars-lockdrop"
-version = "1.0.0"
+version = "1.0.2"
 authors = ["astromartian"]
 edition = "2018"
 

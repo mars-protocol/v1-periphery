@@ -73,6 +73,11 @@ pub enum CallbackMsg {
     UpdateStateOnLiquidityAdditionToPool {
         prev_lp_balance: Uint128,
     },
+    TransferLiquidityWithdrawn {
+        user_address: Addr,
+        prev_mars_balance: Uint128,
+        prev_ust_balance: Uint128,
+    },
 }
 
 // Modified from
@@ -149,4 +154,3 @@ pub struct UserInfoResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
-
