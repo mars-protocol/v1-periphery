@@ -690,6 +690,7 @@ pub fn handle_nuke_lockdrop(
         // Remove userInfo if all UST has been refunded
         if user_info.total_ust_locked == Uint128::zero() {
             USER_INFO.remove(deps.storage, &Addr::unchecked(user_addr));
+            continue;
         }
 
         let mut total_ust_unlocked = Uint128::zero();
@@ -717,7 +718,6 @@ pub fn handle_nuke_lockdrop(
 
             // DISSOLVE LOCKUP POSITION
             lockup_info.ust_locked = Uint128::zero();
-            // remove_lockup_pos_from_user_info(&mut user_info, lockup_id.clone())?;
 
             // Transfer maUST to user
             cosmos_msgs.push(build_transfer_cw20_token_msg(
@@ -742,24 +742,13 @@ pub fn handle_nuke_lockdrop(
             .total_maust_share
             .checked_sub(total_maust_withdrawn)?;
 
-        for unlocked_lockup_id in lockup_positions_unlocked.iter() {
-            let index_search = user_info
-                .lockup_positions
-                .iter()
-                .position(|x| *x == unlocked_lockup_id.to_owned());
-
-            if let Some(index) = index_search {
-                user_info.lockup_positions.remove(index);
-            } else {
-                return Err(StdError::generic_err(format!(
-                    "Lockup position not found for id {}",
-                    unlocked_lockup_id
-                )));
-            }
-        }
+        let unlocked_ids: HashSet<_> = lockup_positions_unlocked.into_iter().collect();
+        user_info
+            .lockup_positions
+            .retain(|id| !unlocked_ids.contains(id));
 
         // Remove userInfo if all UST has been refunded
-        if user_info.total_ust_locked == Uint128::zero() {
+        if user_info.total_ust_locked.is_zero() {
             USER_INFO.remove(deps.storage, &Addr::unchecked(user_addr));
         } else {
             USER_INFO.save(deps.storage, &Addr::unchecked(user_addr), &user_info)?;

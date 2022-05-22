@@ -64,7 +64,7 @@ pub enum ExecuteMsg {
     },
     /// Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable MARS withdrawals by users
     EnableClaims {},
-    /// Loops over provided user addresses, unlocks each of their lockup position. Rmoves the list of user positions from state
+    /// Loops over provided user addresses, unlocks each of their lockup position. Removes the list of user positions from state
     NukeLockdrop {},
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),
