@@ -1,6 +1,6 @@
 [package]
 name = "mars-auction"
-version = "1.0.2"
+version = "1.1.0"
 authors = ["astromartian"]
 edition = "2018"
 description = "Contract to facilitate MARS-UST LP Pool bootstrapping via auction"
