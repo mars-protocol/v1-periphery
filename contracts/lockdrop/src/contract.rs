@@ -29,6 +29,7 @@ use mars_periphery::lockdrop::{
 use mars_periphery::tax::deduct_tax;
 
 use crate::state::{Config, State, UserInfo, CONFIG, LOCKUP_INFO, STATE, USER_INFO};
+use std::collections::HashSet;
 
 const UUSD_DENOM: &str = "uusd";
 

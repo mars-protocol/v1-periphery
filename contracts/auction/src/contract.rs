@@ -16,8 +16,8 @@ use mars_periphery::auction::{
 
 use cw2::set_contract_version;
 use mars_periphery::helpers::{
-    build_approve_cw20_msg, build_send_cw20_token_msg, build_transfer_cw20_token_msg,
-    cw20_get_balance, option_string_to_addr,
+    build_approve_cw20_msg, build_send_cw20_token_msg, build_send_native_asset_msg,
+    build_transfer_cw20_token_msg, cw20_get_balance, option_string_to_addr, query_balance,
 };
 use mars_periphery::lockdrop::ExecuteMsg::EnableClaims as LockdropEnableClaims;
 
@@ -121,8 +121,15 @@ pub fn execute(
         ),
 
         ExecuteMsg::ClaimRewards {
+            unlock_for_addr,
             withdraw_unlocked_shares,
-        } => handle_claim_rewards_and_unlock(deps, env, info, withdraw_unlocked_shares),
+        } => handle_claim_rewards_and_unlock(
+            deps,
+            env,
+            info,
+            unlock_for_addr,
+            withdraw_unlocked_shares,
+        ),
 
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
@@ -688,7 +695,7 @@ pub fn handle_claim_rewards_and_unlock(
     let state = STATE.load(deps.storage)?;
 
     let user_address = if let Some(unlock_for_addr) = unlock_for_addr {
-        deps.api.addr_validate(&address)?
+        unlock_for_addr
     } else {
         info.sender.clone()
     };
@@ -961,15 +968,18 @@ pub fn update_state_on_reward_claim(
         // COSMOS MSG :: WITHDRAW Liquidity from LP Pool
         if withdraw_lp_shares > Uint128::zero() {
             let withdraw_liquidity_msg = build_send_cw20_token_msg(
-                config.astroport_lp_pool.unwrap(),
-                config.lp_token_address.unwrap(),
+                config.astroport_lp_pool.unwrap().to_string(),
+                config.lp_token_address.unwrap().to_string(),
                 withdraw_lp_shares,
                 to_binary(&astroport::pair::Cw20HookMsg::WithdrawLiquidity {})?,
             )?;
             response = response.add_message(withdraw_liquidity_msg);
 
-            let ust_balance =
-                query_balance(&deps.querier, env.contract.address.clone(), "uusd".clone())?;
+            let ust_balance = query_balance(
+                &deps.querier,
+                env.contract.address.clone(),
+                "uusd".to_string(),
+            )?;
 
             let transfer_tokens_cb_msg = CallbackMsg::TransferLiquidityWithdrawn {
                 user_address: user_address.clone(),
@@ -996,7 +1006,7 @@ pub fn update_state_on_reward_claim(
 pub fn transfer_liquidity_withdrawn(
     deps: DepsMut,
     env: Env,
-    user_address: Option<Addr>,
+    user_address: Addr,
     prev_mars_balance: Uint128,
     prev_ust_balance: Uint128,
 ) -> StdResult<Response> {
@@ -1010,8 +1020,11 @@ pub fn transfer_liquidity_withdrawn(
 
     let mars_to_transfer = cur_mars_balance.checked_sub(prev_mars_balance)?;
 
-    let cur_uusd_balance =
-        query_balance(&deps.querier, env.contract.address.clone(), "uusd".clone())?;
+    let cur_uusd_balance = query_balance(
+        &deps.querier,
+        env.contract.address.clone(),
+        "uusd".to_string(),
+    )?;
 
     let uusd_to_transfer = cur_uusd_balance.checked_sub(prev_ust_balance)?;
 
@@ -1033,10 +1046,10 @@ pub fn transfer_liquidity_withdrawn(
     // COSMOS MSG :: Transfer UST to the user
     if uusd_to_transfer > Uint128::zero() {
         let transfer_uusd = build_send_native_asset_msg(
-            deps,
+            deps.as_ref(),
             user_address.clone(),
-            "uusd".to_string(),
-            uusd_to_transfer,
+            &"uusd".to_string(),
+            uusd_to_transfer.into(),
         )?;
         response = response.add_message(transfer_uusd);
     }

@@ -49,6 +49,7 @@ pub enum ExecuteMsg {
     },
 
     ClaimRewards {
+        unlock_for_addr: Option<Addr>,
         withdraw_unlocked_shares: bool,
     },
     Callback(CallbackMsg),
