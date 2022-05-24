@@ -1,6 +1,6 @@
 [package]
 name = "mars-auction"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["astromartian"]
 edition = "2018"
 description = "Contract to facilitate MARS-UST LP Pool bootstrapping via auction"
@@ -44,7 +44,6 @@ cw-storage-plus = { version = "0.9.0" }
 serde = { version = "1.0.127", default-features = false, features = ["derive"] }
 cw20-base = { version = "0.9", features = ["library"] }
 schemars = "0.8.3"
-cosmwasm-bignumber = "2.2.0"
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }

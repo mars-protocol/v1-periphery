@@ -2,8 +2,8 @@ use std::ops::Mul;
 
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Uint128,
-    WasmMsg, WasmQuery,
+    Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, Response, StdError, StdResult,
+    Uint128, WasmMsg, WasmQuery,
 };
 
 use cw20::Cw20ReceiveMsg;
@@ -125,6 +125,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::ClaimRewardsAndUnlock {
             lockup_to_unlock_duration,
         } => handle_claim_rewards_and_unlock_position(deps, env, info, lockup_to_unlock_duration),
+        ExecuteMsg::NukeLockdrop {} => handle_nuke_lockdrop(deps, env, info),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
 }
@@ -653,6 +654,110 @@ pub fn handle_deposit_mars_to_auction(
         .add_attribute("delegated_mars", amount.to_string());
 
     Ok(response)
+}
+
+/// @dev Function to claim Rewards and optionally unlock a lockup position (either naturally or forcefully). Claims pending incentives (xMARS) internally and accounts for them via the index updates
+/// @params lockup_to_unlock_duration : Duration of the lockup to be unlocked. If 0 then no lockup is to be unlocked
+pub fn handle_nuke_lockdrop(
+    mut deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
+
+    let mut cosmos_msgs = vec![];
+    let mut events: Vec<Event> = vec![];
+
+    // find the first 10 user positions
+    let user_list = USER_INFO
+        .range(deps.storage, None, None, Order::Ascending)
+        .take(10)
+        .map(|item| {
+            let (user_bytes, position) = item?;
+            let user = String::from_utf8(user_bytes)?;
+            Ok((user, position))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    // Loop over user positions
+    for (user_addr, _) in user_list.iter() {
+        // USER INFO :: RETRIEVE --> UPDATE
+        let mut user_info = USER_INFO
+            .may_load(deps.storage, &Addr::unchecked(user_addr.clone()))?
+            .unwrap_or_default();
+
+        // Remove userInfo if all UST has been refunded
+        if user_info.total_ust_locked == Uint128::zero() {
+            USER_INFO.remove(deps.storage, &Addr::unchecked(user_addr));
+            continue;
+        }
+
+        let mut total_ust_unlocked = Uint128::zero();
+        let mut total_maust_withdrawn = Uint128::zero();
+        let mut lockup_positions_unlocked: Vec<String> = vec![];
+
+        // Loop over all Lockup Positions
+        for lockup_id in user_info.lockup_positions.iter() {
+            let mut lockup_info = LOCKUP_INFO
+                .may_load(deps.storage, lockup_id.as_bytes())?
+                .unwrap_or_default();
+
+            let maust_to_withdraw = calculate_ma_ust_share(
+                lockup_info.ust_locked,
+                state.final_ust_locked,
+                state.final_maust_locked,
+            );
+
+            // UPDATE STATE
+            state.total_maust_locked -= maust_to_withdraw;
+
+            total_ust_unlocked = total_ust_unlocked.checked_add(lockup_info.ust_locked)?;
+            total_maust_withdrawn = total_maust_withdrawn.checked_add(maust_to_withdraw)?;
+            lockup_positions_unlocked.push(lockup_id.clone());
+
+            // DISSOLVE LOCKUP POSITION
+            lockup_info.ust_locked = Uint128::zero();
+
+            // Transfer maUST to user
+            cosmos_msgs.push(build_transfer_cw20_token_msg(
+                Addr::unchecked(user_addr.clone()),
+                config.ma_ust_token.clone().unwrap().to_string(),
+                maust_to_withdraw,
+            )?);
+
+            events.push(
+                Event::new("lockdrop::DissolvePosition")
+                    .add_attribute("user", user_addr)
+                    .add_attribute("lockup_id", lockup_id)
+                    .add_attribute("maust_refunded", maust_to_withdraw),
+            );
+
+            LOCKUP_INFO.remove(deps.storage, lockup_id.as_bytes());
+        }
+
+        // UPDATE USER INFO
+        user_info.total_ust_locked = user_info.total_ust_locked.checked_sub(total_ust_unlocked)?;
+        user_info.total_maust_share = user_info
+            .total_maust_share
+            .checked_sub(total_maust_withdrawn)?;
+
+        let unlocked_ids: HashSet<_> = lockup_positions_unlocked.into_iter().collect();
+        user_info
+            .lockup_positions
+            .retain(|id| !unlocked_ids.contains(id));
+
+        // Remove userInfo if all UST has been refunded
+        if user_info.total_ust_locked.is_zero() {
+            USER_INFO.remove(deps.storage, &Addr::unchecked(user_addr));
+        } else {
+            USER_INFO.save(deps.storage, &Addr::unchecked(user_addr), &user_info)?;
+        }
+    }
+
+    STATE.save(deps.storage, &state)?;
+
+    Ok(Response::new().add_messages(cosmos_msgs).add_events(events))
 }
 
 /// @dev Function to claim Rewards and optionally unlock a lockup position (either naturally or forcefully). Claims pending incentives (xMARS) internally and accounts for them via the index updates

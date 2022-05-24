@@ -64,6 +64,8 @@ pub enum ExecuteMsg {
     },
     /// Called by the bootstrap auction contract when liquidity is added to the MARS-UST Pool to enable MARS withdrawals by users
     EnableClaims {},
+    /// Loops over provided user addresses, unlocks each of their lockup position. Removes the list of user positions from state
+    NukeLockdrop {},
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),
 }
@@ -189,7 +191,7 @@ pub struct LockupInfoQueryData {
     /// Timestamp beyond which this position can be unlocked
     pub unlock_timestamp: u64,
     /// Boolean value indicating if the user's has withdrawn funds post the only 1 withdrawal limit cutoff
-    pub withdrawal_flag: bool
+    pub withdrawal_flag: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
