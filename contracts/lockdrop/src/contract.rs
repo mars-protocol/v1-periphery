@@ -124,8 +124,15 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::EnableClaims {} => handle_enable_claims(deps, env, info),
         ExecuteMsg::DepositUstInRedBank {} => try_deposit_in_red_bank(deps, env, info),
         ExecuteMsg::ClaimRewardsAndUnlock {
+            unlock_for_addr,
             lockup_to_unlock_duration,
-        } => handle_claim_rewards_and_unlock_position(deps, env, info, lockup_to_unlock_duration),
+        } => handle_claim_rewards_and_unlock_position(
+            deps,
+            env,
+            info,
+            unlock_for_addr,
+            lockup_to_unlock_duration,
+        ),
         ExecuteMsg::NukeLockdrop {} => handle_nuke_lockdrop(deps, env, info),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
@@ -721,11 +728,13 @@ pub fn handle_nuke_lockdrop(
             lockup_info.ust_locked = Uint128::zero();
 
             // Transfer maUST to user
-            cosmos_msgs.push(build_transfer_cw20_token_msg(
-                Addr::unchecked(user_addr.clone()),
-                config.ma_ust_token.clone().unwrap().to_string(),
-                maust_to_withdraw,
-            )?);
+            if !maust_to_withdraw.is_zero() {
+                cosmos_msgs.push(build_transfer_cw20_token_msg(
+                    Addr::unchecked(user_addr.clone()),
+                    config.ma_ust_token.clone().unwrap().to_string(),
+                    maust_to_withdraw,
+                )?);
+            }
 
             events.push(
                 Event::new("lockdrop::DissolvePosition")
@@ -767,6 +776,7 @@ pub fn handle_claim_rewards_and_unlock_position(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    unlock_for_addr: Option<Addr>,
     lockup_to_unlock_duration_option: Option<u64>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
@@ -777,7 +787,12 @@ pub fn handle_claim_rewards_and_unlock_position(
         return Err(StdError::generic_err("Address provider not set"));
     }
 
-    let user_address = info.sender;
+    let user_address = if let Some(unlock_for_addr) = unlock_for_addr {
+        unlock_for_addr
+    } else {
+        info.sender.clone()
+    };
+
     let mut user_info = USER_INFO
         .may_load(deps.storage, &user_address)?
         .unwrap_or_default();
